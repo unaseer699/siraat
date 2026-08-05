@@ -52,11 +52,13 @@ describe('ScoringService', () => {
   let svc: ScoringService;
   let createMock: jest.Mock;
   let saveMock: jest.Mock;
+  let findOneMock: jest.Mock;
   let trustGetVerificationMock: jest.Mock;
 
   beforeEach(async () => {
     createMock = jest.fn((data) => data);
     saveMock = jest.fn((entity) => Promise.resolve(savedScore(entity)));
+    findOneMock = jest.fn().mockResolvedValue(null); // default: no existing score
     trustGetVerificationMock = jest
       .fn()
       .mockResolvedValue(MOCK_EVIDENCE_RESULT);
@@ -66,7 +68,7 @@ describe('ScoringService', () => {
         ScoringService,
         {
           provide: getRepositoryToken(ScoreEntity),
-          useValue: { create: createMock, save: saveMock, findOneBy: jest.fn() },
+          useValue: { create: createMock, save: saveMock, findOneBy: jest.fn(), findOne: findOneMock },
         },
         {
           provide: TrustService,
@@ -135,5 +137,48 @@ describe('ScoringService', () => {
     const created = createMock.mock.calls[0][0];
     expect(created.reasoning_summary).toBeTruthy();
     expect(created.reasoning_summary).toMatch(/\d+%/);
+  });
+
+  // ─── Capability 5 — Score reuse ───────────────────────────────────────────
+
+  it('returns existing non-stale Score within staleness window without inserting a new row', async () => {
+    const recentScore = savedScore({
+      subject_id: baseSociety.id,
+      subject_type: 'SOCIETY',
+      is_stale: false,
+      computed_at: new Date(), // just computed — within any staleness window
+    });
+    findOneMock.mockResolvedValueOnce(recentScore);
+
+    const result = await svc.computeAndSave(baseSociety);
+
+    expect(result).toBe(recentScore);
+    expect(saveMock).not.toHaveBeenCalled();
+    expect(trustGetVerificationMock).not.toHaveBeenCalled();
+  });
+
+  it('computes and saves a new Score when no existing Score is found', async () => {
+    findOneMock.mockResolvedValueOnce(null);
+
+    await svc.computeAndSave(baseSociety);
+
+    expect(saveMock).toHaveBeenCalledTimes(1);
+    expect(trustGetVerificationMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('computes a new Score when existing Score is beyond the staleness window', async () => {
+    const staleDate = new Date();
+    staleDate.setDate(staleDate.getDate() - (baseSociety.staleness_threshold_days + 1));
+    const oldScore = savedScore({
+      subject_id: baseSociety.id,
+      subject_type: 'SOCIETY',
+      is_stale: false,
+      computed_at: staleDate,
+    });
+    findOneMock.mockResolvedValueOnce(oldScore);
+
+    await svc.computeAndSave(baseSociety);
+
+    expect(saveMock).toHaveBeenCalledTimes(1); // new row created
   });
 });

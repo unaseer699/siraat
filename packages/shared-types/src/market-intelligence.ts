@@ -56,10 +56,12 @@ export const RecommendationResponseSchema = z.discriminatedUnion('state', [
     state: z.literal('DEGRADED_SUCCESS'),
     recommendations: z.array(RecommendationItemSchema),
     missing_evidence: z.array(z.string()),
-    confidence_score: z.number().min(0).max(1),
-    is_stale: z.literal(true),
-    staleness_threshold_days: z.number(),
-    affiliation_disclosure: z.string().nullable(),
+    // Top-level fields are authoritative only when recommendations is empty (explaining no match).
+    // When recommendations are present, per-item fields are authoritative — omit top-level.
+    confidence_score: z.number().min(0).max(1).optional(),
+    is_stale: z.literal(true).optional(),
+    staleness_threshold_days: z.number().optional(),
+    affiliation_disclosure: z.string().nullable().optional(),
   }),
   z.object({
     state: z.literal('NOT_COVERED'),

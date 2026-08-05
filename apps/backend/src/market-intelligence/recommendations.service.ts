@@ -65,14 +65,11 @@ export class RecommendationsService {
 
     const hasStale = recommendations.some((r) => r.is_stale);
     if (hasStale) {
+      // Top-level confidence/staleness omitted — per-item fields are authoritative when recs present
       return {
         state: 'DEGRADED_SUCCESS',
         recommendations,
         missing_evidence: ['FRESH_PRICE_VERIFICATION'],
-        confidence_score: Math.min(...recommendations.map((r) => r.confidence_score)),
-        is_stale: true,
-        staleness_threshold_days: 30,
-        affiliation_disclosure: recommendations[0].affiliation_disclosure,
       };
     }
 

@@ -5,6 +5,9 @@ import type { SocietyResult } from '../property-intelligence/property-intelligen
 import { TrustService } from '../trust/trust.service';
 import { ScoreEntity } from './entities/score.entity';
 
+// Tunable business value: penalty applied to confidence_score when society data is stale
+const STALENESS_CONFIDENCE_PENALTY = 0.15;
+
 @Injectable()
 export class ScoringService {
   constructor(
@@ -14,6 +17,17 @@ export class ScoringService {
   ) {}
 
   async computeAndSave(society: SocietyResult): Promise<ScoreEntity> {
+    // Reuse an existing non-stale Score within the staleness window — avoids unbounded growth
+    const cutoff = new Date();
+    cutoff.setDate(cutoff.getDate() - society.staleness_threshold_days);
+    const existing = await this.repo.findOne({
+      where: { subject_type: 'SOCIETY', subject_id: society.id, is_stale: false },
+      order: { computed_at: 'DESC' },
+    });
+    if (existing && existing.computed_at > cutoff) {
+      return existing;
+    }
+
     // Read evidence from Trust — source of truth for confidence (replaces Society.source_document_ids)
     const trustData = await this.trustSvc.getVerification('SOCIETY', society.id);
     const evidenceIds = trustData?.evidence.map((e) => e.id) ?? [];
@@ -52,7 +66,7 @@ export class ScoringService {
     const docBonus = Math.min((evidenceCount - 1) * 0.03, 0.1);
     score += docBonus;
     // Stale data reduces trust
-    if (s.is_stale) score -= 0.15;
+    if (s.is_stale) score -= STALENESS_CONFIDENCE_PENALTY;
     // Affiliation never influences confidence (Law 6)
     return parseFloat(Math.max(0, Math.min(1, score)).toFixed(4));
   }
