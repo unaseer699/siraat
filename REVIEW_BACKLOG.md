@@ -88,6 +88,22 @@ Each item: **Priority** (Low / Medium / High) · **Found in** (capability) ·
 
 ---
 
+### 7. Redundant NOC columns on `Society` — scheduled for removal
+- **Priority:** Low
+- **Found in:** Capability 3
+- **Target:** General (any capability post-Capability 3)
+- `societies` table still carries `noc_approved`, `noc_summary`, and `source_document_ids`
+  columns from Capability 1. These were the source of truth for NOC status until Capability 3
+  introduced real `Verification` + `Evidence` records in the `trust` schema.
+  `ScoringService` now reads from `TrustService` instead; `noc_summary` is still used in
+  `buildReasoning` as a human-readable label but not for confidence calculation.
+  Cleanup: drop `source_document_ids` from `societies` once all callers confirmed migrated;
+  keep `noc_approved` and `noc_summary` until Society Profile UX is confirmed to pull
+  exclusively from Trust endpoints. Do NOT remove in this capability — would break existing
+  Capability 1/2 tests and recommendations flow.
+
+---
+
 ## Resolved Items
 
 _(none yet — items move here once closed, with the commit/capability that fixed them)_

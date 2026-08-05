@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { PropertyIntelligenceModule } from './property-intelligence/property-intelligence.module';
 import { MarketIntelligenceModule } from './market-intelligence/market-intelligence.module';
+import { TrustModule } from './trust/trust.module';
 
 @Module({
   imports: [
@@ -14,6 +15,7 @@ import { MarketIntelligenceModule } from './market-intelligence/market-intellige
     }),
     PropertyIntelligenceModule,
     MarketIntelligenceModule,
+    TrustModule,
   ],
 })
 export class AppModule {}

@@ -2,6 +2,7 @@ import { Test } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import { ScoringService } from './scoring.service';
 import { ScoreEntity } from './entities/score.entity';
+import { TrustService } from '../trust/trust.service';
 import type { SocietyResult } from '../property-intelligence/property-intelligence.service';
 
 const baseSociety: SocietyResult = {
@@ -18,7 +19,7 @@ const baseSociety: SocietyResult = {
   is_siraat_affiliated: false,
   affiliation_disclosure: null,
   noc_summary: 'NOC approved by CDA',
-  source_document_ids: ['doc_001', 'doc_002'],
+  source_document_ids: ['doc_001', 'doc_002'], // kept on SocietyResult for backward compat; ScoringService ignores this
   is_stale: false,
   staleness_threshold_days: 30,
   record_type: 'FACT',
@@ -32,6 +33,14 @@ const affiliatedSociety: SocietyResult = {
   affiliation_disclosure: 'Siraat Pakistan Pvt Ltd is an investor in this project',
 };
 
+const MOCK_EVIDENCE_RESULT = {
+  verification: { id: 'ver-mock-001', status: 'VERIFIED' as const },
+  evidence: [
+    { id: 'mock-evidence-001' },
+    { id: 'mock-evidence-002' },
+  ],
+};
+
 const savedScore = (data: Partial<ScoreEntity>) => ({
   id: 'score-uuid-001',
   computed_at: new Date(),
@@ -43,10 +52,14 @@ describe('ScoringService', () => {
   let svc: ScoringService;
   let createMock: jest.Mock;
   let saveMock: jest.Mock;
+  let trustGetVerificationMock: jest.Mock;
 
   beforeEach(async () => {
     createMock = jest.fn((data) => data);
     saveMock = jest.fn((entity) => Promise.resolve(savedScore(entity)));
+    trustGetVerificationMock = jest
+      .fn()
+      .mockResolvedValue(MOCK_EVIDENCE_RESULT);
 
     const module = await Test.createTestingModule({
       providers: [
@@ -54,6 +67,10 @@ describe('ScoringService', () => {
         {
           provide: getRepositoryToken(ScoreEntity),
           useValue: { create: createMock, save: saveMock, findOneBy: jest.fn() },
+        },
+        {
+          provide: TrustService,
+          useValue: { getVerification: trustGetVerificationMock },
         },
       ],
     }).compile();
@@ -72,12 +89,17 @@ describe('ScoringService', () => {
     expect(result.record_type).toBe('GENERATED');
   });
 
-  it('derived_from is copied from source_document_ids at computation time', async () => {
+  it('derived_from comes from TrustService evidence IDs, not society.source_document_ids', async () => {
     await svc.computeAndSave(baseSociety);
     const created = createMock.mock.calls[0][0];
-    expect(created.derived_from).toEqual(baseSociety.source_document_ids);
-    // Must be a copy, not the same array reference
-    expect(created.derived_from).not.toBe(baseSociety.source_document_ids);
+    expect(created.derived_from).toEqual(['mock-evidence-001', 'mock-evidence-002']);
+  });
+
+  it('derived_from is empty when TrustService returns null (no verification record)', async () => {
+    trustGetVerificationMock.mockResolvedValueOnce(null);
+    await svc.computeAndSave(baseSociety);
+    const created = createMock.mock.calls[0][0];
+    expect(created.derived_from).toEqual([]);
   });
 
   it('non-affiliated society → affiliation_disclosure is null', async () => {

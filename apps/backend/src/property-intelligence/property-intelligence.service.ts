@@ -2,7 +2,10 @@ import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import type { ParsedIntent } from '@siraat/shared-types';
+import type { PropertyDetail, DeveloperProfile } from '@siraat/shared-types';
 import { SocietyEntity } from './entities/society.entity';
+import { PropertyEntity } from './entities/property.entity';
+import { DeveloperEntity } from './entities/developer.entity';
 
 export interface SocietyResult {
   id: string;
@@ -24,7 +27,7 @@ export interface SocietyResult {
   record_type: 'FACT' | 'GENERATED';
 }
 
-function toResult(e: SocietyEntity): SocietyResult {
+function toSocietyResult(e: SocietyEntity): SocietyResult {
   return {
     id: e.id,
     name: e.name,
@@ -50,16 +53,20 @@ function toResult(e: SocietyEntity): SocietyResult {
 export class PropertyIntelligenceService {
   constructor(
     @InjectRepository(SocietyEntity)
-    private readonly repo: Repository<SocietyEntity>,
+    private readonly societyRepo: Repository<SocietyEntity>,
+    @InjectRepository(PropertyEntity)
+    private readonly propertyRepo: Repository<PropertyEntity>,
+    @InjectRepository(DeveloperEntity)
+    private readonly developerRepo: Repository<DeveloperEntity>,
   ) {}
 
   async findSocietyById(id: string): Promise<SocietyResult | null> {
-    const entity = await this.repo.findOneBy({ id });
-    return entity ? toResult(entity) : null;
+    const entity = await this.societyRepo.findOneBy({ id });
+    return entity ? toSocietyResult(entity) : null;
   }
 
   async findMatchingSocieties(criteria: ParsedIntent): Promise<SocietyResult[]> {
-    const qb = this.repo.createQueryBuilder('s');
+    const qb = this.societyRepo.createQueryBuilder('s');
 
     if (criteria.city) {
       qb.andWhere('LOWER(s.city) = LOWER(:city)', { city: criteria.city });
@@ -81,6 +88,45 @@ export class PropertyIntelligenceService {
     }
 
     const entities = await qb.limit(10).getMany();
-    return entities.map(toResult);
+    return entities.map(toSocietyResult);
+  }
+
+  async findPropertyById(id: string): Promise<PropertyDetail | null> {
+    const property = await this.propertyRepo.findOneBy({ id });
+    if (!property) return null;
+
+    // Cross-module call to get society summary — no direct SQL join (Law 2)
+    const society = await this.societyRepo.findOneBy({ id: property.society_id });
+
+    return {
+      id: property.id,
+      society_id: property.society_id,
+      society: society
+        ? {
+            id: society.id,
+            name: society.name,
+            city: society.city,
+            noc_approved: society.noc_approved,
+          }
+        : null,
+      owner_ref: property.owner_ref,
+      address: property.address,
+      price: Number(property.price),
+      listing_source: property.listing_source,
+      status: property.status,
+      property_type: property.property_type,
+      area_marla: Number(property.area_marla),
+    };
+  }
+
+  async findDeveloperById(id: string): Promise<DeveloperProfile | null> {
+    const dev = await this.developerRepo.findOneBy({ id });
+    if (!dev) return null;
+    return {
+      id: dev.id,
+      name: dev.name,
+      project_history: dev.project_history,
+      is_siraat_affiliated: dev.is_siraat_affiliated,
+    };
   }
 }
