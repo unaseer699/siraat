@@ -1,4 +1,8 @@
-import type { RecommendationRequest, RecommendationResponse } from '@siraat/shared-types';
+import type {
+  RecommendationRequest,
+  RecommendationResponse,
+  RecommendationDetail,
+} from '@siraat/shared-types';
 
 const BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001';
 
@@ -21,4 +25,20 @@ export async function fetchRecommendations(
   }
 
   return res.json() as Promise<RecommendationResponse>;
+}
+
+export async function fetchRecommendationDetail(id: string): Promise<RecommendationDetail> {
+  const res = await fetch(`${BASE_URL}/v1/market-intelligence/recommendations/${id}`, {
+    headers: {
+      Authorization: 'Bearer anonymous',
+      'X-Siraat-Country-Code': 'PK',
+    },
+  });
+
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`API error ${res.status}: ${text}`);
+  }
+
+  return res.json() as Promise<RecommendationDetail>;
 }

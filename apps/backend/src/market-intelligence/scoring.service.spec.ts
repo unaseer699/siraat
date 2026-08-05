@@ -1,0 +1,117 @@
+import { Test } from '@nestjs/testing';
+import { getRepositoryToken } from '@nestjs/typeorm';
+import { ScoringService } from './scoring.service';
+import { ScoreEntity } from './entities/score.entity';
+import type { SocietyResult } from '../property-intelligence/property-intelligence.service';
+
+const baseSociety: SocietyResult = {
+  id: 'a1b2c3d4-0001-0001-0001-000000000001',
+  name: 'Park View City',
+  city: 'Islamabad',
+  min_price: 18000000,
+  max_price: 30000000,
+  min_area_marla: 10,
+  max_area_marla: 20,
+  property_types: ['PLOT'],
+  noc_approved: true,
+  base_confidence: 0.90,
+  is_siraat_affiliated: false,
+  affiliation_disclosure: null,
+  noc_summary: 'NOC approved by CDA',
+  source_document_ids: ['doc_001', 'doc_002'],
+  is_stale: false,
+  staleness_threshold_days: 30,
+  record_type: 'FACT',
+};
+
+const affiliatedSociety: SocietyResult = {
+  ...baseSociety,
+  id: 'a1b2c3d4-9999-9999-9999-000000000099',
+  name: 'Zoraiz Heights',
+  is_siraat_affiliated: true,
+  affiliation_disclosure: 'Siraat Pakistan Pvt Ltd is an investor in this project',
+};
+
+const savedScore = (data: Partial<ScoreEntity>) => ({
+  id: 'score-uuid-001',
+  computed_at: new Date(),
+  record_type: 'GENERATED' as const,
+  ...data,
+});
+
+describe('ScoringService', () => {
+  let svc: ScoringService;
+  let createMock: jest.Mock;
+  let saveMock: jest.Mock;
+
+  beforeEach(async () => {
+    createMock = jest.fn((data) => data);
+    saveMock = jest.fn((entity) => Promise.resolve(savedScore(entity)));
+
+    const module = await Test.createTestingModule({
+      providers: [
+        ScoringService,
+        {
+          provide: getRepositoryToken(ScoreEntity),
+          useValue: { create: createMock, save: saveMock, findOneBy: jest.fn() },
+        },
+      ],
+    }).compile();
+
+    svc = module.get(ScoringService);
+  });
+
+  it('confidence_score is within 0.0–1.0', async () => {
+    const result = await svc.computeAndSave(baseSociety);
+    expect(Number(result.confidence_score)).toBeGreaterThanOrEqual(0);
+    expect(Number(result.confidence_score)).toBeLessThanOrEqual(1);
+  });
+
+  it('record_type is always GENERATED', async () => {
+    const result = await svc.computeAndSave(baseSociety);
+    expect(result.record_type).toBe('GENERATED');
+  });
+
+  it('derived_from is copied from source_document_ids at computation time', async () => {
+    await svc.computeAndSave(baseSociety);
+    const created = createMock.mock.calls[0][0];
+    expect(created.derived_from).toEqual(baseSociety.source_document_ids);
+    // Must be a copy, not the same array reference
+    expect(created.derived_from).not.toBe(baseSociety.source_document_ids);
+  });
+
+  it('non-affiliated society → affiliation_disclosure is null', async () => {
+    await svc.computeAndSave(baseSociety);
+    const created = createMock.mock.calls[0][0];
+    expect(created.affiliation_disclosure).toBeNull();
+  });
+
+  it('affiliated society → affiliation_disclosure is non-null string', async () => {
+    await svc.computeAndSave(affiliatedSociety);
+    const created = createMock.mock.calls[0][0];
+    expect(created.affiliation_disclosure).toBe(
+      'Siraat Pakistan Pvt Ltd is an investor in this project',
+    );
+  });
+
+  it('affiliated society with null affiliation_disclosure falls back to generic text', async () => {
+    await svc.computeAndSave({ ...affiliatedSociety, affiliation_disclosure: null });
+    const created = createMock.mock.calls[0][0];
+    expect(created.affiliation_disclosure).toBe('Siraat-affiliated partner');
+  });
+
+  it('stale society has lower confidence than identical fresh society', async () => {
+    const fresh = await svc.computeAndSave(baseSociety);
+    createMock.mockClear();
+    await svc.computeAndSave({ ...baseSociety, is_stale: true });
+    const staleCreated = createMock.mock.calls[0][0];
+    expect(Number(staleCreated.confidence_score)).toBeLessThan(Number(fresh.confidence_score));
+  });
+
+  it('reasoning_summary is non-empty and mentions confidence percentage', async () => {
+    await svc.computeAndSave(baseSociety);
+    const created = createMock.mock.calls[0][0];
+    expect(created.reasoning_summary).toBeTruthy();
+    expect(created.reasoning_summary).toMatch(/\d+%/);
+  });
+});

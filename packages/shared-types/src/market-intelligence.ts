@@ -70,6 +70,26 @@ export const RecommendationResponseSchema = z.discriminatedUnion('state', [
 ]);
 export type RecommendationResponse = z.infer<typeof RecommendationResponseSchema>;
 
+// ─── Recommendation Detail (Screen 4 — GET /v1/market-intelligence/recommendations/{id}) ──
+
+export const RecommendationDetailSchema = z.object({
+  id: z.string().uuid(),
+  title: z.string(),
+  society_id: z.string().uuid(),
+  society_name: z.string(),
+  price: z.number(),
+  confidence_score: z.number().min(0).max(1),
+  is_stale: z.boolean(),
+  staleness_threshold_days: z.number(),
+  affiliation_disclosure: z.string().nullable(),
+  recommendation_summary: z.string(),
+  reasoning_summary: z.string(),
+  derived_from: z.array(z.string()),
+  record_type: RecordTypeSchema,
+  computed_at: z.string().datetime(),
+});
+export type RecommendationDetail = z.infer<typeof RecommendationDetailSchema>;
+
 // ─── Intent (parsed by backend, not in API surface) ──────────────────────────
 
 export interface ParsedIntent {

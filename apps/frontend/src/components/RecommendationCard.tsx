@@ -1,3 +1,4 @@
+import Link from 'next/link';
 import type { RecommendationItem } from '@siraat/shared-types';
 
 interface Props {
@@ -68,6 +69,19 @@ export function RecommendationCard({ rec }: Props) {
           Disclosure: {rec.affiliation_disclosure}
         </p>
       )}
+
+      <div style={{ marginTop: '4px' }}>
+        <Link
+          href={`/recommendation/${rec.id}`}
+          style={{
+            fontSize: '13px',
+            fontWeight: 600,
+            color: 'var(--brand)',
+          }}
+        >
+          Why this recommendation? →
+        </Link>
+      </div>
     </article>
   );
 }

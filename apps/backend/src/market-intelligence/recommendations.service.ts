@@ -1,17 +1,21 @@
-import { Injectable } from '@nestjs/common';
-import { randomUUID } from 'crypto';
-import type { RecommendationRequest, RecommendationResponse } from '@siraat/shared-types';
+import { Injectable, NotFoundException } from '@nestjs/common';
+import type { RecommendationRequest, RecommendationResponse, RecommendationDetail } from '@siraat/shared-types';
 import {
   PropertyIntelligenceService,
   type SocietyResult,
 } from '../property-intelligence/property-intelligence.service';
+import { ScoringService } from './scoring.service';
+import type { ScoreEntity } from './entities/score.entity';
 import { parseIntent } from './intent/intent-parser';
 
 const COVERED_CITIES = new Set(['Islamabad', 'Rawalpindi']);
 
 @Injectable()
 export class RecommendationsService {
-  constructor(private readonly piSvc: PropertyIntelligenceService) {}
+  constructor(
+    private readonly piSvc: PropertyIntelligenceService,
+    private readonly scoreSvc: ScoringService,
+  ) {}
 
   async getRecommendations(req: RecommendationRequest): Promise<RecommendationResponse> {
     const intent = parseIntent(req.query_text, req.filters as Record<string, unknown> | undefined);
@@ -39,7 +43,12 @@ export class RecommendationsService {
       };
     }
 
-    const recommendations = societies.map((s) => this.toRecommendation(s, intent.max_price));
+    // Compute and persist a Score for each matching society (FACT→GENERATED boundary)
+    const scores = await Promise.all(societies.map((s) => this.scoreSvc.computeAndSave(s)));
+
+    const recommendations = societies.map((s, i) =>
+      this.toRecommendationItem(s, scores[i], intent.max_price),
+    );
 
     const hasStale = recommendations.some((r) => r.is_stale);
     if (hasStale) {
@@ -57,27 +66,54 @@ export class RecommendationsService {
     return { state: 'FULL', recommendations };
   }
 
-  private toRecommendation(s: SocietyResult, targetPrice: number | null) {
-    const midPrice =
-      s.min_price && s.max_price
-        ? (Number(s.min_price) + Number(s.max_price)) / 2
-        : Number(s.min_price ?? s.max_price ?? 0);
+  async getRecommendationDetail(id: string): Promise<RecommendationDetail> {
+    const score = await this.scoreSvc.findById(id);
+    if (!score) throw new NotFoundException(`Recommendation ${id} not found`);
+
+    const society = await this.piSvc.findSocietyById(score.subject_id);
+    if (!society) throw new NotFoundException(`Society ${score.subject_id} not found`);
+
+    const price = this.midPrice(society);
 
     return {
-      id: randomUUID(),
+      id: score.id,
+      title: `${society.min_area_marla ? society.min_area_marla + ' Marla ' : ''}${society.property_types[0] ?? 'Property'}`,
+      society_id: society.id,
+      society_name: society.name,
+      price,
+      confidence_score: Number(score.confidence_score),
+      is_stale: score.is_stale,
+      staleness_threshold_days: score.staleness_threshold_days,
+      affiliation_disclosure: score.affiliation_disclosure,
+      recommendation_summary: society.noc_summary ?? `Society in ${society.city}.`,
+      reasoning_summary: score.reasoning_summary,
+      derived_from: score.derived_from,
+      record_type: 'GENERATED',
+      computed_at: score.computed_at.toISOString(),
+    };
+  }
+
+  private toRecommendationItem(s: SocietyResult, score: ScoreEntity, targetPrice: number | null) {
+    const mid = this.midPrice(s);
+    return {
+      id: score.id,
       title: `${s.min_area_marla ? s.min_area_marla + ' Marla ' : ''}${s.property_types[0] ?? 'Property'}`,
       society_id: s.id,
       society_name: s.name,
-      price: targetPrice && targetPrice < midPrice ? targetPrice : midPrice,
-      confidence_score: s.base_confidence,
-      is_stale: s.is_stale,
-      staleness_threshold_days: s.staleness_threshold_days,
-      affiliation_disclosure: s.is_siraat_affiliated
-        ? (s.affiliation_disclosure ?? 'Siraat-affiliated partner')
-        : null,
+      price: targetPrice && targetPrice < mid ? targetPrice : mid,
+      confidence_score: Number(score.confidence_score),
+      is_stale: score.is_stale,
+      staleness_threshold_days: score.staleness_threshold_days,
+      affiliation_disclosure: score.affiliation_disclosure,
       recommendation_summary: s.noc_summary ?? `Society in ${s.city}.`,
-      derived_from: s.source_document_ids,
+      derived_from: score.derived_from,
       record_type: 'GENERATED' as const,
     };
+  }
+
+  private midPrice(s: SocietyResult): number {
+    return s.min_price && s.max_price
+      ? (Number(s.min_price) + Number(s.max_price)) / 2
+      : Number(s.min_price ?? s.max_price ?? 0);
   }
 }
