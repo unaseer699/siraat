@@ -88,6 +88,19 @@ Each item: **Priority** (Low / Medium / High) · **Found in** (capability) ·
 
 ---
 
+### 8. Em-dash renders as "???" in Evidence descriptions
+- **Priority:** Low
+- **Found in:** Capability 3 (post-freeze fix pass)
+- **Target:** General cleanup
+- On the Recommendation Details page, resolved Evidence descriptions
+  show "???" where a dash character should appear (e.g. "CDA Portal
+  ??? NOC No. CDA/D-16/2021/PVC" instead of "CDA Portal — NOC No.
+  CDA/D-16/2021/PVC"). Likely a character encoding issue with the
+  em-dash/en-dash in source_ref text — check scripts/seed-trust.sql
+  encoding and/or how the evidence description is rendered in
+  RecommendationDetails.tsx. Cosmetic only, does not affect data
+  correctness or scoring.
+
 ### 7. Redundant NOC columns on `Society` — scheduled for removal
 - **Priority:** Low
 - **Found in:** Capability 3
