@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import type { RecommendationDetail } from '@siraat/shared-types';
+import type { RecommendationDetail, EvidenceSummary } from '@siraat/shared-types';
 
 interface Props {
   detail: RecommendationDetail;
@@ -39,6 +39,79 @@ function ConfidenceBar({ score }: { score: number }) {
           }}
         />
       </div>
+    </div>
+  );
+}
+
+const TYPE_LABEL: Record<EvidenceSummary['type'], string> = {
+  document: 'Document',
+  photo: 'Photo',
+  receipt: 'Receipt',
+  inspection_report: 'Inspection Report',
+};
+
+function EvidenceCited({
+  summaries,
+  fallbackIds,
+}: {
+  summaries: EvidenceSummary[];
+  fallbackIds: string[];
+}) {
+  const count = summaries.length > 0 ? summaries.length : fallbackIds.length;
+  return (
+    <div>
+      <h2 style={{ fontSize: '15px', fontWeight: 700, marginBottom: '8px' }}>
+        Evidence cited ({count})
+      </h2>
+      <ul style={{ listStyle: 'none', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+        {summaries.length > 0
+          ? summaries.map((e) => (
+              <li
+                key={e.id}
+                style={{
+                  fontSize: '13px',
+                  color: 'var(--text)',
+                  padding: '8px 12px',
+                  background: 'var(--bg)',
+                  border: '1px solid var(--border)',
+                  borderRadius: '4px',
+                  display: 'flex',
+                  alignItems: 'baseline',
+                  gap: '8px',
+                }}
+              >
+                <span
+                  style={{
+                    fontSize: '11px',
+                    fontWeight: 700,
+                    color: 'var(--muted)',
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.04em',
+                    flexShrink: 0,
+                  }}
+                >
+                  {TYPE_LABEL[e.type]}
+                </span>
+                <span>{e.source_ref}</span>
+              </li>
+            ))
+          : fallbackIds.map((id) => (
+              <li
+                key={id}
+                style={{
+                  fontSize: '13px',
+                  color: 'var(--text)',
+                  padding: '6px 10px',
+                  background: 'var(--bg)',
+                  border: '1px solid var(--border)',
+                  borderRadius: '4px',
+                  fontFamily: 'monospace',
+                }}
+              >
+                {id}
+              </li>
+            ))}
+      </ul>
     </div>
   );
 }
@@ -116,29 +189,7 @@ export function RecommendationDetails({ detail }: Props) {
           </p>
         </div>
 
-        <div>
-          <h2 style={{ fontSize: '15px', fontWeight: 700, marginBottom: '8px' }}>
-            Evidence cited ({detail.derived_from.length})
-          </h2>
-          <ul style={{ listStyle: 'none', display: 'flex', flexDirection: 'column', gap: '6px' }}>
-            {detail.derived_from.map((src) => (
-              <li
-                key={src}
-                style={{
-                  fontSize: '13px',
-                  color: 'var(--text)',
-                  padding: '6px 10px',
-                  background: 'var(--bg)',
-                  border: '1px solid var(--border)',
-                  borderRadius: '4px',
-                  fontFamily: 'monospace',
-                }}
-              >
-                {src}
-              </li>
-            ))}
-          </ul>
-        </div>
+        <EvidenceCited summaries={detail.evidence_summaries} fallbackIds={detail.derived_from} />
 
         <p style={{ fontSize: '12px', color: 'var(--muted)', borderTop: '1px solid var(--border)', paddingTop: '12px' }}>
           Score computed on {computedDate} · record_type: {detail.record_type}

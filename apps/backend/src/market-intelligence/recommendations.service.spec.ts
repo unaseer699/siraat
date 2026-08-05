@@ -5,6 +5,7 @@ import {
   PropertyIntelligenceService,
   type SocietyResult,
 } from '../property-intelligence/property-intelligence.service';
+import { TrustService } from '../trust/trust.service';
 import { ScoringService } from './scoring.service';
 import type { ScoreEntity } from './entities/score.entity';
 
@@ -75,6 +76,7 @@ describe('RecommendationsService', () => {
   let svc: RecommendationsService;
   let piSvc: jest.Mocked<Pick<PropertyIntelligenceService, 'findMatchingSocieties' | 'findSocietyById'>>;
   let scoreSvc: jest.Mocked<Pick<ScoringService, 'computeAndSave' | 'findById'>>;
+  let trustSvc: jest.Mocked<Pick<TrustService, 'findEvidenceByIds'>>;
 
   beforeEach(async () => {
     piSvc = {
@@ -87,12 +89,16 @@ describe('RecommendationsService', () => {
       ),
       findById: jest.fn().mockResolvedValue(makeScore(mockSociety)),
     };
+    trustSvc = {
+      findEvidenceByIds: jest.fn().mockResolvedValue([]),
+    };
 
     const module = await Test.createTestingModule({
       providers: [
         RecommendationsService,
         { provide: PropertyIntelligenceService, useValue: piSvc },
         { provide: ScoringService, useValue: scoreSvc },
+        { provide: TrustService, useValue: trustSvc },
       ],
     }).compile();
 
@@ -206,5 +212,35 @@ describe('RecommendationsService', () => {
   it('getRecommendationDetail throws 404 for unknown id', async () => {
     scoreSvc.findById.mockResolvedValue(null);
     await expect(svc.getRecommendationDetail('non-existent-id')).rejects.toThrow(NotFoundException);
+  });
+
+  // ─── Capability 3 — evidence_summaries in recommendation detail ───────────
+
+  it('getRecommendationDetail returns resolved evidence_summaries with human-readable source_ref', async () => {
+    const score = makeScore(mockSociety);
+    scoreSvc.findById.mockResolvedValue(score);
+    piSvc.findSocietyById.mockResolvedValue(mockSociety);
+    trustSvc.findEvidenceByIds.mockResolvedValue([
+      { id: 'e1b2c3d4-0001-0001-0001-000000000001', type: 'document', source_ref: 'CDA Portal — NOC No. CDA/D-16/2021/PVC' } as any,
+      { id: 'e1b2c3d4-0001-0001-0001-000000000002', type: 'document', source_ref: 'CDA Portal — Layout Plan Approval 2022' } as any,
+    ]);
+
+    const detail = await svc.getRecommendationDetail(score.id);
+
+    expect(detail.evidence_summaries).toHaveLength(2);
+    expect(detail.evidence_summaries[0].source_ref).toBe('CDA Portal — NOC No. CDA/D-16/2021/PVC');
+    expect(detail.evidence_summaries[0].type).toBe('document');
+    expect(detail.evidence_summaries[1].source_ref).toBe('CDA Portal — Layout Plan Approval 2022');
+  });
+
+  it('getRecommendationDetail returns empty evidence_summaries when TrustService finds no evidence', async () => {
+    const score = makeScore(mockSociety);
+    scoreSvc.findById.mockResolvedValue(score);
+    piSvc.findSocietyById.mockResolvedValue(mockSociety);
+    trustSvc.findEvidenceByIds.mockResolvedValue([]);
+
+    const detail = await svc.getRecommendationDetail(score.id);
+
+    expect(detail.evidence_summaries).toEqual([]);
   });
 });

@@ -9,7 +9,7 @@ SET search_path = trust;
 INSERT INTO verifications (id, subject_type, subject_id, claim, status, evidence_refs, verified_at)
 VALUES
 (
-  'v1b2c3d4-0001-0001-0001-000000000001',
+  'b1b2c3d4-0001-0001-0001-000000000001',
   'SOCIETY',
   'a1b2c3d4-0001-0001-0001-000000000001', -- Park View City
   'NOC Approved by CDA',
@@ -18,7 +18,7 @@ VALUES
   NOW()
 ),
 (
-  'v1b2c3d4-0002-0002-0002-000000000002',
+  'b1b2c3d4-0002-0002-0002-000000000002',
   'SOCIETY',
   'a1b2c3d4-0002-0002-0002-000000000002', -- CDA Sector F-10
   'NOC Approved by CDA',
@@ -27,7 +27,7 @@ VALUES
   NOW()
 ),
 (
-  'v1b2c3d4-0003-0003-0003-000000000003',
+  'b1b2c3d4-0003-0003-0003-000000000003',
   'SOCIETY',
   'a1b2c3d4-0003-0003-0003-000000000003', -- Bahria Town Rawalpindi (verification pending)
   'NOC Approved by RDA',
@@ -36,7 +36,7 @@ VALUES
   NULL
 ),
 (
-  'v1b2c3d4-9999-9999-9999-000000000099',
+  'b1b2c3d4-9999-9999-9999-000000000099',
   'SOCIETY',
   'a1b2c3d4-9999-9999-9999-000000000099', -- Zoraiz Heights
   'NOC Approved by CDA',
@@ -45,7 +45,7 @@ VALUES
   NOW()
 ),
 (
-  'v2b2c3d4-0001-0001-0001-000000000001',
+  'b2b2c3d4-0001-0001-0001-000000000001',
   'DEVELOPER',
   'd1b2c3d4-0001-0001-0001-000000000001', -- DHA Development Authority
   'Registered developer in good standing',
@@ -54,7 +54,7 @@ VALUES
   NOW()
 ),
 (
-  'v2b2c3d4-0002-0002-0002-000000000002',
+  'b2b2c3d4-0002-0002-0002-000000000002',
   'DEVELOPER',
   'd1b2c3d4-0002-0002-0002-000000000002', -- Imtiaz Builders (pending)
   'Registered developer in good standing',

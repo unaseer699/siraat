@@ -4,6 +4,7 @@ import {
   PropertyIntelligenceService,
   type SocietyResult,
 } from '../property-intelligence/property-intelligence.service';
+import { TrustService } from '../trust/trust.service';
 import { ScoringService } from './scoring.service';
 import type { ScoreEntity } from './entities/score.entity';
 import { parseIntent } from './intent/intent-parser';
@@ -15,6 +16,7 @@ export class RecommendationsService {
   constructor(
     private readonly piSvc: PropertyIntelligenceService,
     private readonly scoreSvc: ScoringService,
+    private readonly trustSvc: TrustService,
   ) {}
 
   async getRecommendations(req: RecommendationRequest): Promise<RecommendationResponse> {
@@ -73,6 +75,13 @@ export class RecommendationsService {
     const society = await this.piSvc.findSocietyById(score.subject_id);
     if (!society) throw new NotFoundException(`Society ${score.subject_id} not found`);
 
+    const evidenceItems = await this.trustSvc.findEvidenceByIds(score.derived_from);
+    const evidenceSummaries = evidenceItems.map((e) => ({
+      id: e.id,
+      type: e.type,
+      source_ref: e.source_ref,
+    }));
+
     const price = this.midPrice(society);
 
     return {
@@ -88,6 +97,7 @@ export class RecommendationsService {
       recommendation_summary: society.noc_summary ?? `Society in ${society.city}.`,
       reasoning_summary: score.reasoning_summary,
       derived_from: score.derived_from,
+      evidence_summaries: evidenceSummaries,
       record_type: 'GENERATED',
       computed_at: score.computed_at.toISOString(),
     };

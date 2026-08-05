@@ -40,6 +40,11 @@ export class TrustService {
     return this.eviRepo.findOneBy({ id });
   }
 
+  async findEvidenceByIds(ids: string[]): Promise<EvidenceEntity[]> {
+    if (ids.length === 0) return [];
+    return this.eviRepo.findBy({ id: In(ids) });
+  }
+
   // Used internally and in tests; no public POST endpoint this capability
   async createVerification(data: {
     subject_type: 'SOCIETY' | 'DEVELOPER';

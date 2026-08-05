@@ -28,7 +28,7 @@ const EVIDENCE_2: EvidenceEntity = {
 };
 
 const VERIFICATION_VERIFIED: VerificationEntity = {
-  id: 'v1b2c3d4-0001-0001-0001-000000000001',
+  id: 'b1b2c3d4-0001-0001-0001-000000000001',
   subject_type: 'SOCIETY',
   subject_id: SOCIETY_ID,
   claim: 'NOC Approved by CDA',
@@ -38,7 +38,7 @@ const VERIFICATION_VERIFIED: VerificationEntity = {
 };
 
 const VERIFICATION_PENDING: VerificationEntity = {
-  id: 'v2b2c3d4-0002-0002-0002-000000000002',
+  id: 'b2b2c3d4-0002-0002-0002-000000000002',
   subject_type: 'DEVELOPER',
   subject_id: DEV_ID_PENDING,
   claim: 'Verified registered developer',
@@ -48,7 +48,7 @@ const VERIFICATION_PENDING: VerificationEntity = {
 };
 
 const VERIFICATION_DEV_VERIFIED: VerificationEntity = {
-  id: 'v2b2c3d4-0001-0001-0001-000000000001',
+  id: 'b2b2c3d4-0001-0001-0001-000000000001',
   subject_type: 'DEVELOPER',
   subject_id: DEV_ID_VERIFIED,
   claim: 'Verified registered developer',

@@ -72,6 +72,13 @@ export type RecommendationResponse = z.infer<typeof RecommendationResponseSchema
 
 // ─── Recommendation Detail (Screen 4 — GET /v1/market-intelligence/recommendations/{id}) ──
 
+export const EvidenceSummarySchema = z.object({
+  id: z.string().uuid(),
+  type: z.enum(['document', 'photo', 'receipt', 'inspection_report']),
+  source_ref: z.string(),
+});
+export type EvidenceSummary = z.infer<typeof EvidenceSummarySchema>;
+
 export const RecommendationDetailSchema = z.object({
   id: z.string().uuid(),
   title: z.string(),
@@ -85,6 +92,7 @@ export const RecommendationDetailSchema = z.object({
   recommendation_summary: z.string(),
   reasoning_summary: z.string(),
   derived_from: z.array(z.string()),
+  evidence_summaries: z.array(EvidenceSummarySchema).default([]),
   record_type: RecordTypeSchema,
   computed_at: z.string().datetime(),
 });
