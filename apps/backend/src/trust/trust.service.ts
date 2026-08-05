@@ -1,8 +1,9 @@
-import { Injectable, BadRequestException } from '@nestjs/common';
+import { Injectable, BadRequestException, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, In } from 'typeorm';
 import { VerificationEntity } from './entities/verification.entity';
 import { EvidenceEntity } from './entities/evidence.entity';
+import { EvidenceSubmissionEntity } from './entities/evidence-submission.entity';
 
 export interface VerificationResult {
   verification: VerificationEntity;
@@ -16,6 +17,8 @@ export class TrustService {
     private readonly verRepo: Repository<VerificationEntity>,
     @InjectRepository(EvidenceEntity)
     private readonly eviRepo: Repository<EvidenceEntity>,
+    @InjectRepository(EvidenceSubmissionEntity)
+    private readonly subRepo: Repository<EvidenceSubmissionEntity>,
   ) {}
 
   async getVerification(
@@ -61,5 +64,76 @@ export class TrustService {
       verified_at: data.status === 'VERIFIED' ? new Date() : null,
     });
     return this.verRepo.save(entity);
+  }
+
+  // ─── Capability 4: Evidence Submission flywheel ───────────────────────────
+
+  async submitEvidence(dto: {
+    linked_to: string;
+    type: 'document' | 'photo' | 'receipt' | 'inspection_report';
+    source_ref: string;
+    file_ref: string;
+  }): Promise<{ submission_id: string; status: 'pending_review' }> {
+    // Resolve or create a PENDING Verification for this subject
+    const existing = await this.verRepo.findOne({
+      where: { subject_type: 'SOCIETY', subject_id: dto.linked_to },
+    });
+    if (!existing) {
+      const pending = this.verRepo.create({
+        subject_type: 'SOCIETY',
+        subject_id: dto.linked_to,
+        claim: 'Pending verification',
+        status: 'PENDING',
+        evidence_refs: [],
+        verified_at: null,
+      });
+      await this.verRepo.save(pending);
+    }
+
+    const submission = this.subRepo.create({
+      linked_to: dto.linked_to,
+      type: dto.type,
+      source_ref: dto.source_ref,
+      file_ref: dto.file_ref,
+      status: 'pending_review',
+      submitted_by: null,
+      record_type: 'FACT',
+      data_classification: 'UNTRUSTED_DATA',
+      reviewed_at: null,
+    });
+    const saved = await this.subRepo.save(submission);
+    return { submission_id: saved.id, status: 'pending_review' };
+  }
+
+  async listPendingSubmissions(): Promise<EvidenceSubmissionEntity[]> {
+    return this.subRepo.findBy({ status: 'pending_review' });
+  }
+
+  // Manual founder-only review method — no public endpoint in this capability
+  async reviewSubmission(id: string, decision: 'accepted' | 'rejected'): Promise<void> {
+    const submission = await this.subRepo.findOneBy({ id });
+    if (!submission) throw new NotFoundException(`Submission ${id} not found`);
+
+    if (decision === 'accepted') {
+      const evidence = this.eviRepo.create({
+        type: submission.type,
+        file_ref: submission.file_ref,
+        source_ref: submission.source_ref,
+        record_type: 'FACT',
+      });
+      const savedEvidence = await this.eviRepo.save(evidence);
+
+      const verification = await this.verRepo.findOne({
+        where: { subject_type: 'SOCIETY', subject_id: submission.linked_to },
+      });
+      if (verification) {
+        verification.evidence_refs = [...verification.evidence_refs, savedEvidence.id];
+        await this.verRepo.save(verification);
+      }
+    }
+
+    submission.status = decision === 'accepted' ? 'accepted' : 'rejected';
+    submission.reviewed_at = new Date();
+    await this.subRepo.save(submission);
   }
 }

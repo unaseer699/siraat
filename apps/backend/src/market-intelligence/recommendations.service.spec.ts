@@ -1,5 +1,6 @@
 import { Test } from '@nestjs/testing';
 import { NotFoundException } from '@nestjs/common';
+import { getRepositoryToken } from '@nestjs/typeorm';
 import { RecommendationsService } from './recommendations.service';
 import {
   PropertyIntelligenceService,
@@ -8,6 +9,7 @@ import {
 import { TrustService } from '../trust/trust.service';
 import { ScoringService } from './scoring.service';
 import type { ScoreEntity } from './entities/score.entity';
+import { NotCoveredRequestEntity } from './entities/not-covered-request.entity';
 
 // ─── Fixtures ────────────────────────────────────────────────────────────────
 
@@ -77,6 +79,9 @@ describe('RecommendationsService', () => {
   let piSvc: jest.Mocked<Pick<PropertyIntelligenceService, 'findMatchingSocieties' | 'findSocietyById'>>;
   let scoreSvc: jest.Mocked<Pick<ScoringService, 'computeAndSave' | 'findById'>>;
   let trustSvc: jest.Mocked<Pick<TrustService, 'findEvidenceByIds'>>;
+  let notCoveredCountMock: jest.Mock;
+  let notCoveredCreateMock: jest.Mock;
+  let notCoveredSaveMock: jest.Mock;
 
   beforeEach(async () => {
     piSvc = {
@@ -92,6 +97,9 @@ describe('RecommendationsService', () => {
     trustSvc = {
       findEvidenceByIds: jest.fn().mockResolvedValue([]),
     };
+    notCoveredCountMock = jest.fn().mockResolvedValue(0);
+    notCoveredCreateMock = jest.fn((data) => data);
+    notCoveredSaveMock = jest.fn().mockResolvedValue({});
 
     const module = await Test.createTestingModule({
       providers: [
@@ -99,6 +107,14 @@ describe('RecommendationsService', () => {
         { provide: PropertyIntelligenceService, useValue: piSvc },
         { provide: ScoringService, useValue: scoreSvc },
         { provide: TrustService, useValue: trustSvc },
+        {
+          provide: getRepositoryToken(NotCoveredRequestEntity),
+          useValue: {
+            count: notCoveredCountMock,
+            create: notCoveredCreateMock,
+            save: notCoveredSaveMock,
+          },
+        },
       ],
     }).compile();
 
@@ -242,5 +258,45 @@ describe('RecommendationsService', () => {
     const detail = await svc.getRecommendationDetail(score.id);
 
     expect(detail.evidence_summaries).toEqual([]);
+  });
+
+  // ─── Capability 4 — NOT_COVERED demand_count ──────────────────────────────
+
+  it('NOT_COVERED returns demand_count of 1 for a fresh uncovered location', async () => {
+    notCoveredCountMock.mockResolvedValue(0);
+    const result = await svc.getRecommendations({ query_text: 'plot in Lahore' });
+    expect(result.state).toBe('NOT_COVERED');
+    if (result.state === 'NOT_COVERED') {
+      expect(result.demand_count).toBe(1);
+    }
+  });
+
+  it('NOT_COVERED demand_count increments correctly across repeated searches for the same location', async () => {
+    notCoveredCountMock.mockResolvedValueOnce(0).mockResolvedValueOnce(1).mockResolvedValueOnce(2);
+
+    const r1 = await svc.getRecommendations({ query_text: 'plot in Lahore' });
+    const r2 = await svc.getRecommendations({ query_text: 'plot in Lahore' });
+    const r3 = await svc.getRecommendations({ query_text: 'plot in Lahore' });
+
+    expect(r1.state).toBe('NOT_COVERED');
+    expect(r2.state).toBe('NOT_COVERED');
+    expect(r3.state).toBe('NOT_COVERED');
+    if (r1.state === 'NOT_COVERED') expect(r1.demand_count).toBe(1);
+    if (r2.state === 'NOT_COVERED') expect(r2.demand_count).toBe(2);
+    if (r3.state === 'NOT_COVERED') expect(r3.demand_count).toBe(3);
+  });
+
+  it('NOT_COVERED fires a fire-and-forget insert into not_covered_requests', async () => {
+    notCoveredCountMock.mockResolvedValue(0);
+    await svc.getRecommendations({ query_text: 'apartment in Karachi' });
+    // Allow microtask queue to flush
+    await Promise.resolve();
+    expect(notCoveredSaveMock).toHaveBeenCalled();
+  });
+
+  it('covered city queries do NOT log not_covered_requests', async () => {
+    await svc.getRecommendations({ query_text: 'plot in Islamabad' });
+    expect(notCoveredCountMock).not.toHaveBeenCalled();
+    expect(notCoveredSaveMock).not.toHaveBeenCalled();
   });
 });

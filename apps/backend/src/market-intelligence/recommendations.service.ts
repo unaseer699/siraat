@@ -1,4 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
 import type { RecommendationRequest, RecommendationResponse, RecommendationDetail } from '@siraat/shared-types';
 import {
   PropertyIntelligenceService,
@@ -8,6 +10,7 @@ import { TrustService } from '../trust/trust.service';
 import { ScoringService } from './scoring.service';
 import type { ScoreEntity } from './entities/score.entity';
 import { parseIntent } from './intent/intent-parser';
+import { NotCoveredRequestEntity } from './entities/not-covered-request.entity';
 
 const COVERED_CITIES = new Set(['Islamabad', 'Rawalpindi']);
 
@@ -17,17 +20,25 @@ export class RecommendationsService {
     private readonly piSvc: PropertyIntelligenceService,
     private readonly scoreSvc: ScoringService,
     private readonly trustSvc: TrustService,
+    @InjectRepository(NotCoveredRequestEntity)
+    private readonly notCoveredRepo: Repository<NotCoveredRequestEntity>,
   ) {}
 
   async getRecommendations(req: RecommendationRequest): Promise<RecommendationResponse> {
     const intent = parseIntent(req.query_text, req.filters as Record<string, unknown> | undefined);
 
     if (intent.city && !COVERED_CITIES.has(intent.city)) {
+      const location = intent.city;
+      const demandCount = await this.notCoveredRepo.count({ where: { location_queried: location } });
+      // Fire-and-forget — do not block the response
+      this.notCoveredRepo
+        .save(this.notCoveredRepo.create({ location_queried: location, requested_by: null }))
+        .catch(() => {});
       return {
         state: 'NOT_COVERED',
         recommendations: [],
         message: `Siraat does not yet have verified data for ${intent.city}. We're growing coverage.`,
-        demand_count: null,
+        demand_count: demandCount + 1,
       };
     }
 

@@ -96,7 +96,7 @@ export default async function SocietyProfilePage({ params }: Props) {
             </p>
           )}
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
             <p style={{ fontSize: '13px', color: 'var(--muted)' }}>
               {verification.evidence.length} evidence item
               {verification.evidence.length !== 1 ? 's' : ''} on record
@@ -104,6 +104,17 @@ export default async function SocietyProfilePage({ params }: Props) {
             {verification.evidence.length > 0 && (
               <EvidenceDrawer evidence={verification.evidence} />
             )}
+            <Link
+              href={`/submit-evidence/${params.id}`}
+              style={{
+                fontSize: '13px',
+                color: '#2563eb',
+                textDecoration: 'none',
+                fontWeight: 500,
+              }}
+            >
+              Help verify this society →
+            </Link>
           </div>
         </div>
 

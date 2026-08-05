@@ -1,9 +1,10 @@
 import { Test } from '@nestjs/testing';
-import { BadRequestException } from '@nestjs/common';
+import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import { TrustService } from './trust.service';
 import { VerificationEntity } from './entities/verification.entity';
 import { EvidenceEntity } from './entities/evidence.entity';
+import { EvidenceSubmissionEntity } from './entities/evidence-submission.entity';
 
 const SOCIETY_ID = 'a1b2c3d4-0001-0001-0001-000000000001';
 const DEV_ID_VERIFIED = 'd1b2c3d4-0001-0001-0001-000000000001';
@@ -72,6 +73,12 @@ describe('TrustService', () => {
   let eviFindByMock: jest.Mock;
   let verCreateMock: jest.Mock;
   let verSaveMock: jest.Mock;
+  let eviCreateMock: jest.Mock;
+  let eviSaveMock: jest.Mock;
+  let subFindOneMock: jest.Mock;
+  let subFindByMock: jest.Mock;
+  let subCreateMock: jest.Mock;
+  let subSaveMock: jest.Mock;
 
   beforeEach(async () => {
     verFindOneMock = jest.fn();
@@ -79,6 +86,16 @@ describe('TrustService', () => {
     verCreateMock = jest.fn((data) => data);
     verSaveMock = jest.fn((entity) =>
       Promise.resolve({ id: 'new-ver-uuid', ...entity }),
+    );
+    eviCreateMock = jest.fn((data) => data);
+    eviSaveMock = jest.fn((entity) =>
+      Promise.resolve({ id: 'new-evi-uuid', ...entity }),
+    );
+    subFindOneMock = jest.fn();
+    subFindByMock = jest.fn().mockResolvedValue([]);
+    subCreateMock = jest.fn((data) => data);
+    subSaveMock = jest.fn((entity) =>
+      Promise.resolve({ id: 'new-sub-uuid', ...entity }),
     );
 
     const module = await Test.createTestingModule({
@@ -98,6 +115,18 @@ describe('TrustService', () => {
           useValue: {
             findBy: eviFindByMock,
             findOneBy: jest.fn().mockResolvedValue(null),
+            create: eviCreateMock,
+            save: eviSaveMock,
+          },
+        },
+        {
+          provide: getRepositoryToken(EvidenceSubmissionEntity),
+          useValue: {
+            findOne: subFindOneMock,
+            findOneBy: subFindOneMock,
+            findBy: subFindByMock,
+            create: subCreateMock,
+            save: subSaveMock,
           },
         },
       ],
@@ -215,5 +244,182 @@ describe('TrustService', () => {
     });
     const pendingCreated = verCreateMock.mock.calls[0][0];
     expect(pendingCreated.verified_at).toBeNull();
+  });
+
+  // ─── Capability 4: submitEvidence ────────────────────────────────────────────
+
+  it('submitEvidence creates an EvidenceSubmission with status=pending_review', async () => {
+    verFindOneMock.mockResolvedValue(VERIFICATION_VERIFIED);
+
+    const result = await svc.submitEvidence({
+      linked_to: SOCIETY_ID,
+      type: 'photo',
+      source_ref: 'Photo taken at site, Aug 2026',
+      file_ref: 'uploads/user/photo-001.jpg',
+    });
+
+    expect(result.status).toBe('pending_review');
+    expect(result.submission_id).toBeDefined();
+    expect(subCreateMock).toHaveBeenCalledWith(
+      expect.objectContaining({ status: 'pending_review', linked_to: SOCIETY_ID }),
+    );
+    expect(subSaveMock).toHaveBeenCalled();
+  });
+
+  it('submitEvidence never directly creates an Evidence row', async () => {
+    verFindOneMock.mockResolvedValue(VERIFICATION_VERIFIED);
+
+    await svc.submitEvidence({
+      linked_to: SOCIETY_ID,
+      type: 'document',
+      source_ref: 'User doc',
+      file_ref: 'uploads/user/doc.pdf',
+    });
+
+    expect(eviCreateMock).not.toHaveBeenCalled();
+    expect(eviSaveMock).not.toHaveBeenCalled();
+  });
+
+  it('submitEvidence sets data_classification to UNTRUSTED_DATA by default', async () => {
+    verFindOneMock.mockResolvedValue(VERIFICATION_VERIFIED);
+
+    await svc.submitEvidence({
+      linked_to: SOCIETY_ID,
+      type: 'document',
+      source_ref: 'User doc',
+      file_ref: 'uploads/user/doc.pdf',
+    });
+
+    expect(subCreateMock).toHaveBeenCalledWith(
+      expect.objectContaining({ data_classification: 'UNTRUSTED_DATA' }),
+    );
+  });
+
+  it('submitEvidence creates a PENDING Verification when none exists for the society', async () => {
+    verFindOneMock.mockResolvedValue(null);
+
+    await svc.submitEvidence({
+      linked_to: SOCIETY_ID,
+      type: 'receipt',
+      source_ref: 'Payment receipt',
+      file_ref: 'uploads/user/receipt.pdf',
+    });
+
+    expect(verCreateMock).toHaveBeenCalledWith(
+      expect.objectContaining({ subject_type: 'SOCIETY', subject_id: SOCIETY_ID, status: 'PENDING' }),
+    );
+    expect(verSaveMock).toHaveBeenCalled();
+  });
+
+  it('submitEvidence does not create duplicate Verification when one already exists', async () => {
+    verFindOneMock.mockResolvedValue(VERIFICATION_VERIFIED);
+
+    await svc.submitEvidence({
+      linked_to: SOCIETY_ID,
+      type: 'photo',
+      source_ref: 'Photo',
+      file_ref: 'uploads/user/photo.jpg',
+    });
+
+    expect(verCreateMock).not.toHaveBeenCalled();
+  });
+
+  // ─── Capability 4: reviewSubmission ──────────────────────────────────────────
+
+  const PENDING_SUBMISSION: EvidenceSubmissionEntity = {
+    id: 'sub-uuid-0001',
+    linked_to: SOCIETY_ID,
+    type: 'photo',
+    source_ref: 'Photo at site',
+    file_ref: 'uploads/user/photo-001.jpg',
+    status: 'pending_review',
+    submitted_by: null,
+    record_type: 'FACT',
+    data_classification: 'UNTRUSTED_DATA',
+    submitted_at: new Date('2026-08-01'),
+    reviewed_at: null,
+  };
+
+  it('reviewSubmission accepted: creates real Evidence row', async () => {
+    subFindOneMock.mockResolvedValue({ ...PENDING_SUBMISSION });
+    verFindOneMock.mockResolvedValue({ ...VERIFICATION_VERIFIED });
+
+    await svc.reviewSubmission('sub-uuid-0001', 'accepted');
+
+    expect(eviCreateMock).toHaveBeenCalledWith(
+      expect.objectContaining({ type: 'photo', source_ref: 'Photo at site' }),
+    );
+    expect(eviSaveMock).toHaveBeenCalled();
+  });
+
+  it('reviewSubmission accepted: appends Evidence id to Verification.evidence_refs', async () => {
+    const ver = { ...VERIFICATION_VERIFIED, evidence_refs: ['existing-evi-id'] };
+    subFindOneMock.mockResolvedValue({ ...PENDING_SUBMISSION });
+    verFindOneMock.mockResolvedValue(ver);
+    eviSaveMock.mockResolvedValue({ id: 'new-evi-uuid', type: 'photo' });
+
+    await svc.reviewSubmission('sub-uuid-0001', 'accepted');
+
+    const savedVer = verSaveMock.mock.calls.find(
+      (call) => Array.isArray(call[0]?.evidence_refs),
+    );
+    if (!savedVer) {
+      // verSaveMock might be called with the entity directly
+      const verCall = verSaveMock.mock.calls[0];
+      expect(verCall[0].evidence_refs).toContain('new-evi-uuid');
+      expect(verCall[0].evidence_refs).toContain('existing-evi-id');
+    } else {
+      expect(savedVer[0].evidence_refs).toContain('new-evi-uuid');
+    }
+  });
+
+  it('reviewSubmission accepted: sets submission status to accepted', async () => {
+    subFindOneMock.mockResolvedValue({ ...PENDING_SUBMISSION });
+    verFindOneMock.mockResolvedValue({ ...VERIFICATION_VERIFIED });
+
+    await svc.reviewSubmission('sub-uuid-0001', 'accepted');
+
+    const subSaveCall = subSaveMock.mock.calls[0][0];
+    expect(subSaveCall.status).toBe('accepted');
+    expect(subSaveCall.reviewed_at).not.toBeNull();
+  });
+
+  it('reviewSubmission rejected: does NOT create an Evidence row', async () => {
+    subFindOneMock.mockResolvedValue({ ...PENDING_SUBMISSION });
+
+    await svc.reviewSubmission('sub-uuid-0001', 'rejected');
+
+    expect(eviCreateMock).not.toHaveBeenCalled();
+    expect(eviSaveMock).not.toHaveBeenCalled();
+  });
+
+  it('reviewSubmission rejected: sets submission status to rejected', async () => {
+    subFindOneMock.mockResolvedValue({ ...PENDING_SUBMISSION });
+
+    await svc.reviewSubmission('sub-uuid-0001', 'rejected');
+
+    const subSaveCall = subSaveMock.mock.calls[0][0];
+    expect(subSaveCall.status).toBe('rejected');
+  });
+
+  it('reviewSubmission throws 404 for unknown submission id', async () => {
+    subFindOneMock.mockResolvedValue(null);
+
+    await expect(svc.reviewSubmission('non-existent', 'accepted')).rejects.toThrow(NotFoundException);
+  });
+
+  // ─── Capability 4: getVerification unaffected by pending submission ───────────
+
+  it('getVerification confidence is unaffected by a pending submission (structural isolation)', async () => {
+    // Pending submission exists in sub repo but getVerification only reads verRepo+eviRepo
+    verFindOneMock.mockResolvedValue(VERIFICATION_VERIFIED);
+    eviFindByMock.mockResolvedValue([EVIDENCE_1, EVIDENCE_2]);
+    subFindByMock.mockResolvedValue([PENDING_SUBMISSION]);
+
+    const result = await svc.getVerification('SOCIETY', SOCIETY_ID);
+
+    // evidence_refs unchanged — submission not in evidence list
+    expect(result!.evidence).toHaveLength(2);
+    expect(result!.evidence.map((e) => e.id)).not.toContain('sub-uuid-0001');
   });
 });

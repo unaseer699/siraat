@@ -1,6 +1,12 @@
 import type { RecommendationResponse } from '@siraat/shared-types';
 import { RecommendationCard } from './RecommendationCard';
 
+function ordinal(n: number): string {
+  const s = ['th', 'st', 'nd', 'rd'];
+  const v = n % 100;
+  return s[(v - 20) % 10] ?? s[v] ?? s[0];
+}
+
 interface Props {
   result: RecommendationResponse;
 }
@@ -42,9 +48,17 @@ export function ResultsPanel({ result }: Props) {
             border: '1px solid #fecaca',
             borderRadius: 'var(--radius)',
             color: 'var(--error)',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '6px',
           }}
         >
-          {'message' in result ? result.message : 'This area is not yet covered.'}
+          <span>{'message' in result ? result.message : 'This area is not yet covered.'}</span>
+          {'demand_count' in result && result.demand_count !== null && result.demand_count > 0 && (
+            <span style={{ fontSize: '13px', opacity: 0.8 }}>
+              {`You're the ${result.demand_count}${ordinal(result.demand_count)} person to search for this area.`}
+            </span>
+          )}
         </div>
       )}
 

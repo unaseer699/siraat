@@ -50,3 +50,14 @@ export async function fetchDeveloperVerification(developerId: string): Promise<V
 export async function fetchPropertyDetail(propertyId: string): Promise<PropertyDetail> {
   return apiFetch(`/v1/property-intelligence/properties/${propertyId}`);
 }
+
+export async function submitEvidence(societyId: string, data: {
+  type: 'document' | 'photo' | 'receipt' | 'inspection_report';
+  source_ref: string;
+  file_ref: string;
+}): Promise<{ submission_id: string; status: 'pending_review' }> {
+  return apiFetch('/v1/trust/evidence-submissions', {
+    method: 'POST',
+    body: JSON.stringify({ linked_to: societyId, ...data }),
+  });
+}

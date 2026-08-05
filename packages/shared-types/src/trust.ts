@@ -1,3 +1,18 @@
+import { z } from 'zod';
+
+export const EvidenceSubmissionRequestSchema = z.object({
+  linked_to: z.string().uuid(),
+  type: z.enum(['document', 'photo', 'receipt', 'inspection_report']),
+  source_ref: z.string().min(1),
+  file_ref: z.string().min(1),
+});
+export type EvidenceSubmissionRequest = z.infer<typeof EvidenceSubmissionRequestSchema>;
+
+export interface EvidenceSubmissionResponse {
+  submission_id: string;
+  status: 'pending_review';
+}
+
 export interface EvidenceItem {
   id: string;
   type: 'document' | 'photo' | 'receipt' | 'inspection_report';

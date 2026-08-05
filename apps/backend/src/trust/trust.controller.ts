@@ -1,5 +1,7 @@
-import { Controller, Get, NotFoundException, Param, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, NotFoundException, Param, Body, UseGuards } from '@nestjs/common';
 import { BearerGuard } from '../auth/bearer.guard';
+import { ZodValidationPipe } from '../common/zod-validation.pipe';
+import { EvidenceSubmissionRequestSchema, type EvidenceSubmissionRequest } from '@siraat/shared-types';
 import { TrustService } from './trust.service';
 import type { EvidenceEntity } from './entities/evidence.entity';
 
@@ -50,5 +52,12 @@ export class TrustController {
     const evidence = await this.trustSvc.getEvidenceById(id);
     if (!evidence) throw new NotFoundException(`Evidence ${id} not found`);
     return serializeEvidence(evidence);
+  }
+
+  @Post('evidence-submissions')
+  async submitEvidence(
+    @Body(new ZodValidationPipe(EvidenceSubmissionRequestSchema)) body: EvidenceSubmissionRequest,
+  ) {
+    return this.trustSvc.submitEvidence(body);
   }
 }
