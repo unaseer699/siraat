@@ -81,3 +81,16 @@ Run tests:           pnpm test
 See `docs/17-sprint-planning.md` for the active capability, its
 Definition of Done, and its frozen API contract. Do not proceed past
 the current capability's DoD checklist without explicit founder sign-off.
+
+## 6. REVIEW BACKLOG
+Non-blocking items deferred from prior capability reviews are tracked
+in `REVIEW_BACKLOG.md` at the repo root. Each item records which
+capability it is targeted for and why it was deferred.
+
+Capability 5 (OPERATE) should consult `REVIEW_BACKLOG.md` at the start
+of that capability — several items are targeted there (rate limiting,
+DLQ handling, auth enforcement, monitoring).
+
+Do not fix backlog items outside their targeted capability unless
+explicitly asked by the founder. Premature fixes can conflict with
+work planned for that capability or introduce untested surface area.

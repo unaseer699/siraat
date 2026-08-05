@@ -53,6 +53,11 @@ export class PropertyIntelligenceService {
     private readonly repo: Repository<SocietyEntity>,
   ) {}
 
+  async findSocietyById(id: string): Promise<SocietyResult | null> {
+    const entity = await this.repo.findOneBy({ id });
+    return entity ? toResult(entity) : null;
+  }
+
   async findMatchingSocieties(criteria: ParsedIntent): Promise<SocietyResult[]> {
     const qb = this.repo.createQueryBuilder('s');
 

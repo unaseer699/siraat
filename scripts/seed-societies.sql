@@ -48,4 +48,18 @@ INSERT INTO societies (
   ARRAY['doc_noc_bahria_rwp_001', 'doc_layout_bahria_rwp_002'],
   false, 30, 'FACT'
 )
+-- Zoraiz Heights: Siraat-affiliated society — used to verify disclosure renders end-to-end
+,(
+  'a1b2c3d4-9999-9999-9999-000000000099',
+  'Zoraiz Heights',
+  'Islamabad',
+  20000000, 35000000,
+  10, 10,
+  ARRAY['PLOT'],
+  true, 0.800, true,
+  'Siraat Pakistan Pvt Ltd is an investor in this project',
+  'NOC approved by CDA. Siraat-affiliated development with independent NOC verification.',
+  ARRAY['doc_noc_zoraiz_001'],
+  false, 30, 'FACT'
+)
 ON CONFLICT (id) DO NOTHING;
