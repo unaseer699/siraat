@@ -14,7 +14,7 @@ async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
     ...init,
     headers: {
       'Content-Type': 'application/json',
-      Authorization: 'Bearer anonymous',
+      Authorization: `Bearer ${process.env.NEXT_PUBLIC_SIRAAT_API_KEY ?? ''}`,
       'X-Siraat-Country-Code': 'PK',
       ...init?.headers,
     },

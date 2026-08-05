@@ -20,31 +20,23 @@ Each item: **Priority** (Low / Medium / High) · **Found in** (capability) ·
 
 ## Open Items
 
-### 1. GIN index on `property_types` never actually applied
+### 1. GIN index on `property_types` never actually applied — ✅ RESOLVED (Capability 5)
 - **Priority:** Low
 - **Found in:** Capability 1
-- **Target:** General / Capability 5 (Operate)
-- `docker/init-schemas.sql` only runs once on first volume creation, and
-  the `societies` table didn't exist yet at that point anyway — so the
-  GIN index was never actually created against the running database.
-  At MVTD scale (30-35 societies) this has zero real performance impact.
-  Fix: create the index manually once locally, or via a proper migration
-  once a migration tool is introduced:
-  ```sql
-  CREATE INDEX IF NOT EXISTS idx_societies_property_types
-    ON property_intelligence.societies USING GIN (property_types);
-  ```
+- **Target:** Capability 5 (Operate) — **CLOSED**
+- Migration SQL created at `docker/migrations/001_gin_index_societies_property_types.sql`.
+  Apply once manually: `psql -U siraat -d siraat -f docker/migrations/001_gin_index_societies_property_types.sql`
+  Document: init-schemas.sql only runs on first Docker volume creation; new migrations
+  go in `docker/migrations/` and must be applied manually until a migration tool is introduced.
 
-### 2. `DEGRADED_SUCCESS` response has redundant top-level confidence fields
+### 2. `DEGRADED_SUCCESS` response has redundant top-level confidence fields — ✅ RESOLVED (Capability 5)
 - **Priority:** Low
 - **Found in:** Capability 1
-- **Target:** Capability 2 cleanup / Capability 3
-- When `recommendations[]` is non-empty in a `DEGRADED_SUCCESS` response,
-  both per-item `confidence_score`/`is_stale` AND top-level ones are
-  populated — redundant. Recommendation: only populate top-level
-  confidence/staleness fields when `recommendations: []` (i.e., they
-  explain *why nothing matched*); let per-item fields be authoritative
-  when items are present.
+- **Target:** Capability 5 — **CLOSED**
+- Top-level `confidence_score`/`is_stale`/`staleness_threshold_days`/`affiliation_disclosure`
+  are now omitted when `recommendations[]` is non-empty. Per-item fields are authoritative.
+  These fields are still sent (and required by schema) when `recommendations: []` to explain
+  why nothing matched. Shared-types Zod schema updated to make these fields optional on DEGRADED_SUCCESS.
 
 ### 3. `Score.id` doubles as `Recommendation.id`
 - **Priority:** Low
@@ -57,24 +49,20 @@ Each item: **Priority** (Low / Medium / High) · **Found in** (capability) ·
   Revisit if/when a Score ever needs to back more than one kind of
   recommendation (e.g., investment framing vs. construction framing).
 
-### 4. Score recomputed and inserted fresh on every search request
+### 4. Score recomputed and inserted fresh on every search request — ✅ RESOLVED (Capability 5)
 - **Priority:** Medium
 - **Found in:** Capability 2
-- **Target:** Capability 5 (Operate)
-- No reuse of a recent Score within its `staleness_threshold` — every
-  search creates new `Score` rows for every matching society. Fine at
-  MVTD volume; will cause unbounded table growth and repeated
-  computation cost at real scale. Fix: check for an existing,
-  non-stale Score for the same subject before computing a new one.
+- **Target:** Capability 5 — **CLOSED**
+- `ScoringService.computeAndSave()` now checks for an existing non-stale Score within
+  the staleness window before computing. If found, returns it directly without a new insert.
+  Three new tests confirm the reuse logic and edge cases.
 
-### 5. Staleness penalty is a hardcoded inline value
+### 5. Staleness penalty is a hardcoded inline value — ✅ RESOLVED (Capability 5)
 - **Priority:** Low
 - **Found in:** Capability 2
-- **Target:** General cleanup
-- `ScoringService.computeConfidence()` subtracts a flat `0.15` for
-  stale data, inline in the method. Should become a named constant
-  or config value (similar treatment to the Phase 6 staleness TTL
-  table) so it's tunable without hunting through logic.
+- **Target:** Capability 5 — **CLOSED**
+- Extracted to `STALENESS_CONFIDENCE_PENALTY = 0.15` constant at the top of
+  `scoring.service.ts` with a comment noting it's a tunable business value.
 
 ### 6. `NotCoveredRequest` demand-signal logging not yet implemented
 - **Priority:** Medium
@@ -117,9 +105,27 @@ Each item: **Priority** (Low / Medium / High) · **Found in** (capability) ·
 
 ---
 
+### 9. Full OBO / user-level authentication
+- **Priority:** High
+- **Found in:** Capability 5
+- **Target:** Future capability — requires Identity/User system first
+- `BearerGuard` currently validates a single shared API key (`SIRAAT_API_KEY` env var).
+  This is a deliberate scope reduction from Phase 9's OBO design — no User/Identity system
+  exists yet. Full per-user auth requires an Identity context (user registration, token issuance,
+  on-behalf-of token validation). Do not implement piecemeal; implement holistically once
+  the Identity capability is defined.
+
+---
+
 ## Resolved Items
 
-_(none yet — items move here once closed, with the commit/capability that fixed them)_
+| # | Title | Closed in |
+|---|-------|-----------|
+| 1 | GIN index on `property_types` never applied | Capability 5 |
+| 2 | DEGRADED_SUCCESS redundant top-level confidence fields | Capability 5 |
+| 4 | Score recomputed fresh on every search | Capability 5 |
+| 5 | Staleness penalty hardcoded inline | Capability 5 |
+| 6 | NOT_COVERED demand-signal logging | Capability 4 |
 
 ---
 

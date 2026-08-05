@@ -14,6 +14,7 @@
     "@nestjs/common": "^10.4.1",
     "@nestjs/core": "^10.4.1",
     "@nestjs/platform-fastify": "^10.4.1",
+    "@nestjs/throttler": "^6.5.0",
     "@nestjs/typeorm": "^10.0.2",
     "@siraat/shared-types": "workspace:*",
     "class-transformer": "^0.5.1",
@@ -29,21 +30,27 @@
     "@nestjs/schematics": "^10.1.4",
     "@nestjs/testing": "^10.4.1",
     "@siraat/config": "workspace:*",
-    "@types/node": "^22.5.1",
     "@types/jest": "^29.5.13",
+    "@types/node": "^22.5.1",
     "@types/pg": "^8.11.6",
     "jest": "^29.7.0",
     "ts-jest": "^29.2.5",
     "typescript": "^5.5.4"
   },
   "jest": {
-    "moduleFileExtensions": ["js", "json", "ts"],
+    "moduleFileExtensions": [
+      "js",
+      "json",
+      "ts"
+    ],
     "rootDir": "src",
     "testRegex": ".*\\.spec\\.ts$",
     "transform": {
       "^.+\\.(t|j)s$": "ts-jest"
     },
-    "collectCoverageFrom": ["**/*.(t|j)s"],
+    "collectCoverageFrom": [
+      "**/*.(t|j)s"
+    ],
     "coverageDirectory": "../coverage",
     "testEnvironment": "node"
   }

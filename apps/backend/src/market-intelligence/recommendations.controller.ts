@@ -1,11 +1,12 @@
 import { Body, Controller, Get, Param, Post, UseGuards, Headers } from '@nestjs/common';
+import { ThrottlerGuard } from '@nestjs/throttler';
 import { RecommendationRequestSchema, type RecommendationRequest } from '@siraat/shared-types';
 import { BearerGuard } from '../auth/bearer.guard';
 import { ZodValidationPipe } from '../common/zod-validation.pipe';
 import { RecommendationsService } from './recommendations.service';
 
 @Controller('v1/market-intelligence')
-@UseGuards(BearerGuard)
+@UseGuards(BearerGuard, ThrottlerGuard)
 export class RecommendationsController {
   constructor(private readonly svc: RecommendationsService) {}
 
