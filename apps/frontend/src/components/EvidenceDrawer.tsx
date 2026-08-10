@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import type { EvidenceItem } from '@siraat/shared-types';
+import { fetchEvidenceDownloadUrl } from '@/lib/api';
 
 interface Props {
   evidence: EvidenceItem[];
@@ -17,6 +18,28 @@ const TYPE_LABEL: Record<EvidenceItem['type'], string> = {
 
 export function EvidenceDrawer({ evidence, triggerLabel = 'View all evidence' }: Props) {
   const [open, setOpen] = useState(false);
+  const [loadingId, setLoadingId] = useState<string | null>(null);
+  const [errors, setErrors] = useState<Record<string, string>>({});
+
+  async function handleViewDocument(itemId: string) {
+    setLoadingId(itemId);
+    setErrors((prev) => {
+      const next = { ...prev };
+      delete next[itemId];
+      return next;
+    });
+    try {
+      const { url } = await fetchEvidenceDownloadUrl(itemId);
+      window.open(url, '_blank', 'noopener,noreferrer');
+    } catch {
+      setErrors((prev) => ({
+        ...prev,
+        [itemId]: 'Could not fetch download link. Try again.',
+      }));
+    } finally {
+      setLoadingId(null);
+    }
+  }
 
   return (
     <>
@@ -149,17 +172,30 @@ export function EvidenceDrawer({ evidence, triggerLabel = 'View all evidence' }:
 
                     <p style={{ fontSize: '13px', color: 'var(--text)' }}>{item.source_ref}</p>
 
-                    {/* Placeholder link — file_ref is a path string, no real file exists this capability */}
-                    <p
+                    <button
+                      onClick={() => handleViewDocument(item.id)}
+                      disabled={loadingId === item.id}
                       style={{
+                        alignSelf: 'flex-start',
                         fontSize: '12px',
-                        color: 'var(--muted)',
-                        fontFamily: 'monospace',
-                        wordBreak: 'break-all',
+                        fontWeight: 600,
+                        color: loadingId === item.id ? 'var(--muted)' : '#2563eb',
+                        background: 'none',
+                        border: 'none',
+                        padding: 0,
+                        cursor: loadingId === item.id ? 'default' : 'pointer',
+                        textDecoration: 'underline',
+                        textDecorationColor: loadingId === item.id ? 'var(--muted)' : '#2563eb',
                       }}
                     >
-                      {item.file_ref}
-                    </p>
+                      {loadingId === item.id ? 'Loading…' : 'View Document →'}
+                    </button>
+
+                    {errors[item.id] && (
+                      <p style={{ fontSize: '11px', color: 'var(--error)', margin: 0 }}>
+                        {errors[item.id]}
+                      </p>
+                    )}
 
                     <p style={{ fontSize: '11px', color: 'var(--muted)' }}>
                       Added {new Date(item.created_at).toLocaleDateString('en-PK', {

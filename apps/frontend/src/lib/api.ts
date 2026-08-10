@@ -63,3 +63,9 @@ export async function submitEvidence(societyId: string, data: {
     body: JSON.stringify({ linked_to: societyId, ...data }),
   });
 }
+
+export async function fetchEvidenceDownloadUrl(
+  evidenceId: string,
+): Promise<{ url: string; expires_in_seconds: number }> {
+  return apiFetch(`/v1/trust/evidence/${evidenceId}/download-url`);
+}
