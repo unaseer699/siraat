@@ -10,7 +10,9 @@ COPY apps/frontend/ apps/frontend/
 
 RUN pnpm install --frozen-lockfile
 
-# next build produces .next/standalone/ when output: 'standalone' is set in next.config.js
+# NEXT_STANDALONE=1 enables standalone output (gated in next.config.js to avoid
+# Windows symlink permission errors during local dev builds)
+ENV NEXT_STANDALONE=1
 RUN pnpm --filter frontend build
 
 # ── Stage 2: Runtime ─────────────────────────────────────────────────────────

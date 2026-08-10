@@ -1,5 +1,10 @@
+'use client';
+
 import Link from 'next/link';
+import { RadialBarChart, RadialBar, PolarAngleAxis } from 'recharts';
 import type { RecommendationDetail, EvidenceSummary } from '@siraat/shared-types';
+import StatCard from './StatCard';
+import { TRUST_GREEN, WARNING_AMBER, DANGER_RED, RADIUS } from '../styles/tokens';
 
 interface Props {
   detail: RecommendationDetail;
@@ -11,34 +16,51 @@ function formatPKR(n: number): string {
   return `PKR ${n.toLocaleString()}`;
 }
 
-function ConfidenceBar({ score }: { score: number }) {
+function confidenceColor(score: number): string {
+  return score >= 0.8 ? TRUST_GREEN : score >= 0.5 ? WARNING_AMBER : DANGER_RED;
+}
+
+function ConfidenceGauge({ score }: { score: number }) {
   const pct = Math.round(score * 100);
-  const color =
-    score >= 0.8 ? 'var(--success)' : score >= 0.5 ? 'var(--warn)' : 'var(--error)';
+  const color = confidenceColor(score);
+  const data = [{ value: pct, fill: color }];
+
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '14px' }}>
-        <span style={{ fontWeight: 600 }}>Trust confidence</span>
-        <span style={{ fontWeight: 700, color }}>{pct}%</span>
-      </div>
-      <div
-        style={{
-          height: '8px',
-          background: 'var(--border)',
-          borderRadius: '99px',
-          overflow: 'hidden',
-        }}
-      >
+    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px' }}>
+      <div style={{ position: 'relative', width: 140, height: 140 }}>
+        <RadialBarChart
+          width={140}
+          height={140}
+          cx={70}
+          cy={70}
+          innerRadius={50}
+          outerRadius={68}
+          barSize={18}
+          data={data}
+          startAngle={90}
+          endAngle={-270}
+        >
+          <PolarAngleAxis type="number" domain={[0, 100]} tick={false} />
+          <RadialBar dataKey="value" cornerRadius={9} background={{ fill: '#e5e7eb' }} />
+        </RadialBarChart>
         <div
           style={{
-            height: '100%',
-            width: `${pct}%`,
-            background: color,
-            borderRadius: '99px',
-            transition: 'width 0.4s ease',
+            position: 'absolute',
+            inset: 0,
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            justifyContent: 'center',
+            pointerEvents: 'none',
           }}
-        />
+        >
+          <span style={{ fontSize: '26px', fontWeight: 800, color, lineHeight: 1 }}>{pct}%</span>
+          <span style={{ fontSize: '11px', color: '#6b7280', fontWeight: 600, marginTop: '2px' }}>
+            confidence
+          </span>
+        </div>
       </div>
+      <span style={{ fontSize: '13px', fontWeight: 600, color: '#374151' }}>Trust confidence</span>
     </div>
   );
 }
@@ -57,58 +79,67 @@ function EvidenceCited({
   summaries: EvidenceSummary[];
   fallbackIds: string[];
 }) {
-  const count = summaries.length > 0 ? summaries.length : fallbackIds.length;
+  const hasSummaries = summaries.length > 0;
+  const count = hasSummaries ? summaries.length : fallbackIds.length;
+
   return (
     <div>
-      <h2 style={{ fontSize: '15px', fontWeight: 700, marginBottom: '8px' }}>
+      <h2 style={{ fontSize: '15px', fontWeight: 700, marginBottom: '10px' }}>
         Evidence cited ({count})
       </h2>
-      <ul style={{ listStyle: 'none', display: 'flex', flexDirection: 'column', gap: '6px' }}>
-        {summaries.length > 0
+      <ul style={{ listStyle: 'none', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+        {hasSummaries
           ? summaries.map((e) => (
               <li
                 key={e.id}
                 style={{
-                  fontSize: '13px',
-                  color: 'var(--text)',
-                  padding: '8px 12px',
-                  background: 'var(--bg)',
-                  border: '1px solid var(--border)',
-                  borderRadius: '4px',
+                  padding: '12px 16px',
+                  background: '#f9fafb',
+                  border: '1px solid #e5e7eb',
+                  borderRadius: RADIUS.md,
                   display: 'flex',
-                  alignItems: 'baseline',
-                  gap: '8px',
+                  alignItems: 'center',
+                  gap: '12px',
                 }}
               >
-                <span
-                  style={{
-                    fontSize: '11px',
-                    fontWeight: 700,
-                    color: 'var(--muted)',
-                    textTransform: 'uppercase',
-                    letterSpacing: '0.04em',
-                    flexShrink: 0,
-                  }}
-                >
-                  {TYPE_LABEL[e.type]}
+                <span style={{ color: TRUST_GREEN, fontSize: '16px', flexShrink: 0, fontWeight: 700 }}>
+                  ✓
                 </span>
-                <span>{e.source_ref}</span>
+                <div>
+                  <div
+                    style={{
+                      fontSize: '11px',
+                      fontWeight: 700,
+                      color: '#6b7280',
+                      textTransform: 'uppercase',
+                      letterSpacing: '0.05em',
+                    }}
+                  >
+                    {TYPE_LABEL[e.type]}
+                  </div>
+                  <div style={{ fontSize: '13px', color: '#111827', marginTop: '2px' }}>
+                    {e.source_ref}
+                  </div>
+                </div>
               </li>
             ))
           : fallbackIds.map((id) => (
               <li
                 key={id}
                 style={{
-                  fontSize: '13px',
-                  color: 'var(--text)',
-                  padding: '6px 10px',
-                  background: 'var(--bg)',
-                  border: '1px solid var(--border)',
-                  borderRadius: '4px',
-                  fontFamily: 'monospace',
+                  padding: '12px 16px',
+                  background: '#f9fafb',
+                  border: '1px solid #e5e7eb',
+                  borderRadius: RADIUS.md,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '12px',
                 }}
               >
-                {id}
+                <span style={{ color: TRUST_GREEN, fontSize: '16px', flexShrink: 0, fontWeight: 700 }}>
+                  ✓
+                </span>
+                <div style={{ fontSize: '13px', color: '#111827', fontFamily: 'monospace' }}>{id}</div>
               </li>
             ))}
       </ul>
@@ -122,6 +153,21 @@ export function RecommendationDetails({ detail }: Props) {
     month: 'long',
     year: 'numeric',
   });
+
+  const evidenceCount =
+    detail.evidence_summaries.length > 0
+      ? detail.evidence_summaries.length
+      : detail.derived_from.length;
+
+  const evidenceTone =
+    evidenceCount >= 3 ? 'success' : evidenceCount >= 1 ? 'neutral' : 'danger';
+
+  const confidenceTone =
+    detail.confidence_score >= 0.8
+      ? 'success'
+      : detail.confidence_score >= 0.5
+        ? 'warning'
+        : 'danger';
 
   return (
     <article
@@ -144,13 +190,12 @@ export function RecommendationDetails({ detail }: Props) {
           {formatPKR(detail.price)}
         </p>
         {detail.is_stale && (
-          <p style={{ color: 'var(--warn)', fontSize: '13px', marginTop: '4px' }}>
+          <p style={{ color: WARNING_AMBER, fontSize: '13px', marginTop: '4px' }}>
             ⚠ Data may be stale (threshold: {detail.staleness_threshold_days} days)
           </p>
         )}
       </div>
 
-      {/* Affiliation disclosure — visually prominent, never buried */}
       {detail.affiliation_disclosure && (
         <div
           style={{
@@ -172,13 +217,28 @@ export function RecommendationDetails({ detail }: Props) {
           background: '#fff',
           border: '1px solid var(--border)',
           borderRadius: 'var(--radius)',
-          padding: '20px',
+          padding: '24px',
           display: 'flex',
           flexDirection: 'column',
-          gap: '16px',
+          gap: '20px',
         }}
       >
-        <ConfidenceBar score={detail.confidence_score} />
+        <ConfidenceGauge score={detail.confidence_score} />
+
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+          <StatCard
+            value={evidenceCount}
+            label="Evidence cited"
+            tone={evidenceTone}
+            icon="📄"
+          />
+          <StatCard
+            value={computedDate}
+            label="Last verified"
+            tone={detail.is_stale ? 'warning' : confidenceTone}
+            icon="🗓"
+          />
+        </div>
 
         <div>
           <h2 style={{ fontSize: '15px', fontWeight: 700, marginBottom: '8px' }}>
@@ -191,7 +251,14 @@ export function RecommendationDetails({ detail }: Props) {
 
         <EvidenceCited summaries={detail.evidence_summaries} fallbackIds={detail.derived_from} />
 
-        <p style={{ fontSize: '12px', color: 'var(--muted)', borderTop: '1px solid var(--border)', paddingTop: '12px' }}>
+        <p
+          style={{
+            fontSize: '12px',
+            color: 'var(--muted)',
+            borderTop: '1px solid var(--border)',
+            paddingTop: '12px',
+          }}
+        >
           Score computed on {computedDate} · record_type: {detail.record_type}
         </p>
       </div>

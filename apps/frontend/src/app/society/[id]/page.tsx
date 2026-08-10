@@ -2,22 +2,30 @@ import { notFound } from 'next/navigation';
 import Link from 'next/link';
 import { fetchSocietyNocStatus } from '@/lib/api';
 import { EvidenceDrawer } from '@/components/EvidenceDrawer';
+import StatCard from '@/components/StatCard';
+import { TRUST_GREEN, WARNING_AMBER, DANGER_RED } from '@/styles/tokens';
 
 interface Props {
   params: { id: string };
 }
 
+const STATUS_META: Record<
+  'VERIFIED' | 'DISPUTED' | 'PENDING',
+  { color: string; bg: string; border: string; tone: 'success' | 'danger' | 'warning' }
+> = {
+  VERIFIED: { color: TRUST_GREEN, bg: '#f0fdf4', border: `${TRUST_GREEN}40`, tone: 'success' },
+  DISPUTED: { color: DANGER_RED, bg: '#fef2f2', border: `${DANGER_RED}40`, tone: 'danger' },
+  PENDING: { color: WARNING_AMBER, bg: '#fffbeb', border: `${WARNING_AMBER}40`, tone: 'warning' },
+};
+
 function StatusBadge({ status }: { status: 'VERIFIED' | 'DISPUTED' | 'PENDING' }) {
-  const styles: Record<string, { background: string; border: string; color: string }> = {
-    VERIFIED: { background: '#f0fdf4', border: '1px solid #bbf7d0', color: '#166534' },
-    DISPUTED: { background: '#fff7ed', border: '1px solid #fed7aa', color: '#9a3412' },
-    PENDING: { background: '#fefce8', border: '1px solid #fde68a', color: '#92400e' },
-  };
-  const s = styles[status] ?? styles.PENDING;
+  const { color, bg, border } = STATUS_META[status] ?? STATUS_META.PENDING;
   return (
     <span
       style={{
-        ...s,
+        color,
+        background: bg,
+        border: `1px solid ${border}`,
         fontSize: '12px',
         fontWeight: 700,
         padding: '4px 12px',
@@ -37,6 +45,21 @@ export default async function SocietyProfilePage({ params }: Props) {
   } catch {
     notFound();
   }
+
+  const verifiedDateLabel = verification.verified_at
+    ? new Date(verification.verified_at).toLocaleDateString('en-PK', {
+        day: 'numeric',
+        month: 'short',
+        year: 'numeric',
+      })
+    : 'Pending';
+
+  const evidenceTone =
+    verification.evidence.length >= 2
+      ? 'success'
+      : verification.evidence.length >= 1
+        ? 'neutral'
+        : 'warning';
 
   return (
     <main
@@ -71,7 +94,7 @@ export default async function SocietyProfilePage({ params }: Props) {
             padding: '20px',
             display: 'flex',
             flexDirection: 'column',
-            gap: '14px',
+            gap: '16px',
           }}
         >
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
@@ -79,16 +102,21 @@ export default async function SocietyProfilePage({ params }: Props) {
             <StatusBadge status={verification.status} />
           </div>
 
-          {verification.verified_at && (
-            <p style={{ fontSize: '13px', color: 'var(--muted)' }}>
-              Verified on{' '}
-              {new Date(verification.verified_at).toLocaleDateString('en-PK', {
-                day: 'numeric',
-                month: 'long',
-                year: 'numeric',
-              })}
-            </p>
-          )}
+          {/* StatCard row */}
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+            <StatCard
+              value={verification.evidence.length}
+              label="Evidence items"
+              tone={evidenceTone}
+              icon="📋"
+            />
+            <StatCard
+              value={verifiedDateLabel}
+              label="Verified on"
+              tone={STATUS_META[verification.status]?.tone ?? 'warning'}
+              icon="✓"
+            />
+          </div>
 
           {verification.status === 'PENDING' && (
             <p style={{ fontSize: '13px', color: '#92400e' }}>
@@ -97,10 +125,6 @@ export default async function SocietyProfilePage({ params }: Props) {
           )}
 
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
-            <p style={{ fontSize: '13px', color: 'var(--muted)' }}>
-              {verification.evidence.length} evidence item
-              {verification.evidence.length !== 1 ? 's' : ''} on record
-            </p>
             {verification.evidence.length > 0 && (
               <EvidenceDrawer evidence={verification.evidence} />
             )}

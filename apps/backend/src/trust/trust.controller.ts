@@ -3,6 +3,7 @@ import { BearerGuard } from '../auth/bearer.guard';
 import { ZodValidationPipe } from '../common/zod-validation.pipe';
 import { EvidenceSubmissionRequestSchema, type EvidenceSubmissionRequest } from '@siraat/shared-types';
 import { TrustService } from './trust.service';
+import { StorageService } from './storage.service';
 import type { EvidenceEntity } from './entities/evidence.entity';
 
 function serializeEvidence(e: EvidenceEntity) {
@@ -19,7 +20,10 @@ function serializeEvidence(e: EvidenceEntity) {
 @Controller('v1/trust')
 @UseGuards(BearerGuard)
 export class TrustController {
-  constructor(private readonly trustSvc: TrustService) {}
+  constructor(
+    private readonly trustSvc: TrustService,
+    private readonly storageSvc: StorageService,
+  ) {}
 
   @Get('societies/:id/noc-status')
   async getSocietyNocStatus(@Param('id') id: string) {
@@ -52,6 +56,14 @@ export class TrustController {
     const evidence = await this.trustSvc.getEvidenceById(id);
     if (!evidence) throw new NotFoundException(`Evidence ${id} not found`);
     return serializeEvidence(evidence);
+  }
+
+  @Get('evidence/:id/download-url')
+  async getEvidenceDownloadUrl(@Param('id') id: string) {
+    const evidence = await this.trustSvc.getEvidenceById(id);
+    if (!evidence) throw new NotFoundException(`Evidence ${id} not found`);
+    const url = await this.storageSvc.getPresignedDownloadUrl(evidence.file_ref);
+    return { url, expires_in_seconds: 900 };
   }
 
   @Post('evidence-submissions')

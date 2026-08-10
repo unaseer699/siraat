@@ -5,11 +5,12 @@ import { EvidenceEntity } from './entities/evidence.entity';
 import { EvidenceSubmissionEntity } from './entities/evidence-submission.entity';
 import { TrustService } from './trust.service';
 import { TrustController } from './trust.controller';
+import { StorageService } from './storage.service';
 
 @Module({
   imports: [TypeOrmModule.forFeature([VerificationEntity, EvidenceEntity, EvidenceSubmissionEntity])],
   controllers: [TrustController],
-  providers: [TrustService],
+  providers: [TrustService, StorageService],
   exports: [TrustService],
 })
 export class TrustModule {}

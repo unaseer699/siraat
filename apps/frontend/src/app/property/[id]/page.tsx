@@ -2,6 +2,8 @@ import { notFound } from 'next/navigation';
 import Link from 'next/link';
 import { fetchPropertyDetail, fetchSocietyNocStatus } from '@/lib/api';
 import { EvidenceDrawer } from '@/components/EvidenceDrawer';
+import StatCard from '@/components/StatCard';
+import { TRUST_GREEN, WARNING_AMBER, DANGER_RED } from '@/styles/tokens';
 
 interface Props {
   params: { id: string };
@@ -13,8 +15,14 @@ function formatPKR(n: number): string {
   return `PKR ${n.toLocaleString()}`;
 }
 
+const STATUS_META: Record<string, { color: string; tone: 'success' | 'neutral' | 'warning' }> = {
+  ACTIVE: { color: TRUST_GREEN, tone: 'success' },
+  LISTED: { color: '#1e40af', tone: 'neutral' },
+  ARCHIVED: { color: DANGER_RED, tone: 'warning' },
+};
+
 function StatusChip({ status }: { status: string }) {
-  const color = status === 'ACTIVE' ? '#166534' : status === 'LISTED' ? '#1e40af' : '#6b7280';
+  const { color } = STATUS_META[status] ?? STATUS_META.ARCHIVED;
   return (
     <span
       style={{
@@ -22,7 +30,7 @@ function StatusChip({ status }: { status: string }) {
         fontWeight: 700,
         padding: '2px 10px',
         borderRadius: '99px',
-        border: `1px solid currentColor`,
+        border: `1px solid ${color}`,
         color,
         display: 'inline-block',
       }}
@@ -50,6 +58,11 @@ export default async function PropertyDetailsPage({ params }: Props) {
     }
   }
 
+  const statusMeta = STATUS_META[property.status] ?? STATUS_META.ARCHIVED;
+
+  const nocTone: 'success' | 'warning' =
+    property.society?.noc_approved ? 'success' : 'warning';
+
   return (
     <main
       style={{
@@ -75,6 +88,36 @@ export default async function PropertyDetailsPage({ params }: Props) {
           <p style={{ fontSize: '24px', fontWeight: 700, marginTop: '8px' }}>
             {formatPKR(property.price)}
           </p>
+        </div>
+
+        {/* StatCard row — key at-a-glance stats */}
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: property.society ? '1fr 1fr 1fr' : '1fr 1fr',
+            gap: '12px',
+          }}
+        >
+          <StatCard
+            value={`${property.area_marla} Marla`}
+            label="Property area"
+            tone="neutral"
+            icon="📐"
+          />
+          <StatCard
+            value={property.status}
+            label="Listing status"
+            tone={statusMeta.tone}
+            icon="📋"
+          />
+          {property.society && (
+            <StatCard
+              value={property.society.noc_approved ? 'Approved' : 'Pending'}
+              label="Society NOC"
+              tone={nocTone}
+              icon="🏛"
+            />
+          )}
         </div>
 
         {/* Property specifics */}
