@@ -60,6 +60,31 @@ export class PropertyIntelligenceService {
     private readonly developerRepo: Repository<DeveloperEntity>,
   ) {}
 
+  async createSociety(data: {
+    name: string;
+    city: string;
+    min_price: number | null;
+    max_price: number | null;
+    min_area_marla: number | null;
+    max_area_marla: number | null;
+    property_types: string[];
+    noc_approved: boolean;
+    base_confidence: number;
+    is_siraat_affiliated: boolean;
+    affiliation_disclosure: string | null;
+    noc_summary: string | null;
+  }): Promise<SocietyResult> {
+    const entity = this.societyRepo.create({
+      ...data,
+      source_document_ids: [],
+      is_stale: false,
+      staleness_threshold_days: 30,
+      record_type: 'FACT',
+    });
+    const saved = await this.societyRepo.save(entity);
+    return toSocietyResult(saved);
+  }
+
   async findSocietyById(id: string): Promise<SocietyResult | null> {
     const entity = await this.societyRepo.findOneBy({ id });
     return entity ? toSocietyResult(entity) : null;

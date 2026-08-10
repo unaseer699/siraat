@@ -7,9 +7,11 @@
     "dev:frontend": "pnpm --filter frontend dev",
     "build": "pnpm -r build",
     "test": "pnpm -r test",
-    "lint": "pnpm -r lint"
+    "lint": "pnpm -r lint",
+    "smoke": "ts-node -P scripts/tsconfig.scripts.json scripts/qa-smoke-test.ts"
   },
   "devDependencies": {
+    "ts-node": "^10.9.2",
     "typescript": "^5.5.4"
   }
 }

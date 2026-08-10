@@ -1,0 +1,100 @@
+# DigitalOcean App Platform specification — Siraat
+#
+# BEFORE DEPLOYING:
+#   1. Replace owner/siraat with the actual GitHub repo slug.
+#   2. Populate all SECRET env vars in the DO control panel — never commit real values here.
+#   3. See docs/DEPLOYMENT.md for the full pre-deploy checklist.
+#
+# Phase 10 note: Apache AGE (graph projection) and a separate Graph Service are planned
+# but not yet implemented. This spec reflects the current two-component architecture only.
+
+name: siraat-app
+region: nyc
+
+services:
+  # ── Backend: NestJS monolith ───────────────────────────────────────────────
+  - name: siraat-monolith-app
+    github:
+      repo: owner/siraat           # TODO: replace with actual repo
+      branch: main
+      deploy_on_push: false        # manual promotion only — avoids surprise production deploys
+    dockerfile_path: apps/backend/Dockerfile
+    source_dir: /
+    http_port: 3001
+    instance_size_slug: basic-xxs
+    instance_count: 1
+    health_check:
+      http_path: /health           # public endpoint, no auth required
+      initial_delay_seconds: 30
+      period_seconds: 10
+      timeout_seconds: 5
+      failure_threshold: 3
+    envs:
+      # Injected by DO from the attached Managed Postgres database
+      - key: DATABASE_URL
+        scope: RUN_TIME
+        type: SECRET
+      # Placeholder — Redis not yet used at runtime (ThrottlerModule is in-memory).
+      # Wire this when moving to a Redis-backed throttler or job queue.
+      - key: REDIS_URL
+        scope: RUN_TIME
+        type: SECRET
+      # Shared API key for all clients (BearerGuard). Set in DO Secrets panel.
+      - key: SIRAAT_API_KEY
+        scope: RUN_TIME
+        type: SECRET
+      # Auto-resolved from the frontend component's public URL
+      - key: FRONTEND_URL
+        scope: RUN_TIME
+        value: ${siraat-frontend.PUBLIC_URL}
+      - key: NODE_ENV
+        scope: RUN_TIME
+        value: production
+      - key: PORT
+        scope: RUN_TIME
+        value: "3001"
+
+  # ── Frontend: Next.js ──────────────────────────────────────────────────────
+  - name: siraat-frontend
+    github:
+      repo: owner/siraat           # TODO: replace with actual repo
+      branch: main
+      deploy_on_push: false
+    dockerfile_path: apps/frontend/Dockerfile
+    source_dir: /
+    http_port: 3000
+    instance_size_slug: basic-xxs
+    instance_count: 1
+    envs:
+      # Baked into the Next.js bundle at build time (NEXT_PUBLIC_ prefix)
+      - key: NEXT_PUBLIC_API_URL
+        scope: BUILD_TIME
+        value: ${siraat-monolith-app.PUBLIC_URL}
+      # The shared API key is also needed client-side to authenticate fetch calls.
+      # This is intentional — BearerGuard uses a single shared key, not user-level tokens.
+      - key: NEXT_PUBLIC_SIRAAT_API_KEY
+        scope: BUILD_TIME
+        type: SECRET
+      - key: NODE_ENV
+        scope: RUN_TIME
+        value: production
+      - key: PORT
+        scope: RUN_TIME
+        value: "3000"
+
+# ── External Resources ────────────────────────────────────────────────────────
+databases:
+  - name: siraat-db
+    engine: PG
+    version: "16"
+    size: db-s-1vcpu-1gb
+    num_nodes: 1
+
+# ── Storage (DO Spaces — stands in for S3, used for file_ref uploads) ─────────
+# Spaces is not declared here; configure a Spaces bucket manually and wire its
+# endpoint + credentials to the backend via env vars when file upload is implemented.
+#
+# ── Graph Database note (Phase 10 forward-doc) ───────────────────────────────
+# DO Managed Postgres supports Apache AGE for the Knowledge Graph projection.
+# Neo4j Cloud is the fallback. Neither is active yet — the Graph Projection Service
+# was correctly deferred (Phase 3/7 scope decision). Uncomment when implementing.

@@ -105,6 +105,25 @@ Each item: **Priority** (Low / Medium / High) · **Found in** (capability) ·
 
 ---
 
+### 10. Production database schema setup has no automated safety net
+- **Priority:** Medium
+- **Found in:** Capability 6
+- **Target:** Future DevOps hardening
+- `init-schemas.sql` must be run manually against a fresh DO database before first boot,
+  per `docs/DEPLOYMENT.md`. No automated check confirms this happened before the app starts
+  accepting traffic. A startup guard (e.g. verifying that the `trust` schema exists before
+  `TypeOrmModule` connects, or a pre-flight migration runner) would prevent silent failures
+  where the app boots against an uninitialized database and all requests 500.
+
+### 11. Evidence-required invariant duplicated across `createVerification()` and `promoteToVerified()`
+- **Priority:** Low
+- **Found in:** Capability 6
+- **Target:** General cleanup
+- Both methods independently check `evidence_refs.length === 0` and throw
+  `BadRequestException`. Extract to a shared `assertHasEvidence()` private helper so the
+  rule has one home and any future change to the invariant (e.g. minimum 2 evidence items)
+  only needs to be made in one place.
+
 ### 9. Full OBO / user-level authentication
 - **Priority:** High
 - **Found in:** Capability 5

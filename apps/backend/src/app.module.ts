@@ -5,8 +5,10 @@ import { ThrottlerModule } from '@nestjs/throttler';
 import { PropertyIntelligenceModule } from './property-intelligence/property-intelligence.module';
 import { MarketIntelligenceModule } from './market-intelligence/market-intelligence.module';
 import { TrustModule } from './trust/trust.module';
+import { HealthController } from './health.controller';
 
 @Module({
+  controllers: [HealthController],
   imports: [
     // Must be first — other modules read process.env values at module init time
     ConfigModule.forRoot({ isGlobal: true, envFilePath: '.env' }),
