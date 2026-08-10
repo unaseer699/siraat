@@ -115,25 +115,56 @@ export class TrustService {
     if (!submission) throw new NotFoundException(`Submission ${id} not found`);
 
     if (decision === 'accepted') {
-      const evidence = this.eviRepo.create({
+      await this.createAndLinkEvidence(submission.linked_to, {
         type: submission.type,
         file_ref: submission.file_ref,
         source_ref: submission.source_ref,
-        record_type: 'FACT',
       });
-      const savedEvidence = await this.eviRepo.save(evidence);
-
-      const verification = await this.verRepo.findOne({
-        where: { subject_type: 'SOCIETY', subject_id: submission.linked_to },
-      });
-      if (verification) {
-        verification.evidence_refs = [...verification.evidence_refs, savedEvidence.id];
-        await this.verRepo.save(verification);
-      }
     }
 
     submission.status = decision === 'accepted' ? 'accepted' : 'rejected';
     submission.reviewed_at = new Date();
     await this.subRepo.save(submission);
+  }
+
+  // Shared by reviewSubmission() and the admin-add-society script.
+  // Creates a FACT Evidence row and appends its id to the Verification's evidence_refs.
+  async createAndLinkEvidence(
+    subjectId: string,
+    data: {
+      type: 'document' | 'photo' | 'receipt' | 'inspection_report';
+      file_ref: string;
+      source_ref: string;
+    },
+  ): Promise<EvidenceEntity> {
+    const evidence = this.eviRepo.create({ ...data, record_type: 'FACT' });
+    const saved = await this.eviRepo.save(evidence);
+
+    const verification = await this.verRepo.findOne({
+      where: { subject_type: 'SOCIETY', subject_id: subjectId },
+    });
+    if (verification) {
+      verification.evidence_refs = [...verification.evidence_refs, saved.id];
+      await this.verRepo.save(verification);
+    }
+
+    return saved;
+  }
+
+  // Admin-only: promote an existing PENDING Verification to VERIFIED.
+  // Throws if no evidence has been linked yet (reuses the same invariant as createVerification).
+  async promoteToVerified(subjectId: string): Promise<VerificationEntity> {
+    const verification = await this.verRepo.findOne({
+      where: { subject_type: 'SOCIETY', subject_id: subjectId },
+    });
+    if (!verification) {
+      throw new NotFoundException(`No verification record found for society ${subjectId}`);
+    }
+    if (verification.evidence_refs.length === 0) {
+      throw new BadRequestException('Cannot promote to VERIFIED with zero evidence references');
+    }
+    verification.status = 'VERIFIED';
+    verification.verified_at = new Date();
+    return this.verRepo.save(verification);
   }
 }
