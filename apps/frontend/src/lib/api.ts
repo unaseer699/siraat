@@ -11,6 +11,8 @@ const BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001';
 
 async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(`${BASE_URL}${path}`, {
+    // All Siraat endpoints reflect live database state — never serve from Next.js Data Cache
+    cache: 'no-store',
     ...init,
     headers: {
       'Content-Type': 'application/json',

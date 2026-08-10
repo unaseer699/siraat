@@ -1,0 +1,31 @@
+﻿{
+    "id":  "dd655c54-b3a2-4ae6-b155-72728bb25f79",
+    "title":  "10.00 Marla PLOT",
+    "society_id":  "a1b2c3d4-0001-0001-0001-000000000001",
+    "society_name":  "Park View City",
+    "price":  24000000,
+    "confidence_score":  0.945,
+    "is_stale":  false,
+    "staleness_threshold_days":  30,
+    "affiliation_disclosure":  null,
+    "recommendation_summary":  "NOC approved by CDA with high development density. Multiple residential sectors handed over.",
+    "reasoning_summary":  "Confidence 95%: Trust verification confirmed. 2 evidence items on record. NOC approved by CDA with high development density. Multiple residential sectors handed over..",
+    "derived_from":  [
+                         "e1b2c3d4-0001-0001-0001-000000000001",
+                         "e1b2c3d4-0001-0001-0001-000000000002"
+                     ],
+    "evidence_summaries":  [
+                               {
+                                   "id":  "e1b2c3d4-0001-0001-0001-000000000001",
+                                   "type":  "document",
+                                   "source_ref":  "CDA Portal — NOC No. CDA/D-16/2021/PVC"
+                               },
+                               {
+                                   "id":  "e1b2c3d4-0001-0001-0001-000000000002",
+                                   "type":  "document",
+                                   "source_ref":  "CDA Portal — Layout Plan Approval 2022"
+                               }
+                           ],
+    "record_type":  "GENERATED",
+    "computed_at":  "2026-08-05T01:06:21.600Z"
+}
