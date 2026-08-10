@@ -5,3 +5,8 @@ dist/
 .next/
 *.log
 coverage/
+
+*.json.tmp
+detail-response.json
+page-source.txt
+response.json
