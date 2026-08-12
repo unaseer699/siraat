@@ -17,86 +17,17 @@ import 'reflect-metadata';
 import { NestFactory } from '@nestjs/core';
 import * as readline from 'readline';
 import { AppModule } from '../src/app.module';
-import { TrustService, ClaimType } from '../src/trust/trust.service';
+import { TrustService } from '../src/trust/trust.service';
 import { PropertyIntelligenceService } from '../src/property-intelligence/property-intelligence.service';
-
-// ── Prompt helper ─────────────────────────────────────────────────────────────
-
-function ask(rl: readline.Interface, question: string): Promise<string> {
-  return new Promise((resolve) => rl.question(question, resolve));
-}
-
-async function askOptionalNumber(rl: readline.Interface, label: string): Promise<number | null> {
-  const raw = (await ask(rl, `${label} (press Enter to skip): `)).trim();
-  if (!raw) return null;
-  const n = Number(raw);
-  if (isNaN(n) || n < 0) {
-    console.log(`  ! Invalid number, using null.`);
-    return null;
-  }
-  return n;
-}
-
-async function askRequired(rl: readline.Interface, label: string): Promise<string> {
-  let value = '';
-  while (!value.trim()) {
-    value = await ask(rl, `${label}: `);
-    if (!value.trim()) console.log('  ! This field is required.');
-  }
-  return value.trim();
-}
-
-async function askYesNo(rl: readline.Interface, question: string): Promise<boolean> {
-  while (true) {
-    const ans = (await ask(rl, `${question} [y/n]: `)).trim().toLowerCase();
-    if (ans === 'y' || ans === 'yes') return true;
-    if (ans === 'n' || ans === 'no') return false;
-    console.log('  ! Please answer y or n.');
-  }
-}
-
-async function askClaimType(rl: readline.Interface): Promise<ClaimType> {
-  const options: ClaimType[] = [
-    'NOC', 'PLANNING_APPROVAL', 'COMPLETION_CERTIFICATE',
-    'SHOW_CAUSE_NOTICE', 'ILLEGAL_SCHEME_NOTICE',
-    'TRANSFER_DEED', 'MORTGAGE_DEED', 'OTHER',
-  ];
-  const display = options.join(' / ');
-  while (true) {
-    const raw = (
-      await ask(rl, `Claim type [${display}] (default: NOC): `)
-    ).trim().toUpperCase();
-    if (!raw) return 'NOC';
-    if (options.includes(raw as ClaimType)) return raw as ClaimType;
-    console.log(`  ! Must be one of: ${display}`);
-  }
-}
-
-async function askVerificationStatus(
-  rl: readline.Interface,
-): Promise<'VERIFIED' | 'PENDING' | 'DISPUTED'> {
-  while (true) {
-    const s = (await ask(rl, 'Verification status [PENDING / VERIFIED / DISPUTED]: ')).trim().toUpperCase();
-    if (s === 'PENDING' || s === 'VERIFIED' || s === 'DISPUTED') {
-      return s as 'VERIFIED' | 'PENDING' | 'DISPUTED';
-    }
-    console.log('  ! Must be PENDING, VERIFIED, or DISPUTED.');
-  }
-}
-
-async function askEvidenceType(
-  rl: readline.Interface,
-): Promise<'document' | 'photo' | 'receipt' | 'inspection_report'> {
-  while (true) {
-    const t = (
-      await ask(rl, 'Evidence type [document / photo / receipt / inspection_report]: ')
-    ).trim().toLowerCase();
-    if (t === 'document' || t === 'photo' || t === 'receipt' || t === 'inspection_report') {
-      return t as 'document' | 'photo' | 'receipt' | 'inspection_report';
-    }
-    console.log('  ! Must be document, photo, receipt, or inspection_report.');
-  }
-}
+import {
+  ask,
+  askOptionalNumber,
+  askRequired,
+  askYesNo,
+  askClaimType,
+  askVerificationStatus,
+  askEvidenceType,
+} from './prompts';
 
 // ── Main ──────────────────────────────────────────────────────────────────────
 
