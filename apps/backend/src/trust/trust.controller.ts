@@ -2,7 +2,7 @@ import { Controller, Get, Post, NotFoundException, Param, Body, UseGuards } from
 import { BearerGuard } from '../auth/bearer.guard';
 import { ZodValidationPipe } from '../common/zod-validation.pipe';
 import { EvidenceSubmissionRequestSchema, type EvidenceSubmissionRequest } from '@siraat/shared-types';
-import { TrustService } from './trust.service';
+import { TrustService, type VerificationResult } from './trust.service';
 import { StorageService } from './storage.service';
 import type { EvidenceEntity } from './entities/evidence.entity';
 
@@ -17,6 +17,16 @@ function serializeEvidence(e: EvidenceEntity) {
   };
 }
 
+function serializeClaim({ verification, evidence }: VerificationResult) {
+  return {
+    status: verification.status,
+    claim: verification.claim,
+    claim_type: verification.claim_type,
+    verified_at: verification.verified_at?.toISOString() ?? null,
+    evidence: evidence.map(serializeEvidence),
+  };
+}
+
 @Controller('v1/trust')
 @UseGuards(BearerGuard)
 export class TrustController {
@@ -27,28 +37,18 @@ export class TrustController {
 
   @Get('societies/:id/noc-status')
   async getSocietyNocStatus(@Param('id') id: string) {
-    const result = await this.trustSvc.getVerification('SOCIETY', id);
-    if (!result) throw new NotFoundException(`No verification record found for society ${id}`);
-    const { verification, evidence } = result;
-    return {
-      status: verification.status,
-      claim: verification.claim,
-      verified_at: verification.verified_at?.toISOString() ?? null,
-      evidence: evidence.map(serializeEvidence),
-    };
+    const results = await this.trustSvc.getVerifications('SOCIETY', id);
+    if (results.length === 0)
+      throw new NotFoundException(`No verification records found for society ${id}`);
+    return { claims: results.map(serializeClaim) };
   }
 
   @Get('developers/:id/verification')
   async getDeveloperVerification(@Param('id') id: string) {
-    const result = await this.trustSvc.getVerification('DEVELOPER', id);
-    if (!result) throw new NotFoundException(`No verification record found for developer ${id}`);
-    const { verification, evidence } = result;
-    return {
-      status: verification.status,
-      claim: verification.claim,
-      verified_at: verification.verified_at?.toISOString() ?? null,
-      evidence: evidence.map(serializeEvidence),
-    };
+    const results = await this.trustSvc.getVerifications('DEVELOPER', id);
+    if (results.length === 0)
+      throw new NotFoundException(`No verification records found for developer ${id}`);
+    return { claims: results.map(serializeClaim) };
   }
 
   @Get('evidence/:id')

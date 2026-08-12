@@ -17,7 +17,7 @@ import 'reflect-metadata';
 import { NestFactory } from '@nestjs/core';
 import * as readline from 'readline';
 import { AppModule } from '../src/app.module';
-import { TrustService } from '../src/trust/trust.service';
+import { TrustService, ClaimType } from '../src/trust/trust.service';
 import { PropertyIntelligenceService } from '../src/property-intelligence/property-intelligence.service';
 
 // ── Prompt helper ─────────────────────────────────────────────────────────────
@@ -52,6 +52,23 @@ async function askYesNo(rl: readline.Interface, question: string): Promise<boole
     if (ans === 'y' || ans === 'yes') return true;
     if (ans === 'n' || ans === 'no') return false;
     console.log('  ! Please answer y or n.');
+  }
+}
+
+async function askClaimType(rl: readline.Interface): Promise<ClaimType> {
+  const options: ClaimType[] = [
+    'NOC', 'PLANNING_APPROVAL', 'COMPLETION_CERTIFICATE',
+    'SHOW_CAUSE_NOTICE', 'ILLEGAL_SCHEME_NOTICE',
+    'TRANSFER_DEED', 'MORTGAGE_DEED', 'OTHER',
+  ];
+  const display = options.join(' / ');
+  while (true) {
+    const raw = (
+      await ask(rl, `Claim type [${display}] (default: NOC): `)
+    ).trim().toUpperCase();
+    if (!raw) return 'NOC';
+    if (options.includes(raw as ClaimType)) return raw as ClaimType;
+    console.log(`  ! Must be one of: ${display}`);
   }
 }
 
@@ -140,6 +157,7 @@ async function main(): Promise<void> {
     console.log('\n── VERIFICATION ────────────────────────────────────');
 
     const targetStatus = await askVerificationStatus(rl);
+    const claimType = await askClaimType(rl);
     const claim = await askRequired(rl, 'Verification claim (e.g. "NOC Approved by CDA")');
 
     // ── Section 3: Evidence (required if VERIFIED) ──────────────────────────
@@ -179,7 +197,7 @@ async function main(): Promise<void> {
     console.log(`  NOC:          ${nocApproved ? 'Approved' : 'Not approved'}`);
     console.log(`  Confidence:   ${baseConfidence}`);
     console.log(`  Affiliated:   ${isAffiliated ? 'Yes — ' + affiliationDisclosure : 'No'}`);
-    console.log(`  Verification: ${targetStatus} — "${claim}"`);
+    console.log(`  Verification: ${targetStatus} — [${claimType}] "${claim}"`);
     console.log(`  Evidence:     ${evidenceItems.length} item(s)`);
     console.log();
 
@@ -215,6 +233,7 @@ async function main(): Promise<void> {
       subject_type: 'SOCIETY',
       subject_id: society.id,
       claim,
+      claim_type: claimType,
       status: 'PENDING',
       evidence_refs: [],
     });

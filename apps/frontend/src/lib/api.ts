@@ -2,7 +2,7 @@ import type {
   RecommendationRequest,
   RecommendationResponse,
   RecommendationDetail,
-  VerificationResponse,
+  VerificationListResponse,
   PropertyDetail,
   DeveloperProfile,
 } from '@siraat/shared-types';
@@ -41,11 +41,15 @@ export async function fetchRecommendationDetail(id: string): Promise<Recommendat
   return apiFetch(`/v1/market-intelligence/recommendations/${id}`);
 }
 
-export async function fetchSocietyNocStatus(societyId: string): Promise<VerificationResponse> {
+export async function fetchSocietyVerifications(
+  societyId: string,
+): Promise<VerificationListResponse> {
   return apiFetch(`/v1/trust/societies/${societyId}/noc-status`);
 }
 
-export async function fetchDeveloperVerification(developerId: string): Promise<VerificationResponse> {
+export async function fetchDeveloperVerification(
+  developerId: string,
+): Promise<VerificationListResponse> {
   return apiFetch(`/v1/trust/developers/${developerId}/verification`);
 }
 

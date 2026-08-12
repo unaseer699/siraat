@@ -16,6 +16,11 @@ export class VerificationEntity {
   @Column({ type: 'text' })
   claim: string;
 
+  @Column({ type: 'varchar', length: 40, default: 'NOC' })
+  claim_type: 'NOC' | 'PLANNING_APPROVAL' | 'COMPLETION_CERTIFICATE'
+            | 'SHOW_CAUSE_NOTICE' | 'ILLEGAL_SCHEME_NOTICE'
+            | 'TRANSFER_DEED' | 'MORTGAGE_DEED' | 'OTHER';
+
   @Column({ type: 'varchar', length: 20 })
   status: 'VERIFIED' | 'DISPUTED' | 'PENDING';
 

@@ -2,15 +2,17 @@ import { notFound } from 'next/navigation';
 import Link from 'next/link';
 import { fetchDeveloperVerification } from '@/lib/api';
 import { EvidenceDrawer } from '@/components/EvidenceDrawer';
+import type { VerificationResponse } from '@siraat/shared-types';
 
-interface Props {
-  params: { id: string; isSiraatAffiliated?: boolean };
+interface PageProps {
+  params: { id: string };
+  searchParams: { affiliated?: string; name?: string };
 }
 
 function StatusBadge({ status }: { status: 'VERIFIED' | 'DISPUTED' | 'PENDING' }) {
   const styles: Record<string, { background: string; border: string; color: string }> = {
     VERIFIED: { background: '#f0fdf4', border: '1px solid #bbf7d0', color: '#166534' },
-    DISPUTED: { background: '#fff7ed', border: '1px solid #fed7aa', color: '#9a3412' },
+    DISPUTED: { background: '#fef2f2', border: '1px solid #fecaca', color: '#991b1b' },
     PENDING: { background: '#fefce8', border: '1px solid #fde68a', color: '#92400e' },
   };
   const s = styles[status] ?? styles.PENDING;
@@ -30,22 +32,69 @@ function StatusBadge({ status }: { status: 'VERIFIED' | 'DISPUTED' | 'PENDING' }
   );
 }
 
-// Search params allow the caller to pass is_siraat_affiliated=true for affiliation banner
-interface PageProps {
-  params: { id: string };
-  searchParams: { affiliated?: string; name?: string };
+function ClaimRow({ c }: { c: VerificationResponse }) {
+  const isAdverse = c.status === 'DISPUTED';
+  return (
+    <div
+      style={{
+        padding: '14px 16px',
+        background: isAdverse ? '#fff8f8' : '#fff',
+        border: `1px solid ${isAdverse ? '#fca5a580' : 'var(--border)'}`,
+        borderLeft: isAdverse ? '4px solid #dc2626' : '1px solid var(--border)',
+        borderRadius: 'var(--radius)',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: '10px',
+      }}
+    >
+      <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+        <span style={{ fontSize: '14px', fontWeight: 600 }}>{c.claim}</span>
+        <StatusBadge status={c.status} />
+      </div>
+
+      {c.verified_at && (
+        <p style={{ fontSize: '13px', color: 'var(--muted)', margin: 0 }}>
+          Verified on{' '}
+          {new Date(c.verified_at).toLocaleDateString('en-PK', {
+            day: 'numeric',
+            month: 'long',
+            year: 'numeric',
+          })}
+        </p>
+      )}
+
+      {isAdverse && (
+        <p style={{ fontSize: '13px', color: '#991b1b', fontWeight: 600, margin: 0 }}>
+          Adverse claim — review carefully before proceeding.
+        </p>
+      )}
+
+      <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+        <span style={{ fontSize: '13px', color: 'var(--muted)' }}>
+          {c.evidence.length} evidence item{c.evidence.length !== 1 ? 's' : ''}
+        </span>
+        {c.evidence.length > 0 && <EvidenceDrawer evidence={c.evidence} />}
+      </div>
+    </div>
+  );
 }
 
 export default async function BuilderProfilePage({ params, searchParams }: PageProps) {
-  let verification;
+  let claims: VerificationResponse[];
   try {
-    verification = await fetchDeveloperVerification(params.id);
+    const result = await fetchDeveloperVerification(params.id);
+    claims = result.claims;
   } catch {
     notFound();
   }
 
+  if (!claims.length) notFound();
+
   const isSiraatAffiliated = searchParams.affiliated === 'true';
   const displayName = searchParams.name ?? `Developer ${params.id.slice(0, 8)}`;
+
+  const primaryClaims = claims.filter((c) => c.status !== 'DISPUTED');
+  const adverseClaims = claims.filter((c) => c.status === 'DISPUTED');
 
   return (
     <main
@@ -64,7 +113,6 @@ export default async function BuilderProfilePage({ params, searchParams }: PageP
           ← Back to search
         </Link>
 
-        {/* Affiliation disclosure banner — same visual treatment as RecommendationDetails (Law 6) */}
         {isSiraatAffiliated && (
           <div
             style={{
@@ -89,50 +137,36 @@ export default async function BuilderProfilePage({ params, searchParams }: PageP
             BUILDER PROFILE
           </p>
           <h1 style={{ fontSize: '26px', fontWeight: 800 }}>{displayName}</h1>
+          <p style={{ fontSize: '13px', color: 'var(--muted)', marginTop: '4px' }}>
+            {claims.length} verification claim{claims.length !== 1 ? 's' : ''} on record
+          </p>
         </div>
 
-        {/* Verification status */}
-        <div
-          style={{
-            background: '#fff',
-            border: '1px solid var(--border)',
-            borderRadius: 'var(--radius)',
-            padding: '20px',
-            display: 'flex',
-            flexDirection: 'column',
-            gap: '14px',
-          }}
-        >
-          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-            <h2 style={{ fontSize: '15px', fontWeight: 700 }}>Developer Verification</h2>
-            <StatusBadge status={verification.status} />
-          </div>
-
-          <p style={{ fontSize: '14px', color: 'var(--text)' }}>{verification.claim}</p>
-
-          {verification.verified_at && (
-            <p style={{ fontSize: '13px', color: 'var(--muted)' }}>
-              Verified on{' '}
-              {new Date(verification.verified_at).toLocaleDateString('en-PK', {
-                day: 'numeric',
-                month: 'long',
-                year: 'numeric',
-              })}
-            </p>
-          )}
-
-          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-            <p style={{ fontSize: '13px', color: 'var(--muted)' }}>
-              {verification.evidence.length} evidence item
-              {verification.evidence.length !== 1 ? 's' : ''} on record
-            </p>
-            {verification.evidence.length > 0 && (
-              <EvidenceDrawer evidence={verification.evidence} />
-            )}
-          </div>
+        {/* Primary claims */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+          <h2 style={{ fontSize: '15px', fontWeight: 700, margin: 0 }}>Developer Verification</h2>
+          {primaryClaims.map((c, i) => (
+            <ClaimRow key={i} c={c} />
+          ))}
         </div>
 
-        {/* Project history placeholder — real data comes from DeveloperProfile API, not hoisted here */}
+        {/* Adverse claims */}
+        {adverseClaims.length > 0 && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <div style={{ flex: 1, height: '1px', background: '#dc262630' }} />
+              <span style={{ fontSize: '11px', fontWeight: 700, color: '#dc2626', whiteSpace: 'nowrap' }}>
+                ADVERSE CLAIMS
+              </span>
+              <div style={{ flex: 1, height: '1px', background: '#dc262630' }} />
+            </div>
+            {adverseClaims.map((c, i) => (
+              <ClaimRow key={i} c={c} />
+            ))}
+          </div>
+        )}
+
+        {/* Project history placeholder */}
         <div
           style={{
             background: '#fff',

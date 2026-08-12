@@ -33,6 +33,7 @@ const VERIFICATION_VERIFIED: VerificationEntity = {
   subject_type: 'SOCIETY',
   subject_id: SOCIETY_ID,
   claim: 'NOC Approved by CDA',
+  claim_type: 'NOC',
   status: 'VERIFIED',
   evidence_refs: [EVIDENCE_1.id, EVIDENCE_2.id],
   verified_at: new Date('2026-01-15'),
@@ -43,6 +44,7 @@ const VERIFICATION_PENDING: VerificationEntity = {
   subject_type: 'DEVELOPER',
   subject_id: DEV_ID_PENDING,
   claim: 'Verified registered developer',
+  claim_type: 'PLANNING_APPROVAL',
   status: 'PENDING',
   evidence_refs: [],
   verified_at: null,
@@ -53,6 +55,7 @@ const VERIFICATION_DEV_VERIFIED: VerificationEntity = {
   subject_type: 'DEVELOPER',
   subject_id: DEV_ID_VERIFIED,
   claim: 'Verified registered developer',
+  claim_type: 'NOC',
   status: 'VERIFIED',
   evidence_refs: ['e2b2c3d4-0001-0001-0001-000000000001'],
   verified_at: new Date('2026-02-01'),
@@ -69,6 +72,7 @@ const DEV_EVIDENCE: EvidenceEntity = {
 
 describe('TrustService', () => {
   let svc: TrustService;
+  let verFindMock: jest.Mock;
   let verFindOneMock: jest.Mock;
   let eviFindByMock: jest.Mock;
   let verCreateMock: jest.Mock;
@@ -81,6 +85,7 @@ describe('TrustService', () => {
   let subSaveMock: jest.Mock;
 
   beforeEach(async () => {
+    verFindMock = jest.fn().mockResolvedValue([]);
     verFindOneMock = jest.fn();
     eviFindByMock = jest.fn().mockResolvedValue([]);
     verCreateMock = jest.fn((data) => data);
@@ -104,6 +109,7 @@ describe('TrustService', () => {
         {
           provide: getRepositoryToken(VerificationEntity),
           useValue: {
+            find: verFindMock,
             findOne: verFindOneMock,
             findOneBy: jest.fn(),
             create: verCreateMock,
@@ -135,16 +141,59 @@ describe('TrustService', () => {
     svc = module.get(TrustService);
   });
 
-  // ─── getVerification ─────────────────────────────────────────────────────────
+  // ─── getVerifications (plural) ───────────────────────────────────────────────
 
-  it('returns null when no verification exists for the subject', async () => {
-    verFindOneMock.mockResolvedValue(null);
+  const VERIFICATION_NOC: VerificationEntity = {
+    id: 'b3b2c3d4-0001-0001-0001-000000000001',
+    subject_type: 'SOCIETY',
+    subject_id: SOCIETY_ID,
+    claim: 'NOC Approved by CDA',
+    claim_type: 'NOC',
+    status: 'VERIFIED',
+    evidence_refs: [EVIDENCE_1.id],
+    verified_at: new Date('2026-01-15'),
+  };
+
+  const VERIFICATION_SHOW_CAUSE: VerificationEntity = {
+    id: 'b3b2c3d4-0002-0002-0002-000000000002',
+    subject_type: 'SOCIETY',
+    subject_id: SOCIETY_ID,
+    claim: 'Illegal Scheme Notice issued by LDA',
+    claim_type: 'SHOW_CAUSE_NOTICE',
+    status: 'DISPUTED',
+    evidence_refs: [EVIDENCE_2.id],
+    verified_at: null,
+  };
+
+  it('getVerifications returns all claims for a subject with multiple Verification rows', async () => {
+    verFindMock.mockResolvedValue([VERIFICATION_NOC, VERIFICATION_SHOW_CAUSE]);
+    eviFindByMock.mockResolvedValue([EVIDENCE_1]);
+
+    const results = await svc.getVerifications('SOCIETY', SOCIETY_ID);
+
+    expect(results).toHaveLength(2);
+    expect(results.map((r) => r.verification.claim_type)).toContain('NOC');
+    expect(results.map((r) => r.verification.claim_type)).toContain('SHOW_CAUSE_NOTICE');
+    expect(results.find((r) => r.verification.claim_type === 'NOC')!.verification.status).toBe('VERIFIED');
+    expect(results.find((r) => r.verification.claim_type === 'SHOW_CAUSE_NOTICE')!.verification.status).toBe('DISPUTED');
+  });
+
+  it('getVerifications returns empty array when no verifications exist', async () => {
+    verFindMock.mockResolvedValue([]);
+    const results = await svc.getVerifications('SOCIETY', 'non-existent-uuid');
+    expect(results).toEqual([]);
+  });
+
+  // ─── getVerification (deprecated shim) ───────────────────────────────────────
+
+  it('getVerification returns null when no verification exists for the subject', async () => {
+    verFindMock.mockResolvedValue([]);
     const result = await svc.getVerification('SOCIETY', 'non-existent-uuid');
     expect(result).toBeNull();
   });
 
-  it('returns verification and evidence for a VERIFIED society', async () => {
-    verFindOneMock.mockResolvedValue(VERIFICATION_VERIFIED);
+  it('getVerification returns verification and evidence for a VERIFIED society', async () => {
+    verFindMock.mockResolvedValue([VERIFICATION_VERIFIED]);
     eviFindByMock.mockResolvedValue([EVIDENCE_1, EVIDENCE_2]);
 
     const result = await svc.getVerification('SOCIETY', SOCIETY_ID);
@@ -155,8 +204,8 @@ describe('TrustService', () => {
     expect(result!.evidence.map((e) => e.id)).toContain(EVIDENCE_1.id);
   });
 
-  it('returns empty evidence list for PENDING verification', async () => {
-    verFindOneMock.mockResolvedValue(VERIFICATION_PENDING);
+  it('getVerification returns empty evidence list for PENDING verification', async () => {
+    verFindMock.mockResolvedValue([VERIFICATION_PENDING]);
 
     const result = await svc.getVerification('DEVELOPER', DEV_ID_PENDING);
 
@@ -166,8 +215,8 @@ describe('TrustService', () => {
     expect(eviFindByMock).not.toHaveBeenCalled();
   });
 
-  it('returns VERIFIED status for verified developer', async () => {
-    verFindOneMock.mockResolvedValue(VERIFICATION_DEV_VERIFIED);
+  it('getVerification returns VERIFIED status for verified developer', async () => {
+    verFindMock.mockResolvedValue([VERIFICATION_DEV_VERIFIED]);
     eviFindByMock.mockResolvedValue([DEV_EVIDENCE]);
 
     const result = await svc.getVerification('DEVELOPER', DEV_ID_VERIFIED);
@@ -176,15 +225,37 @@ describe('TrustService', () => {
     expect(result!.evidence).toHaveLength(1);
   });
 
-  it('returns PENDING status for pending developer', async () => {
-    verFindOneMock.mockResolvedValue(VERIFICATION_PENDING);
+  it('getVerification returns PENDING status for pending developer', async () => {
+    verFindMock.mockResolvedValue([VERIFICATION_PENDING]);
 
     const result = await svc.getVerification('DEVELOPER', DEV_ID_PENDING);
 
     expect(result!.verification.status).toBe('PENDING');
   });
 
+  it('getVerification prefers NOC claim when subject has multiple verifications', async () => {
+    // SHOW_CAUSE is first in array — shim must still return the NOC claim
+    verFindMock.mockResolvedValue([VERIFICATION_SHOW_CAUSE, VERIFICATION_NOC]);
+    eviFindByMock.mockResolvedValue([EVIDENCE_1]);
+
+    const result = await svc.getVerification('SOCIETY', SOCIETY_ID);
+
+    expect(result!.verification.claim_type).toBe('NOC');
+  });
+
   // ─── createVerification ───────────────────────────────────────────────────────
+
+  it('rejects createVerification call with no claim_type', async () => {
+    await expect(
+      svc.createVerification({
+        subject_type: 'SOCIETY',
+        subject_id: 'some-uuid',
+        claim: 'NOC Approved',
+        status: 'PENDING',
+        evidence_refs: [],
+      } as any),
+    ).rejects.toThrow(BadRequestException);
+  });
 
   it('rejects VERIFIED status with empty evidence_refs', async () => {
     await expect(
@@ -192,6 +263,7 @@ describe('TrustService', () => {
         subject_type: 'SOCIETY',
         subject_id: 'some-uuid',
         claim: 'NOC Approved',
+        claim_type: 'NOC',
         status: 'VERIFIED',
         evidence_refs: [],
       }),
@@ -204,6 +276,7 @@ describe('TrustService', () => {
         subject_type: 'SOCIETY',
         subject_id: 'some-uuid',
         claim: 'NOC Approved',
+        claim_type: 'NOC',
         status: 'VERIFIED',
         evidence_refs: ['evi-001'],
       }),
@@ -216,6 +289,7 @@ describe('TrustService', () => {
         subject_type: 'DEVELOPER',
         subject_id: 'some-dev-uuid',
         claim: 'Verified developer',
+        claim_type: 'PLANNING_APPROVAL',
         status: 'PENDING',
         evidence_refs: [],
       }),
@@ -227,6 +301,7 @@ describe('TrustService', () => {
       subject_type: 'SOCIETY',
       subject_id: 'some-uuid',
       claim: 'NOC',
+      claim_type: 'NOC',
       status: 'VERIFIED',
       evidence_refs: ['evi-001'],
     });
@@ -239,6 +314,7 @@ describe('TrustService', () => {
       subject_type: 'SOCIETY',
       subject_id: 'other-uuid',
       claim: 'NOC',
+      claim_type: 'NOC',
       status: 'PENDING',
       evidence_refs: [],
     });
@@ -412,7 +488,7 @@ describe('TrustService', () => {
 
   it('getVerification confidence is unaffected by a pending submission (structural isolation)', async () => {
     // Pending submission exists in sub repo but getVerification only reads verRepo+eviRepo
-    verFindOneMock.mockResolvedValue(VERIFICATION_VERIFIED);
+    verFindMock.mockResolvedValue([VERIFICATION_VERIFIED]);
     eviFindByMock.mockResolvedValue([EVIDENCE_1, EVIDENCE_2]);
     subFindByMock.mockResolvedValue([PENDING_SUBMISSION]);
 
