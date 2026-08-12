@@ -159,6 +159,17 @@ export class TrustService {
     await this.subRepo.save(submission);
   }
 
+  // Creates a standalone FACT Evidence row without linking it to any Verification.
+  // Used by admin scripts that collect evidence IDs before calling createVerification().
+  async createEvidenceRecord(data: {
+    type: 'document' | 'photo' | 'receipt' | 'inspection_report';
+    file_ref: string;
+    source_ref: string;
+  }): Promise<EvidenceEntity> {
+    const evidence = this.eviRepo.create({ ...data, record_type: 'FACT' });
+    return this.eviRepo.save(evidence);
+  }
+
   // Shared by reviewSubmission() and the admin-add-society script.
   // Creates a FACT Evidence row and appends its id to the Verification's evidence_refs.
   async createAndLinkEvidence(

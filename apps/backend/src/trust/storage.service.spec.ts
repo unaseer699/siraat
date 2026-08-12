@@ -84,4 +84,32 @@ describe('StorageService', () => {
       expect.objectContaining({ endpoint: 'http://localhost:9000' }),
     );
   });
+
+  // ─── Bucket-prefix stripping (regression for bad data) ───────────────────────
+
+  it('strips bucket name prefix from file_ref before using it as the S3 Key', async () => {
+    const { GetObjectCommand } = jest.requireMock('@aws-sdk/client-s3') as {
+      GetObjectCommand: jest.Mock;
+    };
+    await svc.getPresignedDownloadUrl('test-bucket/trust/taj-residencia/rda-lop-224kanal.jpg');
+    expect(GetObjectCommand).toHaveBeenCalledWith(
+      expect.objectContaining({
+        Bucket: 'test-bucket',
+        Key: 'trust/taj-residencia/rda-lop-224kanal.jpg',
+      }),
+    );
+  });
+
+  it('does not alter a file_ref that is already bucket-relative (no prefix)', async () => {
+    const { GetObjectCommand } = jest.requireMock('@aws-sdk/client-s3') as {
+      GetObjectCommand: jest.Mock;
+    };
+    await svc.getPresignedDownloadUrl('trust/pvc/noc.pdf');
+    expect(GetObjectCommand).toHaveBeenCalledWith(
+      expect.objectContaining({
+        Bucket: 'test-bucket',
+        Key: 'trust/pvc/noc.pdf',
+      }),
+    );
+  });
 });
