@@ -1,6 +1,6 @@
 import { notFound } from 'next/navigation';
 import Link from 'next/link';
-import { fetchPropertyDetail, fetchSocietyNocStatus } from '@/lib/api';
+import { fetchPropertyDetail, fetchSocietyVerifications } from '@/lib/api';
 import { EvidenceDrawer } from '@/components/EvidenceDrawer';
 import StatCard from '@/components/StatCard';
 import { TRUST_GREEN, WARNING_AMBER, DANGER_RED } from '@/styles/tokens';
@@ -48,11 +48,12 @@ export default async function PropertyDetailsPage({ params }: Props) {
     notFound();
   }
 
-  // Fetch linked society's trust status in parallel — fail gracefully if unavailable
+  // Fetch linked society's primary trust claim — fail gracefully if unavailable
   let societyVerification = null;
   if (property.society) {
     try {
-      societyVerification = await fetchSocietyNocStatus(property.society.id);
+      const { claims } = await fetchSocietyVerifications(property.society.id);
+      societyVerification = claims[0] ?? null;
     } catch {
       // Non-fatal: society trust data unavailable
     }

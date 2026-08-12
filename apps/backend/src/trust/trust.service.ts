@@ -5,6 +5,16 @@ import { VerificationEntity } from './entities/verification.entity';
 import { EvidenceEntity } from './entities/evidence.entity';
 import { EvidenceSubmissionEntity } from './entities/evidence-submission.entity';
 
+export type ClaimType =
+  | 'NOC'
+  | 'PLANNING_APPROVAL'
+  | 'COMPLETION_CERTIFICATE'
+  | 'SHOW_CAUSE_NOTICE'
+  | 'ILLEGAL_SCHEME_NOTICE'
+  | 'TRANSFER_DEED'
+  | 'MORTGAGE_DEED'
+  | 'OTHER';
+
 export interface VerificationResult {
   verification: VerificationEntity;
   evidence: EvidenceEntity[];
@@ -21,22 +31,39 @@ export class TrustService {
     private readonly subRepo: Repository<EvidenceSubmissionEntity>,
   ) {}
 
+  async getVerifications(
+    subjectType: 'SOCIETY' | 'DEVELOPER',
+    subjectId: string,
+  ): Promise<VerificationResult[]> {
+    const verifications = await this.verRepo.find({
+      where: { subject_type: subjectType, subject_id: subjectId },
+    });
+    return Promise.all(
+      verifications.map(async (verification) => {
+        // Application-level join — never a cross-schema SQL join (Law 2)
+        const evidence =
+          verification.evidence_refs.length > 0
+            ? await this.eviRepo.findBy({ id: In(verification.evidence_refs) })
+            : [];
+        return { verification, evidence };
+      }),
+    );
+  }
+
+  /** @deprecated Use getVerifications() instead. Returns only the primary claim (NOC or PLANNING_APPROVAL first, else the first record). */
   async getVerification(
     subjectType: 'SOCIETY' | 'DEVELOPER',
     subjectId: string,
   ): Promise<VerificationResult | null> {
-    const verification = await this.verRepo.findOne({
-      where: { subject_type: subjectType, subject_id: subjectId },
-    });
-    if (!verification) return null;
-
-    // Application-level join — never a cross-schema SQL join (Law 2)
-    const evidence =
-      verification.evidence_refs.length > 0
-        ? await this.eviRepo.findBy({ id: In(verification.evidence_refs) })
-        : [];
-
-    return { verification, evidence };
+    const all = await this.getVerifications(subjectType, subjectId);
+    if (all.length === 0) return null;
+    return (
+      all.find(
+        (r) =>
+          r.verification.claim_type === 'NOC' ||
+          r.verification.claim_type === 'PLANNING_APPROVAL',
+      ) ?? all[0]
+    );
   }
 
   async getEvidenceById(id: string): Promise<EvidenceEntity | null> {
@@ -53,9 +80,13 @@ export class TrustService {
     subject_type: 'SOCIETY' | 'DEVELOPER';
     subject_id: string;
     claim: string;
+    claim_type: ClaimType;
     status: 'VERIFIED' | 'DISPUTED' | 'PENDING';
     evidence_refs: string[];
   }): Promise<VerificationEntity> {
+    if (!data.claim_type) {
+      throw new BadRequestException('claim_type is required for every Verification');
+    }
     if (data.status === 'VERIFIED' && data.evidence_refs.length === 0) {
       throw new BadRequestException('VERIFIED status requires at least one evidence reference');
     }
@@ -83,6 +114,7 @@ export class TrustService {
         subject_type: 'SOCIETY',
         subject_id: dto.linked_to,
         claim: 'Pending verification',
+        claim_type: 'OTHER',
         status: 'PENDING',
         evidence_refs: [],
         verified_at: null,

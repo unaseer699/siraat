@@ -33,12 +33,22 @@ const affiliatedSociety: SocietyResult = {
   affiliation_disclosure: 'Siraat Pakistan Pvt Ltd is an investor in this project',
 };
 
-const MOCK_EVIDENCE_RESULT = {
-  verification: { id: 'ver-mock-001', status: 'VERIFIED' as const },
+const MOCK_NOC_RESULT = {
+  verification: { id: 'ver-mock-001', claim_type: 'NOC' as const, status: 'VERIFIED' as const },
   evidence: [
     { id: 'mock-evidence-001' },
     { id: 'mock-evidence-002' },
   ],
+};
+
+const MOCK_SHOW_CAUSE_DISPUTED = {
+  verification: { id: 'ver-mock-002', claim_type: 'SHOW_CAUSE_NOTICE' as const, status: 'DISPUTED' as const },
+  evidence: [{ id: 'mock-evidence-003' }],
+};
+
+const MOCK_ILLEGAL_SCHEME_DISPUTED = {
+  verification: { id: 'ver-mock-003', claim_type: 'ILLEGAL_SCHEME_NOTICE' as const, status: 'DISPUTED' as const },
+  evidence: [{ id: 'mock-evidence-004' }],
 };
 
 const savedScore = (data: Partial<ScoreEntity>) => ({
@@ -53,15 +63,15 @@ describe('ScoringService', () => {
   let createMock: jest.Mock;
   let saveMock: jest.Mock;
   let findOneMock: jest.Mock;
-  let trustGetVerificationMock: jest.Mock;
+  let trustGetVerificationsMock: jest.Mock;
 
   beforeEach(async () => {
     createMock = jest.fn((data) => data);
     saveMock = jest.fn((entity) => Promise.resolve(savedScore(entity)));
     findOneMock = jest.fn().mockResolvedValue(null); // default: no existing score
-    trustGetVerificationMock = jest
+    trustGetVerificationsMock = jest
       .fn()
-      .mockResolvedValue(MOCK_EVIDENCE_RESULT);
+      .mockResolvedValue([MOCK_NOC_RESULT]);
 
     const module = await Test.createTestingModule({
       providers: [
@@ -72,7 +82,7 @@ describe('ScoringService', () => {
         },
         {
           provide: TrustService,
-          useValue: { getVerification: trustGetVerificationMock },
+          useValue: { getVerifications: trustGetVerificationsMock },
         },
       ],
     }).compile();
@@ -97,8 +107,8 @@ describe('ScoringService', () => {
     expect(created.derived_from).toEqual(['mock-evidence-001', 'mock-evidence-002']);
   });
 
-  it('derived_from is empty when TrustService returns null (no verification record)', async () => {
-    trustGetVerificationMock.mockResolvedValueOnce(null);
+  it('derived_from is empty when TrustService returns no verification records', async () => {
+    trustGetVerificationsMock.mockResolvedValueOnce([]);
     await svc.computeAndSave(baseSociety);
     const created = createMock.mock.calls[0][0];
     expect(created.derived_from).toEqual([]);
@@ -154,7 +164,7 @@ describe('ScoringService', () => {
 
     expect(result).toBe(recentScore);
     expect(saveMock).not.toHaveBeenCalled();
-    expect(trustGetVerificationMock).not.toHaveBeenCalled();
+    expect(trustGetVerificationsMock).not.toHaveBeenCalled();
   });
 
   it('computes and saves a new Score when no existing Score is found', async () => {
@@ -163,7 +173,7 @@ describe('ScoringService', () => {
     await svc.computeAndSave(baseSociety);
 
     expect(saveMock).toHaveBeenCalledTimes(1);
-    expect(trustGetVerificationMock).toHaveBeenCalledTimes(1);
+    expect(trustGetVerificationsMock).toHaveBeenCalledTimes(1);
   });
 
   it('computes a new Score when existing Score is beyond the staleness window', async () => {
@@ -180,5 +190,45 @@ describe('ScoringService', () => {
     await svc.computeAndSave(baseSociety);
 
     expect(saveMock).toHaveBeenCalledTimes(1); // new row created
+  });
+
+  // ─── Capability 2 — Multi-claim adverse penalty ───────────────────────────
+
+  it('VERIFIED NOC only: score matches pre-change baseline (no regression)', async () => {
+    trustGetVerificationsMock.mockResolvedValueOnce([MOCK_NOC_RESULT]);
+    const result = await svc.computeAndSave(baseSociety);
+    // base_confidence=0.90, 2 evidence items → docBonus=0.03, no stale, no adverse → 0.93
+    expect(Number(result.confidence_score)).toBeCloseTo(0.93, 2);
+  });
+
+  it('VERIFIED NOC + DISPUTED SHOW_CAUSE_NOTICE scores lower than NOC-only and mentions the notice', async () => {
+    trustGetVerificationsMock.mockResolvedValueOnce([MOCK_NOC_RESULT, MOCK_SHOW_CAUSE_DISPUTED]);
+    const result = await svc.computeAndSave(baseSociety);
+    // base=0.90, docBonus=0.06 (3 evidence items), adverse penalty=0.20 → 0.76
+    expect(Number(result.confidence_score)).toBeCloseTo(0.76, 2);
+    expect(Number(result.confidence_score)).toBeLessThan(0.93); // lower than NOC-only baseline
+    expect(result.reasoning_summary).toMatch(/show-cause notice/i);
+  });
+
+  it('two adverse claims score lower than one adverse claim', async () => {
+    trustGetVerificationsMock.mockResolvedValueOnce([
+      MOCK_NOC_RESULT,
+      MOCK_SHOW_CAUSE_DISPUTED,
+      MOCK_ILLEGAL_SCHEME_DISPUTED,
+    ]);
+    const result = await svc.computeAndSave(baseSociety);
+    // base=0.90, docBonus=0.09 (4 evidence items), 2 adverse penalties=0.40 → 0.59
+    expect(Number(result.confidence_score)).toBeCloseTo(0.59, 2);
+    expect(Number(result.confidence_score)).toBeLessThan(0.76); // lower than one-adverse-claim
+  });
+
+  it('derived_from aggregates evidence from all claims, deduplicated', async () => {
+    trustGetVerificationsMock.mockResolvedValueOnce([MOCK_NOC_RESULT, MOCK_SHOW_CAUSE_DISPUTED]);
+    await svc.computeAndSave(baseSociety);
+    const created = createMock.mock.calls[0][0];
+    expect(created.derived_from).toEqual(
+      expect.arrayContaining(['mock-evidence-001', 'mock-evidence-002', 'mock-evidence-003']),
+    );
+    expect(created.derived_from).toHaveLength(3);
   });
 });
