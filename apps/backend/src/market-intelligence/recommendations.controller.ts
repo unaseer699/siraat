@@ -26,4 +26,12 @@ export class RecommendationsController {
   ) {
     return this.svc.getRecommendationDetail(id);
   }
+
+  @Get('societies/:id/score')
+  async societyScore(
+    @Param('id') id: string,
+    @Headers('authorization') _authorization?: string,
+  ) {
+    return this.svc.getSocietyScore(id);
+  }
 }

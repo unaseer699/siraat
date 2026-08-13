@@ -1,11 +1,11 @@
 'use client';
 
 import Link from 'next/link';
-import { RadialBarChart, RadialBar, PolarAngleAxis } from 'recharts';
 import type { RecommendationDetail, EvidenceSummary } from '@siraat/shared-types';
 import StatCard from './StatCard';
 import { ScoreBreakdown } from './ScoreBreakdown';
-import { TRUST_GREEN, WARNING_AMBER, DANGER_RED, RADIUS } from '../styles/tokens';
+import { ConfidenceGauge } from './ConfidenceGauge';
+import { TRUST_GREEN, WARNING_AMBER, RADIUS } from '../styles/tokens';
 
 interface Props {
   detail: RecommendationDetail;
@@ -15,55 +15,6 @@ function formatPKR(n: number): string {
   if (n >= 1e7) return `PKR ${(n / 1e7).toFixed(2)} Crore`;
   if (n >= 1e5) return `PKR ${(n / 1e5).toFixed(1)} Lakh`;
   return `PKR ${n.toLocaleString()}`;
-}
-
-function confidenceColor(score: number): string {
-  return score >= 0.8 ? TRUST_GREEN : score >= 0.5 ? WARNING_AMBER : DANGER_RED;
-}
-
-function ConfidenceGauge({ score }: { score: number }) {
-  const pct = Math.round(score * 100);
-  const color = confidenceColor(score);
-  const data = [{ value: pct, fill: color }];
-
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px' }}>
-      <div style={{ position: 'relative', width: 140, height: 140 }}>
-        <RadialBarChart
-          width={140}
-          height={140}
-          cx={70}
-          cy={70}
-          innerRadius={50}
-          outerRadius={68}
-          barSize={18}
-          data={data}
-          startAngle={90}
-          endAngle={-270}
-        >
-          <PolarAngleAxis type="number" domain={[0, 100]} tick={false} />
-          <RadialBar dataKey="value" cornerRadius={9} background={{ fill: '#e5e7eb' }} />
-        </RadialBarChart>
-        <div
-          style={{
-            position: 'absolute',
-            inset: 0,
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-            justifyContent: 'center',
-            pointerEvents: 'none',
-          }}
-        >
-          <span style={{ fontSize: '26px', fontWeight: 800, color, lineHeight: 1 }}>{pct}%</span>
-          <span style={{ fontSize: '11px', color: '#6b7280', fontWeight: 600, marginTop: '2px' }}>
-            confidence
-          </span>
-        </div>
-      </div>
-      <span style={{ fontSize: '13px', fontWeight: 600, color: '#374151' }}>Trust confidence</span>
-    </div>
-  );
 }
 
 const TYPE_LABEL: Record<EvidenceSummary['type'], string> = {
@@ -224,7 +175,7 @@ export function RecommendationDetails({ detail }: Props) {
           gap: '20px',
         }}
       >
-        <ConfidenceGauge score={detail.confidence_score} />
+        <ConfidenceGauge score={detail.confidence_score} size="lg" />
 
         <ScoreBreakdown breakdown={detail.breakdown} />
 

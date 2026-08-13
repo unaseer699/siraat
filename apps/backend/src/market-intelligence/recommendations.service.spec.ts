@@ -300,4 +300,62 @@ describe('RecommendationsService', () => {
     expect(notCoveredCountMock).not.toHaveBeenCalled();
     expect(notCoveredSaveMock).not.toHaveBeenCalled();
   });
+
+  // ─── getSocietyScore — GET /v1/market-intelligence/societies/{id}/score ───
+
+  it('getSocietyScore returns a valid Score response for an existing society', async () => {
+    const result = await svc.getSocietyScore(mockSociety.id);
+
+    expect(piSvc.findSocietyById).toHaveBeenCalledWith(mockSociety.id);
+    expect(result.society_id).toBe(mockSociety.id);
+    expect(result.society_name).toBe(mockSociety.name);
+    expect(result.confidence_score).toBeGreaterThanOrEqual(0);
+    expect(result.confidence_score).toBeLessThanOrEqual(1);
+    expect(typeof result.is_stale).toBe('boolean');
+    expect(typeof result.staleness_threshold_days).toBe('number');
+    expect('affiliation_disclosure' in result).toBe(true);
+    expect(result.derived_from).toEqual(['doc_noc_pvc_001']);
+    expect(result.reasoning_summary).toBeTruthy();
+  });
+
+  it('getSocietyScore includes price_range/area_range sourced from the Society entity, not the Score', async () => {
+    const result = await svc.getSocietyScore(mockSociety.id);
+
+    expect(result.price_range).toEqual({ min: mockSociety.min_price, max: mockSociety.max_price });
+    expect(result.area_range).toEqual({
+      min: mockSociety.min_area_marla,
+      max: mockSociety.max_area_marla,
+    });
+  });
+
+  it('getSocietyScore returns null price_range/area_range bounds when the Society has no data for them', async () => {
+    piSvc.findSocietyById.mockResolvedValue({ ...mockSociety, min_price: null, max_price: null });
+
+    const result = await svc.getSocietyScore(mockSociety.id);
+
+    expect(result.price_range).toEqual({ min: null, max: null });
+  });
+
+  it('getSocietyScore returns 404 (NotFoundException) for a non-existent society id', async () => {
+    piSvc.findSocietyById.mockResolvedValue(null);
+
+    await expect(svc.getSocietyScore('non-existent-uuid')).rejects.toThrow(NotFoundException);
+    expect(scoreSvc.computeAndSave).not.toHaveBeenCalled();
+  });
+
+  it('getSocietyScore delegates to ScoringService.computeAndSave — reuses the existing staleness-window cache rather than computing fresh each call', async () => {
+    const cachedScore = makeScore(mockSociety);
+    scoreSvc.computeAndSave.mockResolvedValue(cachedScore);
+
+    const first = await svc.getSocietyScore(mockSociety.id);
+    const second = await svc.getSocietyScore(mockSociety.id);
+
+    // Both calls resolve through computeAndSave (which owns the staleness-window cache
+    // check — see ScoringService's "returns existing non-stale Score" test) — no separate
+    // scoring path is introduced by this endpoint.
+    expect(scoreSvc.computeAndSave).toHaveBeenCalledTimes(2);
+    expect(scoreSvc.computeAndSave).toHaveBeenCalledWith(mockSociety);
+    expect(first.confidence_score).toBe(second.confidence_score);
+    expect(first.society_id).toBe(second.society_id);
+  });
 });

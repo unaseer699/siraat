@@ -5,9 +5,9 @@ interface Props {
   breakdown: ScoreBreakdown | null;
 }
 
-type Tone = 'success' | 'warning' | 'danger' | 'neutral';
+export type Tone = 'success' | 'warning' | 'danger' | 'neutral';
 
-function toneColor(tone: Tone): string {
+export function toneColor(tone: Tone): string {
   return tone === 'success'
     ? TRUST_GREEN
     : tone === 'warning'
@@ -17,11 +17,13 @@ function toneColor(tone: Tone): string {
         : NEUTRAL_GRAY;
 }
 
-function toneIcon(tone: Tone): string {
+export function toneIcon(tone: Tone): string {
   return tone === 'success' ? '✓' : tone === 'warning' ? '⚠' : '—';
 }
 
-const ROWS: {
+// Exported so other views (e.g. the Comparison table) can render the same four
+// categories with the same tone/label logic instead of reimplementing it.
+export const SCORE_BREAKDOWN_ROWS: {
   key: keyof ScoreBreakdown;
   category: string;
   label: (b: ScoreBreakdown) => string;
@@ -66,7 +68,7 @@ export function ScoreBreakdown({ breakdown }: Props) {
     <div>
       <h2 style={{ fontSize: '15px', fontWeight: 700, marginBottom: '10px' }}>Score breakdown</h2>
       <ul style={{ listStyle: 'none', display: 'flex', flexDirection: 'column', gap: '8px' }}>
-        {ROWS.map((row) => {
+        {SCORE_BREAKDOWN_ROWS.map((row) => {
           const tone = row.tone(breakdown);
           const color = toneColor(tone);
           return (
