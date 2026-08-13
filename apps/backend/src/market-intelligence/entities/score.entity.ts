@@ -1,4 +1,5 @@
 import { Entity, Column, PrimaryGeneratedColumn, CreateDateColumn } from 'typeorm';
+import type { ScoreBreakdown } from '@siraat/shared-types';
 
 @Entity({ name: 'scores', schema: 'market_intelligence' })
 export class ScoreEntity {
@@ -31,6 +32,9 @@ export class ScoreEntity {
 
   @Column({ type: 'text' })
   reasoning_summary: string;
+
+  @Column({ type: 'jsonb', nullable: true })
+  breakdown: ScoreBreakdown | null;
 
   @CreateDateColumn()
   computed_at: Date;

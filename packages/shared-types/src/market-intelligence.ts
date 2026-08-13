@@ -72,6 +72,35 @@ export const RecommendationResponseSchema = z.discriminatedUnion('state', [
 ]);
 export type RecommendationResponse = z.infer<typeof RecommendationResponseSchema>;
 
+// ─── Score Breakdown ──────────────────────────────────────────────────────────
+
+export const ScoreBreakdownSchema = z.object({
+  regulatory: z.object({
+    status: z.enum(['VERIFIED', 'PLANNING_APPROVAL', 'PENDING', 'NONE']),
+    label: z.string(),
+    tone: z.enum(['success', 'warning', 'danger', 'neutral']),
+  }),
+  active_issues: z.object({
+    count: z.number(),
+    penalty_applied: z.number(),
+    label: z.string(),
+    tone: z.enum(['success', 'warning', 'danger']),
+  }),
+  evidence_strength: z.object({
+    count: z.number(),
+    bonus_applied: z.number(),
+    label: z.string(),
+    tone: z.enum(['success', 'warning', 'danger', 'neutral']),
+  }),
+  data_freshness: z.object({
+    is_stale: z.boolean(),
+    penalty_applied: z.number(),
+    checked_date: z.string(),
+    tone: z.enum(['success', 'warning']),
+  }),
+});
+export type ScoreBreakdown = z.infer<typeof ScoreBreakdownSchema>;
+
 // ─── Recommendation Detail (Screen 4 — GET /v1/market-intelligence/recommendations/{id}) ──
 
 export const EvidenceSummarySchema = z.object({
@@ -97,6 +126,7 @@ export const RecommendationDetailSchema = z.object({
   evidence_summaries: z.array(EvidenceSummarySchema).default([]),
   record_type: RecordTypeSchema,
   computed_at: z.string().datetime(),
+  breakdown: ScoreBreakdownSchema.nullable(),
 });
 export type RecommendationDetail = z.infer<typeof RecommendationDetailSchema>;
 
