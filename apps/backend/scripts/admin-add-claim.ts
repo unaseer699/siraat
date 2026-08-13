@@ -20,6 +20,7 @@ import 'reflect-metadata';
 import { NestFactory } from '@nestjs/core';
 import * as readline from 'readline';
 import { AppModule } from '../src/app.module';
+import { AdminService } from '../src/admin/admin.service';
 import { TrustService } from '../src/trust/trust.service';
 import { PropertyIntelligenceService } from '../src/property-intelligence/property-intelligence.service';
 import {
@@ -42,6 +43,8 @@ async function main(): Promise<void> {
   console.log('This tool adds one new Verification claim to an existing society.\n');
 
   const app = await NestFactory.createApplicationContext(AppModule, { logger: false });
+  const adminSvc = app.get(AdminService);
+  // piSvc and trustSvc are used for display-only lookups (no DB writes)
   const piSvc = app.get(PropertyIntelligenceService);
   const trustSvc = app.get(TrustService);
 
@@ -132,33 +135,20 @@ async function main(): Promise<void> {
 
     console.log('\nWriting to database...');
 
-    // 1. Create evidence records first to collect their IDs before createVerification().
-    //    We use createEvidenceRecord (not createAndLinkEvidence) so evidence is linked
-    //    to THIS specific new claim, not any pre-existing verification for the same society.
-    const evidenceIds: string[] = [];
-    for (const item of evidenceItems) {
-      const ev = await trustSvc.createEvidenceRecord(item);
-      evidenceIds.push(ev.id);
-      console.log(`  ✓ Evidence created:     ${ev.id} (${item.type})`);
-    }
-
-    // 2. Create the new Verification with the final status and all evidence IDs.
-    //    createVerification validates VERIFIED + empty refs, so passing IDs upfront
-    //    lets it set verified_at and status correctly in a single operation.
-    const verification = await trustSvc.createVerification({
-      subject_type: 'SOCIETY',
-      subject_id: society!.id,
+    const result = await adminSvc.addClaimToSociety({
+      society_id: society!.id,
       claim,
       claim_type: claimType,
-      status: targetStatus,
-      evidence_refs: evidenceIds,
+      target_status: targetStatus,
+      evidence: evidenceItems,
     });
-    console.log(`  ✓ Claim created:        ${verification.id}`);
-    console.log(`    Status: ${verification.status}${verification.verified_at ? ' at ' + verification.verified_at.toISOString() : ''}`);
+
+    console.log(`  ✓ Claim created:        ${result.verification_id}`);
+    console.log(`    Status: ${targetStatus}${evidenceItems.length > 0 ? `, ${evidenceItems.length} evidence item(s) linked` : ''}`);
 
     console.log('\n✓ Done. New claim added successfully.');
     console.log(`  Society:      ${society!.name} (${society!.id})`);
-    console.log(`  New claim ID: ${verification.id}`);
+    console.log(`  New claim ID: ${result.verification_id}`);
     console.log(`  Total claims: ${existing.length + 1}\n`);
 
   } catch (err: unknown) {

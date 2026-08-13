@@ -73,3 +73,84 @@ export async function fetchEvidenceDownloadUrl(
 ): Promise<{ url: string; expires_in_seconds: number }> {
   return apiFetch(`/v1/trust/evidence/${evidenceId}/download-url`);
 }
+
+// ── Admin (internal, no public UI links to these) ──────────────────────────
+
+export interface CandidateSociety {
+  id: string;
+  name: string;
+  regulator: 'CDA' | 'RDA' | 'TMA' | 'OTHER';
+  city: string;
+  status: 'NOT_STARTED' | 'IN_PROGRESS' | 'ONBOARDED';
+  record_type: 'FACT';
+  created_at: string;
+  updated_at: string;
+}
+
+export type ClaimType =
+  | 'NOC'
+  | 'PLANNING_APPROVAL'
+  | 'COMPLETION_CERTIFICATE'
+  | 'SHOW_CAUSE_NOTICE'
+  | 'ILLEGAL_SCHEME_NOTICE'
+  | 'TRANSFER_DEED'
+  | 'MORTGAGE_DEED'
+  | 'OTHER';
+
+export type EvidenceType = 'document' | 'photo' | 'receipt' | 'inspection_report';
+
+export interface AdminEvidenceItem {
+  type: EvidenceType;
+  file_ref: string;
+  source_ref: string;
+}
+
+export interface CreateSocietyBody {
+  name: string;
+  city: string;
+  min_price: number | null;
+  max_price: number | null;
+  min_area_marla: number | null;
+  max_area_marla: number | null;
+  property_types: string[];
+  noc_approved: boolean;
+  base_confidence: number;
+  is_siraat_affiliated: boolean;
+  affiliation_disclosure: string | null;
+  noc_summary: string | null;
+  claim: string;
+  claim_type: ClaimType;
+  target_status: 'VERIFIED' | 'PENDING';
+  evidence: AdminEvidenceItem[];
+}
+
+export interface AddClaimBody {
+  claim: string;
+  claim_type: ClaimType;
+  target_status: 'VERIFIED' | 'DISPUTED' | 'PENDING';
+  evidence: AdminEvidenceItem[];
+}
+
+export async function fetchCandidateSocieties(status?: string): Promise<CandidateSociety[]> {
+  const qs = status ? `?status=${encodeURIComponent(status)}` : '';
+  return apiFetch(`/v1/admin/candidate-societies${qs}`);
+}
+
+export async function createSociety(
+  data: CreateSocietyBody,
+): Promise<{ society_id: string; verification_id: string; candidate_marked_onboarded: boolean }> {
+  return apiFetch('/v1/admin/societies', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
+}
+
+export async function addClaimToSociety(
+  societyId: string,
+  data: AddClaimBody,
+): Promise<{ verification_id: string }> {
+  return apiFetch(`/v1/admin/societies/${societyId}/claims`, {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
+}
