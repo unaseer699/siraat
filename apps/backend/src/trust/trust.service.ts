@@ -194,14 +194,35 @@ export class TrustService {
     return saved;
   }
 
-  // Admin-only: promote an existing PENDING Verification to VERIFIED.
-  // Throws if no evidence has been linked yet (reuses the same invariant as createVerification).
+  /**
+   * @deprecated Use promoteVerificationToVerified(verificationId) instead. Looks up the
+   * first Verification matching subject_id, which can promote the wrong record when a
+   * subject has multiple Verification rows (e.g. multiple claims). Kept for backward
+   * compatibility only.
+   */
   async promoteToVerified(subjectId: string): Promise<VerificationEntity> {
     const verification = await this.verRepo.findOne({
       where: { subject_type: 'SOCIETY', subject_id: subjectId },
     });
     if (!verification) {
       throw new NotFoundException(`No verification record found for society ${subjectId}`);
+    }
+    if (verification.evidence_refs.length === 0) {
+      throw new BadRequestException('Cannot promote to VERIFIED with zero evidence references');
+    }
+    verification.status = 'VERIFIED';
+    verification.verified_at = new Date();
+    return this.verRepo.save(verification);
+  }
+
+  // Admin-only: promote a specific Verification (by its own id) to VERIFIED.
+  // ID-scoped so callers that already hold a Verification's id (e.g. from createVerification())
+  // never risk promoting an unrelated record for the same subject_id.
+  // Throws if no evidence has been linked yet (reuses the same invariant as createVerification).
+  async promoteVerificationToVerified(verificationId: string): Promise<VerificationEntity> {
+    const verification = await this.verRepo.findOneBy({ id: verificationId });
+    if (!verification) {
+      throw new NotFoundException(`No verification record found with id ${verificationId}`);
     }
     if (verification.evidence_refs.length === 0) {
       throw new BadRequestException('Cannot promote to VERIFIED with zero evidence references');

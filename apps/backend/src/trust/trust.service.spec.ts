@@ -74,6 +74,7 @@ describe('TrustService', () => {
   let svc: TrustService;
   let verFindMock: jest.Mock;
   let verFindOneMock: jest.Mock;
+  let verFindOneByMock: jest.Mock;
   let eviFindByMock: jest.Mock;
   let verCreateMock: jest.Mock;
   let verSaveMock: jest.Mock;
@@ -87,6 +88,7 @@ describe('TrustService', () => {
   beforeEach(async () => {
     verFindMock = jest.fn().mockResolvedValue([]);
     verFindOneMock = jest.fn();
+    verFindOneByMock = jest.fn();
     eviFindByMock = jest.fn().mockResolvedValue([]);
     verCreateMock = jest.fn((data) => data);
     verSaveMock = jest.fn((entity) =>
@@ -111,7 +113,7 @@ describe('TrustService', () => {
           useValue: {
             find: verFindMock,
             findOne: verFindOneMock,
-            findOneBy: jest.fn(),
+            findOneBy: verFindOneByMock,
             create: verCreateMock,
             save: verSaveMock,
           },
@@ -497,5 +499,66 @@ describe('TrustService', () => {
     // evidence_refs unchanged — submission not in evidence list
     expect(result!.evidence).toHaveLength(2);
     expect(result!.evidence.map((e) => e.id)).not.toContain('sub-uuid-0001');
+  });
+
+  // ─── promoteVerificationToVerified (ID-scoped) ─────────────────────────────────
+
+  it('promoteVerificationToVerified promotes the Verification matching the given id', async () => {
+    verFindOneByMock.mockResolvedValue({ ...VERIFICATION_PENDING, id: 'ver-target-uuid', evidence_refs: [EVIDENCE_1.id] });
+
+    const result = await svc.promoteVerificationToVerified('ver-target-uuid');
+
+    expect(verFindOneByMock).toHaveBeenCalledWith({ id: 'ver-target-uuid' });
+    expect(result.status).toBe('VERIFIED');
+    expect(result.verified_at).toBeInstanceOf(Date);
+  });
+
+  it('promoteVerificationToVerified throws NotFoundException when no Verification matches the id', async () => {
+    verFindOneByMock.mockResolvedValue(null);
+
+    await expect(svc.promoteVerificationToVerified('missing-uuid')).rejects.toThrow(NotFoundException);
+  });
+
+  it('promoteVerificationToVerified throws BadRequestException when the targeted Verification has zero evidence', async () => {
+    verFindOneByMock.mockResolvedValue({ ...VERIFICATION_PENDING, id: 'ver-target-uuid', evidence_refs: [] });
+
+    await expect(svc.promoteVerificationToVerified('ver-target-uuid')).rejects.toThrow(BadRequestException);
+  });
+
+  it('promoteVerificationToVerified only ever promotes the targeted id, never an unrelated prior Verification for a different subject_id', async () => {
+    // Two Verification rows exist: an older, unrelated one for a different subject, and the
+    // one we actually want to promote. findOneBy is scoped by id, so it must resolve to the
+    // matching row regardless of what else exists - a subject_id-based lookup could return
+    // either one, but an id-scoped lookup cannot.
+    const UNRELATED_PRIOR_VERIFICATION: VerificationEntity = {
+      id: 'ver-unrelated-uuid',
+      subject_type: 'SOCIETY',
+      subject_id: 'some-other-society-uuid',
+      claim: 'Unrelated prior claim',
+      claim_type: 'OTHER',
+      status: 'PENDING',
+      evidence_refs: ['some-other-evidence-uuid'],
+      verified_at: null,
+    };
+    const TARGET_VERIFICATION: VerificationEntity = {
+      id: 'ver-target-uuid',
+      subject_type: 'SOCIETY',
+      subject_id: SOCIETY_ID,
+      claim: 'NOC Approved by CDA',
+      claim_type: 'NOC',
+      status: 'PENDING',
+      evidence_refs: [EVIDENCE_1.id],
+      verified_at: null,
+    };
+    verFindOneByMock.mockImplementation(({ id }: { id: string }) =>
+      Promise.resolve([UNRELATED_PRIOR_VERIFICATION, TARGET_VERIFICATION].find((v) => v.id === id) ?? null),
+    );
+
+    const result = await svc.promoteVerificationToVerified('ver-target-uuid');
+
+    expect(result.id).toBe('ver-target-uuid');
+    expect(result.subject_id).toBe(SOCIETY_ID);
+    expect(verSaveMock).toHaveBeenCalledWith(expect.objectContaining({ id: 'ver-target-uuid', status: 'VERIFIED' }));
+    expect(verSaveMock).not.toHaveBeenCalledWith(expect.objectContaining({ id: 'ver-unrelated-uuid' }));
   });
 });

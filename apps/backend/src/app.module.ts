@@ -5,6 +5,7 @@ import { ThrottlerModule } from '@nestjs/throttler';
 import { PropertyIntelligenceModule } from './property-intelligence/property-intelligence.module';
 import { MarketIntelligenceModule } from './market-intelligence/market-intelligence.module';
 import { TrustModule } from './trust/trust.module';
+import { AdminModule } from './admin/admin.module';
 import { HealthController } from './health.controller';
 
 @Module({
@@ -28,6 +29,7 @@ import { HealthController } from './health.controller';
     PropertyIntelligenceModule,
     MarketIntelligenceModule,
     TrustModule,
+    AdminModule,
   ],
 })
 export class AppModule {}

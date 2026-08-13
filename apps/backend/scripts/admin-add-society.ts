@@ -17,15 +17,13 @@ import 'reflect-metadata';
 import { NestFactory } from '@nestjs/core';
 import * as readline from 'readline';
 import { AppModule } from '../src/app.module';
-import { TrustService } from '../src/trust/trust.service';
-import { PropertyIntelligenceService } from '../src/property-intelligence/property-intelligence.service';
+import { AdminService } from '../src/admin/admin.service';
 import {
   ask,
   askOptionalNumber,
   askRequired,
   askYesNo,
   askClaimType,
-  askVerificationStatus,
   askEvidenceType,
 } from './prompts';
 
@@ -40,8 +38,7 @@ async function main(): Promise<void> {
 
   // Bootstrap NestJS application context (no HTTP server — DI only)
   const app = await NestFactory.createApplicationContext(AppModule, { logger: false });
-  const piSvc = app.get(PropertyIntelligenceService);
-  const trustSvc = app.get(TrustService);
+  const adminSvc = app.get(AdminService);
 
   const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
 
@@ -87,9 +84,18 @@ async function main(): Promise<void> {
 
     console.log('\n── VERIFICATION ────────────────────────────────────');
 
-    const targetStatus = await askVerificationStatus(rl);
     const claimType = await askClaimType(rl);
     const claim = await askRequired(rl, 'Verification claim (e.g. "NOC Approved by CDA")');
+
+    let targetStatus: 'VERIFIED' | 'PENDING' = 'PENDING';
+    while (true) {
+      const s = (await ask(rl, 'Verification status [PENDING / VERIFIED]: ')).trim().toUpperCase();
+      if (s === 'PENDING' || s === 'VERIFIED') {
+        targetStatus = s as 'VERIFIED' | 'PENDING';
+        break;
+      }
+      console.log('  ! Must be PENDING or VERIFIED.');
+    }
 
     // ── Section 3: Evidence (required if VERIFIED) ──────────────────────────
 
@@ -142,8 +148,7 @@ async function main(): Promise<void> {
 
     console.log('\nWriting to database...');
 
-    // 1. Create society
-    const society = await piSvc.createSociety({
+    const result = await adminSvc.createSocietyWithFirstClaim({
       name,
       city,
       min_price: minPrice,
@@ -156,34 +161,23 @@ async function main(): Promise<void> {
       is_siraat_affiliated: isAffiliated,
       affiliation_disclosure: affiliationDisclosure,
       noc_summary: nocSummary,
-    });
-    console.log(`  ✓ Society created:      ${society.id}`);
-
-    // 2. Create verification (PENDING first — evidence links update it)
-    await trustSvc.createVerification({
-      subject_type: 'SOCIETY',
-      subject_id: society.id,
       claim,
       claim_type: claimType,
-      status: 'PENDING',
-      evidence_refs: [],
+      target_status: targetStatus,
+      evidence: evidenceItems,
     });
-    console.log(`  ✓ Verification created: PENDING`);
 
-    // 3. Link evidence (reuses the same logic as reviewSubmission acceptance path)
-    for (const item of evidenceItems) {
-      const ev = await trustSvc.createAndLinkEvidence(society.id, item);
-      console.log(`  ✓ Evidence linked:      ${ev.id} (${item.type})`);
+    console.log(`  ✓ Society created:      ${result.society_id}`);
+    console.log(`  ✓ Verification:         ${targetStatus}`);
+    if (evidenceItems.length > 0) {
+      console.log(`  ✓ Evidence linked:      ${evidenceItems.length} item(s)`);
     }
-
-    // 4. Promote to target status if VERIFIED
-    if (targetStatus === 'VERIFIED') {
-      const ver = await trustSvc.promoteToVerified(society.id);
-      console.log(`  ✓ Verification promoted: ${ver.status} at ${ver.verified_at?.toISOString()}`);
+    if (result.candidate_marked_onboarded) {
+      console.log(`  ✓ Candidate society marked ONBOARDED`);
     }
 
     console.log('\n✓ Done. Society onboarded successfully.');
-    console.log(`  Society ID: ${society.id}`);
+    console.log(`  Society ID: ${result.society_id}`);
     console.log(`  Use this ID in queries and as linked_to in evidence submissions.\n`);
 
   } catch (err: unknown) {
