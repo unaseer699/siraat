@@ -66,6 +66,7 @@ function makeScore(society: SocietyResult, override?: Partial<ScoreEntity>): Sco
       ? (society.affiliation_disclosure ?? 'Siraat-affiliated partner')
       : null,
     reasoning_summary: `Confidence ${Math.round(society.base_confidence * 100)}%: NOC approved. 1 source cited.`,
+    breakdown: null,
     computed_at: new Date('2026-08-05T10:00:00Z'),
     record_type: 'GENERATED',
     ...override,

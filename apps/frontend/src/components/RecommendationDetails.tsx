@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { RadialBarChart, RadialBar, PolarAngleAxis } from 'recharts';
 import type { RecommendationDetail, EvidenceSummary } from '@siraat/shared-types';
 import StatCard from './StatCard';
+import { ScoreBreakdown } from './ScoreBreakdown';
 import { TRUST_GREEN, WARNING_AMBER, DANGER_RED, RADIUS } from '../styles/tokens';
 
 interface Props {
@@ -224,6 +225,8 @@ export function RecommendationDetails({ detail }: Props) {
         }}
       >
         <ConfidenceGauge score={detail.confidence_score} />
+
+        <ScoreBreakdown breakdown={detail.breakdown} />
 
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
           <StatCard

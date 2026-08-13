@@ -210,6 +210,51 @@ describe('ScoringService', () => {
     expect(result.reasoning_summary).toMatch(/show-cause notice/i);
   });
 
+  // ─── Capability 7 — Score Breakdown ──────────────────────────────────────────
+
+  it('VERIFIED NOC only: breakdown.regulatory.tone is success and active_issues.count is 0', async () => {
+    trustGetVerificationsMock.mockResolvedValueOnce([MOCK_NOC_RESULT]);
+    await svc.computeAndSave(baseSociety);
+    const created = createMock.mock.calls[0][0];
+    expect(created.breakdown.regulatory.tone).toBe('success');
+    expect(created.breakdown.regulatory.status).toBe('VERIFIED');
+    expect(created.breakdown.active_issues.count).toBe(0);
+    expect(created.breakdown.active_issues.tone).toBe('success');
+  });
+
+  it('DISPUTED adverse claim: breakdown.active_issues shows danger with correct count and penalty', async () => {
+    trustGetVerificationsMock.mockResolvedValueOnce([MOCK_NOC_RESULT, MOCK_SHOW_CAUSE_DISPUTED]);
+    await svc.computeAndSave(baseSociety);
+    const created = createMock.mock.calls[0][0];
+    expect(created.breakdown.active_issues.tone).toBe('danger');
+    expect(created.breakdown.active_issues.count).toBe(1);
+    expect(created.breakdown.active_issues.penalty_applied).toBeCloseTo(0.20, 4);
+  });
+
+  it('breakdown.evidence_strength.count matches the evidence count used in scoring', async () => {
+    // MOCK_NOC_RESULT has 2 evidence items
+    trustGetVerificationsMock.mockResolvedValueOnce([MOCK_NOC_RESULT]);
+    await svc.computeAndSave(baseSociety);
+    const created = createMock.mock.calls[0][0];
+    expect(created.breakdown.evidence_strength.count).toBe(2);
+    // and derived_from should also have 2 items — same source
+    expect(created.derived_from).toHaveLength(2);
+  });
+
+  it('confidence_score is mathematically consistent with breakdown bonus and penalties', async () => {
+    // Uses base society: base_confidence=0.90, is_stale=false, MOCK_NOC_RESULT (2 evidence → bonus=0.03), no adverse
+    trustGetVerificationsMock.mockResolvedValueOnce([MOCK_NOC_RESULT]);
+    await svc.computeAndSave(baseSociety);
+    const created = createMock.mock.calls[0][0];
+    const { breakdown } = created;
+    const reconstructed =
+      baseSociety.base_confidence +
+      breakdown.evidence_strength.bonus_applied -
+      breakdown.data_freshness.penalty_applied -
+      breakdown.active_issues.penalty_applied;
+    expect(Number(created.confidence_score)).toBeCloseTo(reconstructed, 4);
+  });
+
   it('two adverse claims score lower than one adverse claim', async () => {
     trustGetVerificationsMock.mockResolvedValueOnce([
       MOCK_NOC_RESULT,

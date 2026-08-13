@@ -108,6 +108,7 @@ export class RecommendationsService {
       evidence_summaries: evidenceSummaries,
       record_type: 'GENERATED',
       computed_at: score.computed_at.toISOString(),
+      breakdown: score.breakdown ?? null,
     };
   }
 

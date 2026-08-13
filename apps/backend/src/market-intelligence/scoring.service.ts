@@ -4,6 +4,7 @@ import { Repository } from 'typeorm';
 import type { SocietyResult } from '../property-intelligence/property-intelligence.service';
 import { TrustService } from '../trust/trust.service';
 import { ScoreEntity } from './entities/score.entity';
+import type { ScoreBreakdown } from '@siraat/shared-types';
 
 // Tunable business value: penalty applied to confidence_score when society data is stale
 const STALENESS_CONFIDENCE_PENALTY = 0.15;
@@ -56,7 +57,8 @@ export class ScoringService {
         r.verification.status === 'DISPUTED',
     ).length;
 
-    const confidenceScore = this.computeConfidence(society, evidenceCount, adverseClaimCount);
+    const docBonus = Math.min((evidenceCount - 1) * 0.03, 0.1);
+    const confidenceScore = this.computeConfidence(society, docBonus, adverseClaimCount);
 
     // Law 6: affiliation_disclosure non-null IFF is_siraat_affiliated; never influences score
     const affiliationDisclosure = society.is_siraat_affiliated
@@ -72,6 +74,7 @@ export class ScoringService {
       derived_from: evidenceIds, // Evidence IDs from ALL claims, deduplicated (FACT records)
       affiliation_disclosure: affiliationDisclosure,
       reasoning_summary: this.buildReasoning(society, confidenceScore, evidenceCount, isVerified, adverseClaimCount),
+      breakdown: this.buildBreakdown(society, evidenceCount, adverseClaimCount, primaryClaim, isVerified, docBonus),
       record_type: 'GENERATED',
     });
 
@@ -82,10 +85,8 @@ export class ScoringService {
     return this.repo.findOneBy({ id });
   }
 
-  private computeConfidence(s: SocietyResult, evidenceCount: number, adverseClaimCount: number): number {
+  private computeConfidence(s: SocietyResult, docBonus: number, adverseClaimCount: number): number {
     let score = s.base_confidence;
-    // Each evidence item beyond the first adds a small bonus, capped at +0.10
-    const docBonus = Math.min((evidenceCount - 1) * 0.03, 0.1);
     score += docBonus;
     // Stale data reduces trust
     if (s.is_stale) score -= STALENESS_CONFIDENCE_PENALTY;
@@ -112,5 +113,68 @@ export class ScoringService {
     }
     if (s.noc_summary) parts.push(s.noc_summary);
     return `Confidence ${Math.round(score * 100)}%: ${parts.join('. ')}.`;
+  }
+
+  private buildBreakdown(
+    s: SocietyResult,
+    evidenceCount: number,
+    adverseClaimCount: number,
+    primaryClaim: { verification: { claim_type: string; status: string } } | undefined,
+    isVerified: boolean,
+    docBonus: number,
+  ): ScoreBreakdown {
+    // regulatory
+    let regulatoryStatus: ScoreBreakdown['regulatory']['status'];
+    let regulatoryTone: ScoreBreakdown['regulatory']['tone'];
+    let regulatoryLabel: string;
+    if (!primaryClaim) {
+      regulatoryStatus = 'NONE';
+      regulatoryTone = 'neutral';
+      regulatoryLabel = 'No regulatory clearance on record';
+    } else if (isVerified) {
+      regulatoryStatus = 'VERIFIED';
+      regulatoryTone = 'success';
+      regulatoryLabel = s.noc_summary ?? 'NOC Verified';
+    } else if (primaryClaim.verification.claim_type === 'PLANNING_APPROVAL') {
+      regulatoryStatus = 'PLANNING_APPROVAL';
+      regulatoryTone = 'warning';
+      regulatoryLabel = s.noc_summary ?? 'Planning approval — verification pending';
+    } else {
+      regulatoryStatus = 'PENDING';
+      regulatoryTone = 'warning';
+      regulatoryLabel = s.noc_summary ?? 'Approval pending';
+    }
+
+    // data_freshness checked_date: e.g. "12 Aug 2026"
+    const checkedDate = new Date().toLocaleDateString('en-GB', {
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric',
+    });
+
+    return {
+      regulatory: { status: regulatoryStatus, label: regulatoryLabel, tone: regulatoryTone },
+      active_issues: {
+        count: adverseClaimCount,
+        penalty_applied: parseFloat((adverseClaimCount * ADVERSE_CLAIM_PENALTY).toFixed(4)),
+        label:
+          adverseClaimCount === 0
+            ? 'No active notices'
+            : `${adverseClaimCount} active show-cause notice${adverseClaimCount !== 1 ? 's' : ''}`,
+        tone: adverseClaimCount === 0 ? 'success' : 'danger',
+      },
+      evidence_strength: {
+        count: evidenceCount,
+        bonus_applied: parseFloat(docBonus.toFixed(4)),
+        label: `${evidenceCount} independent document${evidenceCount !== 1 ? 's' : ''}`,
+        tone: evidenceCount === 0 ? 'danger' : evidenceCount <= 2 ? 'neutral' : 'success',
+      },
+      data_freshness: {
+        is_stale: s.is_stale,
+        penalty_applied: s.is_stale ? STALENESS_CONFIDENCE_PENALTY : 0,
+        checked_date: checkedDate,
+        tone: s.is_stale ? 'warning' : 'success',
+      },
+    };
   }
 }
