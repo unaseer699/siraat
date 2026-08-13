@@ -130,6 +130,34 @@ export const RecommendationDetailSchema = z.object({
 });
 export type RecommendationDetail = z.infer<typeof RecommendationDetailSchema>;
 
+// ─── Society Score (GET /v1/market-intelligence/societies/{id}/score) ────────
+// Fetches a Society's Score directly by society id — used by the Society Profile
+// breakdown and the Comparison feature, independent of any search/recommendation flow.
+
+export const NumericRangeSchema = z.object({
+  min: z.number().nullable(),
+  max: z.number().nullable(),
+});
+export type NumericRange = z.infer<typeof NumericRangeSchema>;
+
+export const SocietyScoreResponseSchema = z.object({
+  society_id: z.string().uuid(),
+  society_name: z.string(),
+  confidence_score: z.number().min(0).max(1),
+  is_stale: z.boolean(),
+  staleness_threshold_days: z.number(),
+  affiliation_disclosure: z.string().nullable(),
+  derived_from: z.array(z.string()),
+  reasoning_summary: z.string(),
+  breakdown: ScoreBreakdownSchema.nullable(),
+  // FACT data carried straight from the Society entity (not derived from the
+  // Score) — included here so the Comparison feature can render price/area
+  // without a second endpoint or client-side caching.
+  price_range: NumericRangeSchema,
+  area_range: NumericRangeSchema,
+});
+export type SocietyScoreResponse = z.infer<typeof SocietyScoreResponseSchema>;
+
 // ─── Intent (parsed by backend, not in API surface) ──────────────────────────
 
 export interface ParsedIntent {

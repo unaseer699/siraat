@@ -1,7 +1,12 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import type { RecommendationRequest, RecommendationResponse, RecommendationDetail } from '@siraat/shared-types';
+import type {
+  RecommendationRequest,
+  RecommendationResponse,
+  RecommendationDetail,
+  SocietyScoreResponse,
+} from '@siraat/shared-types';
 import {
   PropertyIntelligenceService,
   type SocietyResult,
@@ -110,6 +115,39 @@ export class RecommendationsService {
       computed_at: score.computed_at.toISOString(),
       breakdown: score.breakdown ?? null,
     };
+  }
+
+  // Fetches a Score directly by society id — no search/recommendation involved.
+  // Shared by the Society Profile breakdown and the Comparison feature.
+  async getSocietyScore(societyId: string): Promise<SocietyScoreResponse> {
+    const society = await this.piSvc.findSocietyById(societyId);
+    if (!society) throw new NotFoundException(`Society ${societyId} not found`);
+
+    // Reuses the existing staleness-window caching logic — no new scoring code.
+    const score = await this.scoreSvc.computeAndSave(society);
+
+    return {
+      society_id: society.id,
+      society_name: society.name,
+      confidence_score: Number(score.confidence_score),
+      is_stale: score.is_stale,
+      staleness_threshold_days: score.staleness_threshold_days,
+      affiliation_disclosure: score.affiliation_disclosure,
+      derived_from: score.derived_from,
+      reasoning_summary: score.reasoning_summary,
+      breakdown: score.breakdown ?? null,
+      // FACT fields already on the Society entity — not derived from the Score.
+      price_range: { min: this.toNullableNumber(society.min_price), max: this.toNullableNumber(society.max_price) },
+      area_range: {
+        min: this.toNullableNumber(society.min_area_marla),
+        max: this.toNullableNumber(society.max_area_marla),
+      },
+    };
+  }
+
+  // Decimal columns come back from the driver as strings — normalize while preserving null.
+  private toNullableNumber(v: number | null): number | null {
+    return v === null || v === undefined ? null : Number(v);
   }
 
   private toRecommendationItem(s: SocietyResult, score: ScoreEntity, targetPrice: number | null) {

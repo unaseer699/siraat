@@ -1,9 +1,12 @@
 'use client';
 
 import Link from 'next/link';
-import { RadialBarChart, RadialBar, PolarAngleAxis } from 'recharts';
+import { useRouter } from 'next/navigation';
 import type { RecommendationResponse, RecommendationItem } from '@siraat/shared-types';
 import { TRUST_GREEN, WARNING_AMBER, DANGER_RED } from '../styles/tokens';
+import { ConfidenceGauge } from './ConfidenceGauge';
+
+const MAX_COMPARE = 3;
 
 function ordinal(n: number): string {
   const s = ['th', 'st', 'nd', 'rd'];
@@ -17,49 +20,6 @@ function formatPKR(n: number): string {
   return `PKR ${n.toLocaleString()}`;
 }
 
-function confidenceColor(score: number): string {
-  return score >= 0.8 ? TRUST_GREEN : score >= 0.5 ? WARNING_AMBER : DANGER_RED;
-}
-
-function ConfidenceGauge({ score }: { score: number }) {
-  const pct = Math.round(score * 100);
-  const color = confidenceColor(score);
-
-  return (
-    <div style={{ position: 'relative', width: 90, height: 90, flexShrink: 0 }}>
-      <RadialBarChart
-        width={90}
-        height={90}
-        cx={45}
-        cy={45}
-        innerRadius={30}
-        outerRadius={44}
-        barSize={14}
-        data={[{ value: pct, fill: color }]}
-        startAngle={90}
-        endAngle={-270}
-      >
-        <PolarAngleAxis type="number" domain={[0, 100]} tick={false} />
-        <RadialBar dataKey="value" cornerRadius={7} background={{ fill: '#e5e7eb' }} />
-      </RadialBarChart>
-      <div
-        style={{
-          position: 'absolute',
-          inset: 0,
-          display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'center',
-          justifyContent: 'center',
-          pointerEvents: 'none',
-        }}
-      >
-        <span style={{ fontSize: '14px', fontWeight: 800, color, lineHeight: 1 }}>{pct}%</span>
-        <span style={{ fontSize: '9px', color: '#6b7280', fontWeight: 600, marginTop: '2px' }}>trust</span>
-      </div>
-    </div>
-  );
-}
-
 const STATE_META: Record<string, { label: string; color: string; bg: string }> = {
   FULL: { label: 'Full Coverage', color: TRUST_GREEN, bg: `${TRUST_GREEN}18` },
   DEGRADED_SUCCESS: { label: 'Limited Data', color: WARNING_AMBER, bg: `${WARNING_AMBER}18` },
@@ -68,9 +28,21 @@ const STATE_META: Record<string, { label: string; color: string; bg: string }> =
 
 interface Props {
   result: RecommendationResponse;
+  compareSelection: RecommendationItem[];
+  onToggleCompare: (item: RecommendationItem) => void;
 }
 
-function RecCard({ rec }: { rec: RecommendationItem }) {
+function RecCard({
+  rec,
+  isSelected,
+  isCapped,
+  onToggleCompare,
+}: {
+  rec: RecommendationItem;
+  isSelected: boolean;
+  isCapped: boolean;
+  onToggleCompare: (item: RecommendationItem) => void;
+}) {
   return (
     <article
       style={{
@@ -107,6 +79,31 @@ function RecCard({ rec }: { rec: RecommendationItem }) {
             Disclosure: {rec.affiliation_disclosure}
           </p>
         )}
+        <label
+          title={
+            isCapped
+              ? 'You can compare up to 3 societies — remove one to add another.'
+              : undefined
+          }
+          style={{
+            marginTop: '2px',
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '6px',
+            fontSize: '13px',
+            color: isCapped ? 'var(--muted)' : 'var(--text)',
+            cursor: isCapped ? 'not-allowed' : 'pointer',
+            width: 'fit-content',
+          }}
+        >
+          <input
+            type="checkbox"
+            checked={isSelected}
+            disabled={isCapped}
+            onChange={() => onToggleCompare(rec)}
+          />
+          Add to compare
+        </label>
         <div style={{ marginTop: '4px' }}>
           <Link
             href={`/recommendation/${rec.id}`}
@@ -121,11 +118,28 @@ function RecCard({ rec }: { rec: RecommendationItem }) {
   );
 }
 
-export function ResultsPanel({ result }: Props) {
+export function ResultsPanel({ result, compareSelection, onToggleCompare }: Props) {
+  const router = useRouter();
   const meta = STATE_META[result.state] ?? STATE_META.FULL;
+  const selectedIds = new Set(compareSelection.map((c) => c.society_id));
+  const canCompare = compareSelection.length >= 2;
+
+  function handleCompareClick() {
+    const ids = compareSelection.map((c) => c.society_id).join(',');
+    router.push(`/compare?ids=${encodeURIComponent(ids)}`);
+  }
 
   return (
-    <div style={{ width: '100%', maxWidth: '680px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+    <div
+      style={{
+        width: '100%',
+        maxWidth: '680px',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: '16px',
+        paddingBottom: canCompare ? '64px' : 0,
+      }}
+    >
       <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
         <span
           style={{
@@ -184,8 +198,43 @@ export function ResultsPanel({ result }: Props) {
         )}
 
       {result.recommendations.map((rec) => (
-        <RecCard key={rec.id} rec={rec} />
+        <RecCard
+          key={rec.id}
+          rec={rec}
+          isSelected={selectedIds.has(rec.society_id)}
+          isCapped={!selectedIds.has(rec.society_id) && compareSelection.length >= MAX_COMPARE}
+          onToggleCompare={onToggleCompare}
+        />
       ))}
+
+      {canCompare && (
+        <div
+          style={{
+            position: 'fixed',
+            bottom: '24px',
+            left: '50%',
+            transform: 'translateX(-50%)',
+            zIndex: 50,
+          }}
+        >
+          <button
+            onClick={handleCompareClick}
+            style={{
+              padding: '12px 24px',
+              background: '#111',
+              color: '#fff',
+              border: 'none',
+              borderRadius: '999px',
+              fontSize: '14px',
+              fontWeight: 700,
+              cursor: 'pointer',
+              boxShadow: '0 4px 16px rgba(0,0,0,0.25)',
+            }}
+          >
+            Compare Selected ({compareSelection.length}) →
+          </button>
+        </div>
+      )}
     </div>
   );
 }

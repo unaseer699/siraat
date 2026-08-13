@@ -2,6 +2,7 @@ import type {
   RecommendationRequest,
   RecommendationResponse,
   RecommendationDetail,
+  SocietyScoreResponse,
   VerificationListResponse,
   PropertyDetail,
   DeveloperProfile,
@@ -39,6 +40,10 @@ export async function fetchRecommendations(
 
 export async function fetchRecommendationDetail(id: string): Promise<RecommendationDetail> {
   return apiFetch(`/v1/market-intelligence/recommendations/${id}`);
+}
+
+export async function fetchSocietyScore(societyId: string): Promise<SocietyScoreResponse> {
+  return apiFetch(`/v1/market-intelligence/societies/${societyId}/score`);
 }
 
 export async function fetchSocietyVerifications(

@@ -1,10 +1,12 @@
 import { notFound } from 'next/navigation';
 import Link from 'next/link';
-import { fetchSocietyVerifications } from '@/lib/api';
+import { fetchSocietyVerifications, fetchSocietyScore } from '@/lib/api';
 import { EvidenceDrawer } from '@/components/EvidenceDrawer';
 import StatCard from '@/components/StatCard';
+import { ConfidenceGauge } from '@/components/ConfidenceGauge';
+import { ScoreBreakdown } from '@/components/ScoreBreakdown';
 import { TRUST_GREEN, WARNING_AMBER, DANGER_RED } from '@/styles/tokens';
-import type { VerificationResponse } from '@siraat/shared-types';
+import type { VerificationResponse, SocietyScoreResponse } from '@siraat/shared-types';
 
 interface Props {
   params: { id: string };
@@ -131,6 +133,15 @@ export default async function SocietyProfilePage({ params }: Props) {
 
   if (!claims.length) notFound();
 
+  // Score computation can fail independently of the claims lookup above — the
+  // rest of the profile (claims) must still render if this does.
+  let score: SocietyScoreResponse | null = null;
+  try {
+    score = await fetchSocietyScore(params.id);
+  } catch {
+    score = null;
+  }
+
   const primaryClaims = claims.filter((c) => c.status !== 'DISPUTED');
   const adverseClaims = claims.filter((c) => c.status === 'DISPUTED');
 
@@ -160,6 +171,27 @@ export default async function SocietyProfilePage({ params }: Props) {
             {claims.length} verification claim{claims.length !== 1 ? 's' : ''} on record
           </p>
         </div>
+
+        {/* Score breakdown */}
+        {score && (
+          <div
+            style={{
+              background: '#fff',
+              border: '1px solid var(--border)',
+              borderRadius: 'var(--radius)',
+              padding: '20px',
+              display: 'flex',
+              gap: '24px',
+              flexWrap: 'wrap',
+              alignItems: 'flex-start',
+            }}
+          >
+            <ConfidenceGauge score={score.confidence_score} size="lg" />
+            <div style={{ flex: 1, minWidth: '240px' }}>
+              <ScoreBreakdown breakdown={score.breakdown} />
+            </div>
+          </div>
+        )}
 
         {/* Primary claims */}
         {primaryClaims.map((claim, i) => (
