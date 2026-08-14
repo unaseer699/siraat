@@ -4,8 +4,14 @@ import { Repository } from 'typeorm';
 import { PropertyIntelligenceService } from '../property-intelligence/property-intelligence.service';
 import { TrustService, ClaimType } from '../trust/trust.service';
 import { CandidateSocietyEntity } from '../property-intelligence/entities/candidate-society.entity';
+import {
+  ConstructionIntelligenceService,
+  CreateMaterialRateInput,
+  MaterialRateResult,
+} from '../construction-intelligence/construction-intelligence.service';
 
 export type { ClaimType };
+export type { CreateMaterialRateInput, MaterialRateResult };
 
 export interface EvidenceInput {
   type: 'document' | 'photo' | 'receipt' | 'inspection_report';
@@ -45,6 +51,7 @@ export class AdminService {
   constructor(
     private readonly piSvc: PropertyIntelligenceService,
     private readonly trustSvc: TrustService,
+    private readonly ciSvc: ConstructionIntelligenceService,
     @InjectRepository(CandidateSocietyEntity)
     private readonly candidateRepo: Repository<CandidateSocietyEntity>,
   ) {}
@@ -160,5 +167,13 @@ export class AdminService {
   ): Promise<{ id: string; type: string; source_ref: string }> {
     const ev = await this.trustSvc.createEvidenceRecord(data);
     return { id: ev.id, type: ev.type, source_ref: ev.source_ref };
+  }
+
+  async createMaterialRate(data: CreateMaterialRateInput): Promise<MaterialRateResult> {
+    return this.ciSvc.createMaterialRate(data);
+  }
+
+  async listMaterialRates(filters: { city?: string; material?: string }): Promise<MaterialRateResult[]> {
+    return this.ciSvc.listMaterialRates(filters);
   }
 }

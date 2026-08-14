@@ -4,6 +4,7 @@ import { getRepositoryToken } from '@nestjs/typeorm';
 import { AdminService } from './admin.service';
 import { PropertyIntelligenceService } from '../property-intelligence/property-intelligence.service';
 import { TrustService } from '../trust/trust.service';
+import { ConstructionIntelligenceService } from '../construction-intelligence/construction-intelligence.service';
 import { CandidateSocietyEntity } from '../property-intelligence/entities/candidate-society.entity';
 
 // ─── Fixtures ─────────────────────────────────────────────────────────────────
@@ -53,6 +54,21 @@ const EVIDENCE_ENTITY = { id: EVI_ID, record_type: 'FACT', ...EVIDENCE_ITEM, cre
 const VERIFICATION_ENTITY = { id: VER_ID, status: 'PENDING', verified_at: null };
 const VERIFIED_ENTITY     = { id: VER_ID, status: 'VERIFIED', verified_at: new Date() };
 
+const MATERIAL_RATE_RESULT = {
+  id: 'rate-uuid-0001',
+  material_name: 'Cement - OPC 50kg bag',
+  unit: 'per bag',
+  price: 1550,
+  city: 'Islamabad',
+  source_tier: 'SUPPLIER_VERIFIED' as const,
+  source_name: 'Al-Rehman Traders',
+  source_contact: '+92 300 1234567',
+  recorded_date: '2026-08-10',
+  record_type: 'FACT' as const,
+  is_stale: false,
+  staleness_threshold_days: 14,
+};
+
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function buildSocietyInput(overrides: object = {}) {
@@ -98,6 +114,10 @@ describe('AdminService', () => {
   let candidateFindByMock: jest.Mock;
   let candidateSaveMock: jest.Mock;
 
+  // ConstructionIntelligenceService mocks
+  let createMaterialRateMock: jest.Mock;
+  let listMaterialRatesMock: jest.Mock;
+
   beforeEach(async () => {
     createSocietyMock          = jest.fn().mockResolvedValue(SOCIETY_RESULT);
     findSocietyByIdMock        = jest.fn().mockResolvedValue(SOCIETY_RESULT);
@@ -109,6 +129,8 @@ describe('AdminService', () => {
     candidateFindOneMock       = jest.fn().mockResolvedValue(null);
     candidateFindByMock        = jest.fn().mockResolvedValue([CANDIDATE]);
     candidateSaveMock          = jest.fn().mockResolvedValue({ ...CANDIDATE, status: 'ONBOARDED' });
+    createMaterialRateMock     = jest.fn().mockResolvedValue(MATERIAL_RATE_RESULT);
+    listMaterialRatesMock      = jest.fn().mockResolvedValue([MATERIAL_RATE_RESULT]);
 
     const module = await Test.createTestingModule({
       providers: [
@@ -136,6 +158,13 @@ describe('AdminService', () => {
             findBy:     candidateFindByMock,
             findOneBy:  candidateFindOneMock,
             save:       candidateSaveMock,
+          },
+        },
+        {
+          provide: ConstructionIntelligenceService,
+          useValue: {
+            createMaterialRate: createMaterialRateMock,
+            listMaterialRates:  listMaterialRatesMock,
           },
         },
       ],
@@ -327,6 +356,30 @@ describe('AdminService', () => {
     expect(createEvidenceRecordMock).toHaveBeenCalledWith(EVIDENCE_ITEM);
     expect(result.id).toBe(EVI_ID);
     expect(result.type).toBe('document');
+  });
+
+  // ─── Material rates (delegates to ConstructionIntelligenceService) ────────
+
+  it('createMaterialRate delegates to ConstructionIntelligenceService.createMaterialRate', async () => {
+    const input = {
+      material_name: 'Cement - OPC 50kg bag',
+      unit: 'per bag',
+      price: 1550,
+      city: 'Islamabad',
+      source_tier: 'SUPPLIER_VERIFIED' as const,
+      source_name: 'Al-Rehman Traders',
+      source_contact: '+92 300 1234567',
+      recorded_date: '2026-08-10',
+    };
+    const result = await svc.createMaterialRate(input);
+    expect(createMaterialRateMock).toHaveBeenCalledWith(input);
+    expect(result).toBe(MATERIAL_RATE_RESULT);
+  });
+
+  it('listMaterialRates delegates to ConstructionIntelligenceService.listMaterialRates', async () => {
+    const result = await svc.listMaterialRates({ city: 'Islamabad', material: 'Cement' });
+    expect(listMaterialRatesMock).toHaveBeenCalledWith({ city: 'Islamabad', material: 'Cement' });
+    expect(result).toEqual([MATERIAL_RATE_RESULT]);
   });
 
   // ─── Auth guard (controller-level wiring check) ───────────────────────────

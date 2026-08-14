@@ -66,6 +66,22 @@ const CreateEvidenceBodySchema = z.object({
 });
 type CreateEvidenceBody = z.infer<typeof CreateEvidenceBodySchema>;
 
+// --- POST /v1/admin/material-rates ---
+
+const MATERIAL_RATE_SOURCE_TIERS = ['SUPPLIER_VERIFIED', 'MARKET_REFERENCE'] as const;
+
+const CreateMaterialRateBodySchema = z.object({
+  material_name: z.string().min(1),
+  unit: z.string().min(1),
+  price: z.number().positive(),
+  city: z.string().min(1),
+  source_tier: z.enum(MATERIAL_RATE_SOURCE_TIERS),
+  source_name: z.string().min(1),
+  source_contact: z.string().min(1).nullable().default(null),
+  recorded_date: z.string().min(1),
+});
+type CreateMaterialRateBody = z.infer<typeof CreateMaterialRateBodySchema>;
+
 // --- Controller ---
 
 @Controller('v1/admin')
@@ -101,5 +117,18 @@ export class AdminController {
     @Body(new ZodValidationPipe(CreateEvidenceBodySchema)) body: CreateEvidenceBody,
   ) {
     return this.adminSvc.createEvidence(body);
+  }
+
+  @Post('material-rates')
+  @HttpCode(201)
+  createMaterialRate(
+    @Body(new ZodValidationPipe(CreateMaterialRateBodySchema)) body: CreateMaterialRateBody,
+  ) {
+    return this.adminSvc.createMaterialRate(body);
+  }
+
+  @Get('material-rates')
+  listMaterialRates(@Query('city') city?: string, @Query('material') material?: string) {
+    return this.adminSvc.listMaterialRates({ city, material });
   }
 }

@@ -5,6 +5,7 @@ import { ThrottlerModule } from '@nestjs/throttler';
 import { PropertyIntelligenceModule } from './property-intelligence/property-intelligence.module';
 import { MarketIntelligenceModule } from './market-intelligence/market-intelligence.module';
 import { TrustModule } from './trust/trust.module';
+import { ConstructionIntelligenceModule } from './construction-intelligence/construction-intelligence.module';
 import { AdminModule } from './admin/admin.module';
 import { HealthController } from './health.controller';
 
@@ -29,6 +30,7 @@ import { HealthController } from './health.controller';
     PropertyIntelligenceModule,
     MarketIntelligenceModule,
     TrustModule,
+    ConstructionIntelligenceModule,
     AdminModule,
   ],
 })

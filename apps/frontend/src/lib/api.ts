@@ -6,6 +6,9 @@ import type {
   VerificationListResponse,
   PropertyDetail,
   DeveloperProfile,
+  EstimateRequest,
+  EstimateResponse,
+  MaterialRateSourceTier,
 } from '@siraat/shared-types';
 
 const BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001';
@@ -60,6 +63,15 @@ export async function fetchDeveloperVerification(
 
 export async function fetchPropertyDetail(propertyId: string): Promise<PropertyDetail> {
   return apiFetch(`/v1/property-intelligence/properties/${propertyId}`);
+}
+
+export async function fetchConstructionEstimate(
+  req: EstimateRequest,
+): Promise<EstimateResponse> {
+  return apiFetch('/v1/construction-intelligence/estimates', {
+    method: 'POST',
+    body: JSON.stringify(req),
+  });
 }
 
 export async function submitEvidence(societyId: string, data: {
@@ -179,6 +191,51 @@ export async function addClaimToSociety(
   data: AddClaimBody,
 ): Promise<{ verification_id: string }> {
   return apiFetch(`/v1/admin/societies/${societyId}/claims`, {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
+}
+
+// Mirrors MaterialRateResult in apps/backend/src/construction-intelligence/construction-intelligence.service.ts
+export interface MaterialRateItem {
+  id: string;
+  material_name: string;
+  unit: string;
+  price: number;
+  city: string;
+  source_tier: MaterialRateSourceTier;
+  source_name: string;
+  source_contact: string | null;
+  recorded_date: string;
+  record_type: 'FACT';
+  is_stale: boolean;
+  staleness_threshold_days: number;
+}
+
+export interface CreateMaterialRateBody {
+  material_name: string;
+  unit: string;
+  price: number;
+  city: string;
+  source_tier: MaterialRateSourceTier;
+  source_name: string;
+  source_contact: string | null;
+  recorded_date: string;
+}
+
+export async function fetchMaterialRates(filters?: {
+  city?: string;
+  material?: string;
+}): Promise<MaterialRateItem[]> {
+  const qs = new URLSearchParams();
+  if (filters?.city) qs.set('city', filters.city);
+  if (filters?.material) qs.set('material', filters.material);
+  const suffix = qs.toString() ? `?${qs.toString()}` : '';
+  return apiFetch(`/v1/admin/material-rates${suffix}`);
+}
+
+export async function createMaterialRate(data: CreateMaterialRateBody): Promise<MaterialRateItem> {
+  return apiFetch('/v1/admin/material-rates', {
     method: 'POST',
     body: JSON.stringify(data),
   });
