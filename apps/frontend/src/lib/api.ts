@@ -79,6 +79,30 @@ export async function fetchEvidenceDownloadUrl(
   return apiFetch(`/v1/trust/evidence/${evidenceId}/download-url`);
 }
 
+// Export endpoint returns the report body directly (text/html, Content-Disposition:
+// attachment) rather than JSON — bypasses apiFetch's res.json() and reads the
+// filename the backend chose off the response header instead of guessing one here.
+export async function fetchRecommendationExport(
+  id: string,
+): Promise<{ blob: Blob; filename: string }> {
+  const res = await fetch(`${BASE_URL}/v1/market-intelligence/recommendations/${id}/export`, {
+    cache: 'no-store',
+    headers: {
+      Authorization: `Bearer ${process.env.NEXT_PUBLIC_SIRAAT_API_KEY ?? ''}`,
+      'X-Siraat-Country-Code': 'PK',
+    },
+  });
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`API error ${res.status}: ${text}`);
+  }
+  const disposition = res.headers.get('Content-Disposition') ?? '';
+  const match = disposition.match(/filename="([^"]+)"/);
+  const filename = match ? match[1] : `recommendation-${id}.html`;
+  const blob = await res.blob();
+  return { blob, filename };
+}
+
 // ── Admin (internal, no public UI links to these) ──────────────────────────
 
 export interface CandidateSociety {

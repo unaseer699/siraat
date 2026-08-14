@@ -5,6 +5,8 @@ import type { RecommendationDetail, EvidenceSummary } from '@siraat/shared-types
 import StatCard from './StatCard';
 import { ScoreBreakdown } from './ScoreBreakdown';
 import { ConfidenceGauge } from './ConfidenceGauge';
+import { CopyLinkButton } from './CopyLinkButton';
+import { DownloadReportButton } from './DownloadReportButton';
 import { TRUST_GREEN, WARNING_AMBER, RADIUS } from '../styles/tokens';
 
 interface Props {
@@ -146,6 +148,11 @@ export function RecommendationDetails({ detail }: Props) {
             ⚠ Data may be stale (threshold: {detail.staleness_threshold_days} days)
           </p>
         )}
+      </div>
+
+      <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+        <CopyLinkButton />
+        <DownloadReportButton recommendationId={detail.id} />
       </div>
 
       {detail.affiliation_disclosure && (
