@@ -6,12 +6,14 @@ import type {
   RecommendationResponse,
   RecommendationDetail,
   SocietyScoreResponse,
+  PlatformStatsResponse,
 } from '@siraat/shared-types';
 import {
   PropertyIntelligenceService,
   type SocietyResult,
 } from '../property-intelligence/property-intelligence.service';
 import { TrustService } from '../trust/trust.service';
+import { ConstructionIntelligenceService } from '../construction-intelligence/construction-intelligence.service';
 import { ScoringService } from './scoring.service';
 import type { ScoreEntity } from './entities/score.entity';
 import { parseIntent } from './intent/intent-parser';
@@ -26,6 +28,7 @@ export class RecommendationsService {
     private readonly piSvc: PropertyIntelligenceService,
     private readonly scoreSvc: ScoringService,
     private readonly trustSvc: TrustService,
+    private readonly ciSvc: ConstructionIntelligenceService,
     @InjectRepository(NotCoveredRequestEntity)
     private readonly notCoveredRepo: Repository<NotCoveredRequestEntity>,
   ) {}
@@ -155,6 +158,27 @@ export class RecommendationsService {
         min: this.toNullableNumber(society.min_area_marla),
         max: this.toNullableNumber(society.max_area_marla),
       },
+    };
+  }
+
+  // GET /v1/market-intelligence/platform-stats — Home page headline numbers.
+  // Each count is a simple aggregate on its own context's schema (Law 1/2: no
+  // cross-context FK, no cross-schema query) fetched via that context's own
+  // service rather than a direct repository reach-across (Law 9).
+  async getPlatformStats(): Promise<PlatformStatsResponse> {
+    const [verifiedSocietiesCount, totalEvidenceCount, citiesCovered, materialsTracked] =
+      await Promise.all([
+        this.trustSvc.countVerifiedSocietySubjects(),
+        this.trustSvc.countEvidence(),
+        this.piSvc.listDistinctCities(),
+        this.ciSvc.countDistinctMaterials(),
+      ]);
+
+    return {
+      verified_societies_count: verifiedSocietiesCount,
+      total_evidence_count: totalEvidenceCount,
+      cities_covered: citiesCovered,
+      construction_materials_tracked: materialsTracked,
     };
   }
 

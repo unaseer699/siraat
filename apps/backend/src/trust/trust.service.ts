@@ -70,6 +70,24 @@ export class TrustService {
     return this.eviRepo.findOneBy({ id });
   }
 
+  // ─── Platform stats (Home page) ────────────────────────────────────────────
+
+  // Distinct SOCIETY subject_ids carrying at least one VERIFIED claim — a society
+  // with both a VERIFIED NOC and a DISPUTED show-cause notice still counts once.
+  async countVerifiedSocietySubjects(): Promise<number> {
+    const result = await this.verRepo
+      .createQueryBuilder('v')
+      .select('COUNT(DISTINCT v.subject_id)', 'count')
+      .where('v.subject_type = :type', { type: 'SOCIETY' })
+      .andWhere('v.status = :status', { status: 'VERIFIED' })
+      .getRawOne<{ count: string }>();
+    return Number(result?.count ?? 0);
+  }
+
+  async countEvidence(): Promise<number> {
+    return this.eviRepo.count();
+  }
+
   async findEvidenceByIds(ids: string[]): Promise<EvidenceEntity[]> {
     if (ids.length === 0) return [];
     return this.eviRepo.findBy({ id: In(ids) });

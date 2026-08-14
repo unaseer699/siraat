@@ -7,6 +7,7 @@ import {
   type SocietyResult,
 } from '../property-intelligence/property-intelligence.service';
 import { TrustService } from '../trust/trust.service';
+import { ConstructionIntelligenceService } from '../construction-intelligence/construction-intelligence.service';
 import { ScoringService } from './scoring.service';
 import type { ScoreEntity } from './entities/score.entity';
 import { NotCoveredRequestEntity } from './entities/not-covered-request.entity';
@@ -77,9 +78,14 @@ function makeScore(society: SocietyResult, override?: Partial<ScoreEntity>): Sco
 
 describe('RecommendationsService', () => {
   let svc: RecommendationsService;
-  let piSvc: jest.Mocked<Pick<PropertyIntelligenceService, 'findMatchingSocieties' | 'findSocietyById'>>;
+  let piSvc: jest.Mocked<
+    Pick<PropertyIntelligenceService, 'findMatchingSocieties' | 'findSocietyById' | 'listDistinctCities'>
+  >;
   let scoreSvc: jest.Mocked<Pick<ScoringService, 'computeAndSave' | 'findById'>>;
-  let trustSvc: jest.Mocked<Pick<TrustService, 'findEvidenceByIds'>>;
+  let trustSvc: jest.Mocked<
+    Pick<TrustService, 'findEvidenceByIds' | 'countVerifiedSocietySubjects' | 'countEvidence'>
+  >;
+  let ciSvc: jest.Mocked<Pick<ConstructionIntelligenceService, 'countDistinctMaterials'>>;
   let notCoveredCountMock: jest.Mock;
   let notCoveredCreateMock: jest.Mock;
   let notCoveredSaveMock: jest.Mock;
@@ -88,6 +94,7 @@ describe('RecommendationsService', () => {
     piSvc = {
       findMatchingSocieties: jest.fn().mockResolvedValue([mockSociety]),
       findSocietyById: jest.fn().mockResolvedValue(mockSociety),
+      listDistinctCities: jest.fn().mockResolvedValue([]),
     };
     scoreSvc = {
       computeAndSave: jest.fn().mockImplementation((s: SocietyResult) =>
@@ -97,6 +104,11 @@ describe('RecommendationsService', () => {
     };
     trustSvc = {
       findEvidenceByIds: jest.fn().mockResolvedValue([]),
+      countVerifiedSocietySubjects: jest.fn().mockResolvedValue(0),
+      countEvidence: jest.fn().mockResolvedValue(0),
+    };
+    ciSvc = {
+      countDistinctMaterials: jest.fn().mockResolvedValue(0),
     };
     notCoveredCountMock = jest.fn().mockResolvedValue(0);
     notCoveredCreateMock = jest.fn((data) => data);
@@ -108,6 +120,7 @@ describe('RecommendationsService', () => {
         { provide: PropertyIntelligenceService, useValue: piSvc },
         { provide: ScoringService, useValue: scoreSvc },
         { provide: TrustService, useValue: trustSvc },
+        { provide: ConstructionIntelligenceService, useValue: ciSvc },
         {
           provide: getRepositoryToken(NotCoveredRequestEntity),
           useValue: {
@@ -439,5 +452,50 @@ describe('RecommendationsService', () => {
     expect(scoreSvc.computeAndSave).toHaveBeenCalledWith(mockSociety);
     expect(first.confidence_score).toBe(second.confidence_score);
     expect(first.society_id).toBe(second.society_id);
+  });
+
+  // ─── HOME PAGE Chunk 1 — GET /v1/market-intelligence/platform-stats ──────
+
+  describe('getPlatformStats', () => {
+    it('returns correct counts against seeded test data', async () => {
+      trustSvc.countVerifiedSocietySubjects.mockResolvedValue(3);
+      trustSvc.countEvidence.mockResolvedValue(11);
+      piSvc.listDistinctCities.mockResolvedValue(['Islamabad', 'Rawalpindi']);
+      ciSvc.countDistinctMaterials.mockResolvedValue(5);
+
+      const result = await svc.getPlatformStats();
+
+      expect(result).toEqual({
+        verified_societies_count: 3,
+        total_evidence_count: 11,
+        cities_covered: ['Islamabad', 'Rawalpindi'],
+        construction_materials_tracked: 5,
+      });
+    });
+
+    it('returns zeros and an empty array gracefully when no data exists yet — never errors on an empty database', async () => {
+      trustSvc.countVerifiedSocietySubjects.mockResolvedValue(0);
+      trustSvc.countEvidence.mockResolvedValue(0);
+      piSvc.listDistinctCities.mockResolvedValue([]);
+      ciSvc.countDistinctMaterials.mockResolvedValue(0);
+
+      const result = await svc.getPlatformStats();
+
+      expect(result).toEqual({
+        verified_societies_count: 0,
+        total_evidence_count: 0,
+        cities_covered: [],
+        construction_materials_tracked: 0,
+      });
+    });
+
+    it('sources each figure from its own context — no direct cross-schema query', async () => {
+      await svc.getPlatformStats();
+
+      expect(trustSvc.countVerifiedSocietySubjects).toHaveBeenCalled();
+      expect(trustSvc.countEvidence).toHaveBeenCalled();
+      expect(piSvc.listDistinctCities).toHaveBeenCalled();
+      expect(ciSvc.countDistinctMaterials).toHaveBeenCalled();
+    });
   });
 });

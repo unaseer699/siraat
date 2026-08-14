@@ -91,4 +91,13 @@ export class ConstructionIntelligenceService {
       .where('LOWER(r.city) = LOWER(:city)', { city })
       .getMany();
   }
+
+  // Platform stats (Home page) — distinct material_name values logged so far.
+  async countDistinctMaterials(): Promise<number> {
+    const result = await this.rateRepo
+      .createQueryBuilder('r')
+      .select('COUNT(DISTINCT r.material_name)', 'count')
+      .getRawOne<{ count: string }>();
+    return Number(result?.count ?? 0);
+  }
 }

@@ -9,6 +9,7 @@ import type {
   EstimateRequest,
   EstimateResponse,
   MaterialRateSourceTier,
+  PlatformStatsResponse,
 } from '@siraat/shared-types';
 
 const BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001';
@@ -30,6 +31,10 @@ async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
     throw new Error(`API error ${res.status}: ${text}`);
   }
   return res.json() as Promise<T>;
+}
+
+export async function fetchPlatformStats(): Promise<PlatformStatsResponse> {
+  return apiFetch('/v1/market-intelligence/platform-stats');
 }
 
 export async function fetchRecommendations(

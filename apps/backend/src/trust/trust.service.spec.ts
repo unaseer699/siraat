@@ -84,6 +84,8 @@ describe('TrustService', () => {
   let subFindByMock: jest.Mock;
   let subCreateMock: jest.Mock;
   let subSaveMock: jest.Mock;
+  let eviCountMock: jest.Mock;
+  let verQbMocks: { select: jest.Mock; where: jest.Mock; andWhere: jest.Mock; getRawOne: jest.Mock };
 
   beforeEach(async () => {
     verFindMock = jest.fn().mockResolvedValue([]);
@@ -104,6 +106,16 @@ describe('TrustService', () => {
     subSaveMock = jest.fn((entity) =>
       Promise.resolve({ id: 'new-sub-uuid', ...entity }),
     );
+    eviCountMock = jest.fn().mockResolvedValue(0);
+    verQbMocks = {
+      select: jest.fn(),
+      where: jest.fn(),
+      andWhere: jest.fn(),
+      getRawOne: jest.fn().mockResolvedValue({ count: '0' }),
+    };
+    verQbMocks.select.mockReturnValue(verQbMocks);
+    verQbMocks.where.mockReturnValue(verQbMocks);
+    verQbMocks.andWhere.mockReturnValue(verQbMocks);
 
     const module = await Test.createTestingModule({
       providers: [
@@ -116,6 +128,7 @@ describe('TrustService', () => {
             findOneBy: verFindOneByMock,
             create: verCreateMock,
             save: verSaveMock,
+            createQueryBuilder: jest.fn(() => verQbMocks),
           },
         },
         {
@@ -125,6 +138,7 @@ describe('TrustService', () => {
             findOneBy: jest.fn().mockResolvedValue(null),
             create: eviCreateMock,
             save: eviSaveMock,
+            count: eviCountMock,
           },
         },
         {
@@ -560,5 +574,53 @@ describe('TrustService', () => {
     expect(result.subject_id).toBe(SOCIETY_ID);
     expect(verSaveMock).toHaveBeenCalledWith(expect.objectContaining({ id: 'ver-target-uuid', status: 'VERIFIED' }));
     expect(verSaveMock).not.toHaveBeenCalledWith(expect.objectContaining({ id: 'ver-unrelated-uuid' }));
+  });
+
+  // ─── HOME PAGE Chunk 1 — platform stats ───────────────────────────────────
+
+  describe('countVerifiedSocietySubjects', () => {
+    it('returns the count from the query builder, scoped to SOCIETY + VERIFIED', async () => {
+      verQbMocks.getRawOne.mockResolvedValue({ count: '3' });
+
+      const result = await svc.countVerifiedSocietySubjects();
+
+      expect(result).toBe(3);
+      expect(verQbMocks.where).toHaveBeenCalledWith('v.subject_type = :type', { type: 'SOCIETY' });
+      expect(verQbMocks.andWhere).toHaveBeenCalledWith('v.status = :status', { status: 'VERIFIED' });
+    });
+
+    it('returns 0 gracefully on an empty database (no rows, no error)', async () => {
+      verQbMocks.getRawOne.mockResolvedValue({ count: '0' });
+
+      const result = await svc.countVerifiedSocietySubjects();
+
+      expect(result).toBe(0);
+    });
+
+    it('returns 0 (not NaN) if the query builder resolves undefined', async () => {
+      verQbMocks.getRawOne.mockResolvedValue(undefined);
+
+      const result = await svc.countVerifiedSocietySubjects();
+
+      expect(result).toBe(0);
+    });
+  });
+
+  describe('countEvidence', () => {
+    it('returns the evidence repo row count', async () => {
+      eviCountMock.mockResolvedValue(7);
+
+      const result = await svc.countEvidence();
+
+      expect(result).toBe(7);
+    });
+
+    it('returns 0 gracefully on an empty database', async () => {
+      eviCountMock.mockResolvedValue(0);
+
+      const result = await svc.countEvidence();
+
+      expect(result).toBe(0);
+    });
   });
 });
