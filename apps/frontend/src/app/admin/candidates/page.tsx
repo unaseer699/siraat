@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState, type CSSProperties } from 'react';
 import Link from 'next/link';
 import { fetchCandidateSocieties, type CandidateSociety } from '@/lib/api';
+import { AdminNav } from '../AdminNav';
 
 type StatusFilter = 'ALL' | CandidateSociety['status'];
 type SortKey = 'regulator' | 'city';
@@ -62,6 +63,8 @@ export default function AdminCandidatesPage() {
   return (
     <main style={{ minHeight: '100vh', padding: '32px 24px' }}>
       <div style={{ maxWidth: '1000px', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: '20px' }}>
+        <AdminNav active="candidates" />
+
         <div>
           <p style={{ fontSize: '12px', color: 'var(--muted)', fontWeight: 600, marginBottom: '4px' }}>
             ADMIN — INTERNAL ONLY

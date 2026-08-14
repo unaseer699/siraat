@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import Link from 'next/link';
 import type { RecommendationResponse, RecommendationItem } from '@siraat/shared-types';
 import { fetchRecommendations } from '@/lib/api';
 import { SearchBar } from '@/components/SearchBar';
@@ -58,6 +59,13 @@ export default function HomePage() {
       </header>
 
       <SearchBar onSearch={handleSearch} loading={loading} />
+
+      <Link
+        href="/construction-estimate"
+        style={{ fontSize: '13px', fontWeight: 600, color: 'var(--brand)' }}
+      >
+        🏗 See construction cost estimate for an area →
+      </Link>
 
       {error && (
         <div
