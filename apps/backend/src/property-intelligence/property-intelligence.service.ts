@@ -116,6 +116,15 @@ export class PropertyIntelligenceService {
     return entities.map(toSocietyResult);
   }
 
+  // Platform stats (Home page) — distinct city values across all onboarded Societies.
+  async listDistinctCities(): Promise<string[]> {
+    const rows = await this.societyRepo
+      .createQueryBuilder('s')
+      .select('DISTINCT s.city', 'city')
+      .getRawMany<{ city: string }>();
+    return rows.map((r) => r.city).sort();
+  }
+
   async findPropertyById(id: string): Promise<PropertyDetail | null> {
     const property = await this.propertyRepo.findOneBy({ id });
     if (!property) return null;

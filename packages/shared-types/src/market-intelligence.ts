@@ -158,6 +158,19 @@ export const SocietyScoreResponseSchema = z.object({
 });
 export type SocietyScoreResponse = z.infer<typeof SocietyScoreResponseSchema>;
 
+// ─── Platform Stats (GET /v1/market-intelligence/platform-stats) ─────────────
+// Home-page headline numbers. Not a Score/Recommendation payload, so Law 4/5's
+// three-state + trust-telemetry envelope doesn't apply — these are simple
+// aggregate counts, always available (zero/empty on an empty database).
+
+export const PlatformStatsResponseSchema = z.object({
+  verified_societies_count: z.number(),
+  total_evidence_count: z.number(),
+  cities_covered: z.array(z.string()),
+  construction_materials_tracked: z.number(),
+});
+export type PlatformStatsResponse = z.infer<typeof PlatformStatsResponseSchema>;
+
 // ─── Intent (parsed by backend, not in API surface) ──────────────────────────
 
 export interface ParsedIntent {

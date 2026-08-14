@@ -28,7 +28,13 @@ describe('ConstructionIntelligenceService', () => {
   let service: ConstructionIntelligenceService;
   let createMock: jest.Mock;
   let saveMock: jest.Mock;
-  let qbMocks: { andWhere: jest.Mock; orderBy: jest.Mock; getMany: jest.Mock };
+  let qbMocks: {
+    select: jest.Mock;
+    andWhere: jest.Mock;
+    orderBy: jest.Mock;
+    getMany: jest.Mock;
+    getRawOne: jest.Mock;
+  };
 
   beforeEach(async () => {
     createMock = jest.fn((data) => data);
@@ -36,10 +42,13 @@ describe('ConstructionIntelligenceService', () => {
       Promise.resolve({ id: 'rate-uuid-001', created_at: new Date(), ...entity }),
     );
     qbMocks = {
+      select: jest.fn(),
       andWhere: jest.fn(),
       orderBy: jest.fn(),
       getMany: jest.fn().mockResolvedValue([]),
+      getRawOne: jest.fn().mockResolvedValue({ count: '0' }),
     };
+    qbMocks.select.mockReturnValue(qbMocks);
     qbMocks.andWhere.mockReturnValue(qbMocks);
     qbMocks.orderBy.mockReturnValue(qbMocks);
 
@@ -115,6 +124,33 @@ describe('ConstructionIntelligenceService', () => {
     it('applies no filters when none provided', async () => {
       await service.listMaterialRates({});
       expect(qbMocks.andWhere).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('countDistinctMaterials', () => {
+    it('returns the distinct material_name count from the query builder', async () => {
+      qbMocks.getRawOne.mockResolvedValue({ count: '5' });
+
+      const result = await service.countDistinctMaterials();
+
+      expect(result).toBe(5);
+      expect(qbMocks.select).toHaveBeenCalledWith('COUNT(DISTINCT r.material_name)', 'count');
+    });
+
+    it('returns 0 gracefully on an empty database (no rows, no error)', async () => {
+      qbMocks.getRawOne.mockResolvedValue({ count: '0' });
+
+      const result = await service.countDistinctMaterials();
+
+      expect(result).toBe(0);
+    });
+
+    it('returns 0 (not NaN) if the query builder resolves undefined', async () => {
+      qbMocks.getRawOne.mockResolvedValue(undefined);
+
+      const result = await service.countDistinctMaterials();
+
+      expect(result).toBe(0);
     });
   });
 });

@@ -55,4 +55,12 @@ export class RecommendationsController {
   ) {
     return this.svc.getSocietyScore(id);
   }
+
+  // Home page headline numbers — same access level as everything else on this
+  // controller (public, BearerGuard-only). Not a Score/Recommendation payload,
+  // so no three-state envelope; simple counts that are zero on an empty database.
+  @Get('platform-stats')
+  async platformStats(@Headers('authorization') _authorization?: string) {
+    return this.svc.getPlatformStats();
+  }
 }
