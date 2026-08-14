@@ -16,6 +16,7 @@ import { ScoringService } from './scoring.service';
 import type { ScoreEntity } from './entities/score.entity';
 import { parseIntent } from './intent/intent-parser';
 import { NotCoveredRequestEntity } from './entities/not-covered-request.entity';
+import { exportFilename, renderRecommendationExportHtml } from './recommendation-export.template';
 
 const COVERED_CITIES = new Set(['Islamabad', 'Rawalpindi']);
 
@@ -114,6 +115,18 @@ export class RecommendationsService {
       record_type: 'GENERATED',
       computed_at: score.computed_at.toISOString(),
       breakdown: score.breakdown ?? null,
+    };
+  }
+
+  // GET /v1/market-intelligence/recommendations/{id}/export — a downloadable
+  // report standing in for account-based "save" (no User/Identity system yet).
+  // Reuses getRecommendationDetail() verbatim: same 404 behavior, same data,
+  // just a different output format.
+  async getRecommendationExport(id: string): Promise<{ filename: string; html: string }> {
+    const detail = await this.getRecommendationDetail(id);
+    return {
+      filename: exportFilename(detail),
+      html: renderRecommendationExportHtml(detail),
     };
   }
 

@@ -2,6 +2,7 @@ import { notFound } from 'next/navigation';
 import Link from 'next/link';
 import { fetchSocietyVerifications, fetchSocietyScore } from '@/lib/api';
 import { EvidenceDrawer } from '@/components/EvidenceDrawer';
+import { CopyLinkButton } from '@/components/CopyLinkButton';
 import StatCard from '@/components/StatCard';
 import { ConfidenceGauge } from '@/components/ConfidenceGauge';
 import { ScoreBreakdown } from '@/components/ScoreBreakdown';
@@ -170,6 +171,10 @@ export default async function SocietyProfilePage({ params }: Props) {
           <p style={{ fontSize: '13px', color: 'var(--muted)', marginTop: '4px' }}>
             {claims.length} verification claim{claims.length !== 1 ? 's' : ''} on record
           </p>
+        </div>
+
+        <div>
+          <CopyLinkButton />
         </div>
 
         {/* Score breakdown */}

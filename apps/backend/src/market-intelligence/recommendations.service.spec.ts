@@ -231,6 +231,88 @@ describe('RecommendationsService', () => {
     await expect(svc.getRecommendationDetail('non-existent-id')).rejects.toThrow(NotFoundException);
   });
 
+  // ─── SAVE/SHARE Chunk 1 — GET /recommendations/{id}/export ────────────────
+
+  it('getRecommendationExport returns a valid HTML file for an existing recommendation id', async () => {
+    const score = makeScore(mockSociety, {
+      breakdown: {
+        regulatory: { status: 'VERIFIED', label: 'NOC approved by CDA', tone: 'success' },
+        active_issues: { count: 0, penalty_applied: 0, label: 'No active issues', tone: 'success' },
+        evidence_strength: { count: 1, bonus_applied: 0, label: '1 source cited', tone: 'neutral' },
+        data_freshness: { is_stale: false, penalty_applied: 0, checked_date: '5 August 2026', tone: 'success' },
+      },
+    });
+    scoreSvc.findById.mockResolvedValue(score);
+    piSvc.findSocietyById.mockResolvedValue(mockSociety);
+
+    const result = await svc.getRecommendationExport(score.id);
+
+    expect(result.filename).toMatch(/^siraat-report-.+\.html$/);
+    expect(result.html).toContain('<!doctype html>');
+    expect(result.html).toContain(mockSociety.name);
+    expect(result.html).toContain(`${Math.round(mockSociety.base_confidence * 100)}%`);
+    // The 4 breakdown categories must all be present when a breakdown exists
+    expect(result.html).toContain('Regulatory Status');
+    expect(result.html).toContain('Active Issues');
+    expect(result.html).toContain('Evidence Strength');
+    expect(result.html).toContain('Data Freshness');
+  });
+
+  it('getRecommendationExport throws 404 for a non-existent recommendation id', async () => {
+    scoreSvc.findById.mockResolvedValue(null);
+    await expect(svc.getRecommendationExport('non-existent-id')).rejects.toThrow(NotFoundException);
+  });
+
+  it('getRecommendationExport includes the affiliation disclosure when present — must never be silently dropped', async () => {
+    const score = makeScore(affiliatedSociety);
+    scoreSvc.findById.mockResolvedValue(score);
+    piSvc.findSocietyById.mockResolvedValue(affiliatedSociety);
+
+    const result = await svc.getRecommendationExport(score.id);
+
+    expect(result.html).toContain('AFFILIATION DISCLOSURE');
+    expect(result.html).toContain('Siraat Pakistan Pvt Ltd is an investor in this project');
+  });
+
+  it('getRecommendationExport omits the disclosure block entirely for a non-affiliated society', async () => {
+    const score = makeScore(mockSociety);
+    scoreSvc.findById.mockResolvedValue(score);
+    piSvc.findSocietyById.mockResolvedValue(mockSociety);
+
+    const result = await svc.getRecommendationExport(score.id);
+
+    expect(result.html).not.toContain('AFFILIATION DISCLOSURE');
+  });
+
+  it('getRecommendationExport lists every evidence citation by source_ref', async () => {
+    const score = makeScore(mockSociety);
+    scoreSvc.findById.mockResolvedValue(score);
+    piSvc.findSocietyById.mockResolvedValue(mockSociety);
+    trustSvc.findEvidenceByIds.mockResolvedValue([
+      { id: 'e1b2c3d4-0001-0001-0001-000000000001', type: 'document', source_ref: 'CDA Portal — NOC No. CDA/D-16/2021/PVC' } as any,
+      { id: 'e1b2c3d4-0001-0001-0001-000000000002', type: 'document', source_ref: 'CDA Portal — Layout Plan Approval 2022' } as any,
+    ]);
+
+    const result = await svc.getRecommendationExport(score.id);
+
+    expect(result.html).toContain('CDA Portal — NOC No. CDA/D-16/2021/PVC');
+    expect(result.html).toContain('CDA Portal — Layout Plan Approval 2022');
+  });
+
+  it('getRecommendationExport HTML-escapes untrusted text (e.g. evidence source_ref) rather than injecting it raw', async () => {
+    const score = makeScore(mockSociety);
+    scoreSvc.findById.mockResolvedValue(score);
+    piSvc.findSocietyById.mockResolvedValue(mockSociety);
+    trustSvc.findEvidenceByIds.mockResolvedValue([
+      { id: 'e1b2c3d4-0001-0001-0001-000000000003', type: 'document', source_ref: '<script>alert(1)</script>' } as any,
+    ]);
+
+    const result = await svc.getRecommendationExport(score.id);
+
+    expect(result.html).not.toContain('<script>alert(1)</script>');
+    expect(result.html).toContain('&lt;script&gt;');
+  });
+
   // ─── Capability 3 — evidence_summaries in recommendation detail ───────────
 
   it('getRecommendationDetail returns resolved evidence_summaries with human-readable source_ref', async () => {
