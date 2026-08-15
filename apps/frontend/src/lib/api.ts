@@ -10,6 +10,7 @@ import type {
   EstimateResponse,
   MaterialRateSourceTier,
   PlatformStatsResponse,
+  SocietyListResponse,
 } from '@siraat/shared-types';
 
 const BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001';
@@ -48,6 +49,19 @@ export async function fetchRecommendations(
 
 export async function fetchRecommendationDetail(id: string): Promise<RecommendationDetail> {
   return apiFetch(`/v1/market-intelligence/recommendations/${id}`);
+}
+
+export async function fetchSocieties(params?: {
+  city?: string;
+  page?: number;
+  limit?: number;
+}): Promise<SocietyListResponse> {
+  const qs = new URLSearchParams();
+  if (params?.city) qs.set('city', params.city);
+  if (params?.page) qs.set('page', String(params.page));
+  if (params?.limit) qs.set('limit', String(params.limit));
+  const suffix = qs.toString() ? `?${qs.toString()}` : '';
+  return apiFetch(`/v1/property-intelligence/societies${suffix}`);
 }
 
 export async function fetchSocietyScore(societyId: string): Promise<SocietyScoreResponse> {

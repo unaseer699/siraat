@@ -5,10 +5,11 @@ import { useState } from 'react';
 interface SearchBarProps {
   onSearch: (query: string) => void;
   loading: boolean;
+  initialValue?: string;
 }
 
-export function SearchBar({ onSearch, loading }: SearchBarProps) {
-  const [value, setValue] = useState('');
+export function SearchBar({ onSearch, loading, initialValue = '' }: SearchBarProps) {
+  const [value, setValue] = useState(initialValue);
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();

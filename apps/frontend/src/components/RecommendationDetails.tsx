@@ -7,6 +7,7 @@ import { ScoreBreakdown } from './ScoreBreakdown';
 import { ConfidenceGauge } from './ConfidenceGauge';
 import { CopyLinkButton } from './CopyLinkButton';
 import { DownloadReportButton } from './DownloadReportButton';
+import { BackLink } from './BackLink';
 import { TRUST_GREEN, WARNING_AMBER, RADIUS } from '../styles/tokens';
 
 interface Props {
@@ -133,13 +134,16 @@ export function RecommendationDetails({ detail }: Props) {
         gap: '24px',
       }}
     >
-      <Link href="/" style={{ fontSize: '14px', color: 'var(--muted)' }}>
-        ← Back to search
-      </Link>
+      <BackLink />
 
       <div>
         <h1 style={{ fontSize: '26px', fontWeight: 800 }}>{detail.title}</h1>
-        <p style={{ color: 'var(--muted)', marginTop: '4px' }}>{detail.society_name}</p>
+        <Link
+          href={`/society/${detail.society_id}`}
+          style={{ color: 'var(--muted)', marginTop: '4px', display: 'inline-block' }}
+        >
+          {detail.society_name}
+        </Link>
         <p style={{ fontSize: '24px', fontWeight: 700, marginTop: '8px' }}>
           {formatPKR(detail.price)}
         </p>

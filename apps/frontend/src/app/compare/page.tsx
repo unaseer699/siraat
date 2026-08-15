@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import type { SocietyScoreResponse, VerificationResponse } from '@siraat/shared-types';
 import { fetchSocietyScore, fetchSocietyVerifications } from '@/lib/api';
+import { BackLink } from '@/components/BackLink';
 import { ConfidenceGauge } from '@/components/ConfidenceGauge';
 import { SCORE_BREAKDOWN_ROWS, toneColor, toneIcon } from '@/components/ScoreBreakdown';
 import { DANGER_RED, NEUTRAL_GRAY, RADIUS } from '@/styles/tokens';
@@ -119,9 +120,7 @@ function CompareView() {
   if (columns.length < 2) {
     return (
       <main style={pageStyle}>
-        <Link href="/" style={{ fontSize: '14px', color: 'var(--muted)' }}>
-          ← Back to search
-        </Link>
+        <BackLink />
         <p style={{ marginTop: '16px', fontSize: '14px', color: 'var(--text)' }}>
           Select 2 or 3 societies to compare from the search results using the &ldquo;Add to
           compare&rdquo; checkbox on each result.
@@ -133,9 +132,7 @@ function CompareView() {
   return (
     <main style={pageStyle}>
       <div style={{ width: '100%', maxWidth: '960px' }}>
-        <Link href="/" style={{ fontSize: '14px', color: 'var(--muted)' }}>
-          ← Back to search
-        </Link>
+        <BackLink />
         <h1 style={{ fontSize: '24px', fontWeight: 800, marginTop: '12px' }}>
           Compare Societies
         </h1>

@@ -24,3 +24,24 @@ export interface DeveloperProfile {
   project_history: string[];
   is_siraat_affiliated: boolean;
 }
+
+// Overall claim-derived status for Browse Societies — distinct from the per-claim
+// VERIFIED | DISPUTED | PENDING status stored on a single Verification record.
+export type SocietyVerificationStatus = 'VERIFIED' | 'PARTIAL' | 'PENDING' | 'DISPUTED';
+
+export interface SocietyBrowseSummary {
+  id: string;
+  name: string;
+  city: string;
+  price_range: { min: number | null; max: number | null };
+  area_range: { min: number | null; max: number | null };
+  property_types: string[];
+  verification_status: SocietyVerificationStatus;
+}
+
+export interface SocietyListResponse {
+  societies: SocietyBrowseSummary[];
+  total_count: number;
+  page: number;
+  total_pages: number;
+}

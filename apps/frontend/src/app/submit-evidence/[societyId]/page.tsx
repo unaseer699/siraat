@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
-import { useParams } from 'next/navigation';
+import { useParams, useRouter } from 'next/navigation';
 import { submitEvidence } from '@/lib/api';
 
 const EVIDENCE_TYPES = [
@@ -16,13 +16,13 @@ type EvidenceType = 'document' | 'photo' | 'receipt' | 'inspection_report';
 
 export default function SubmitEvidencePage() {
   const params = useParams();
+  const router = useRouter();
   const societyId = params.societyId as string;
 
   const [type, setType] = useState<EvidenceType>('photo');
   const [sourceRef, setSourceRef] = useState('');
   const [fileRef, setFileRef] = useState('');
   const [submitting, setSubmitting] = useState(false);
-  const [submitted, setSubmitted] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   async function handleSubmit(e: React.FormEvent) {
@@ -32,10 +32,12 @@ export default function SubmitEvidencePage() {
     setError(null);
     try {
       await submitEvidence(societyId, { type, source_ref: sourceRef, file_ref: fileRef });
-      setSubmitted(true);
+      // Submission is only pending review, not published yet — send the
+      // contributor back to the society profile rather than a dead-end
+      // confirmation screen with nowhere left to go.
+      router.push(`/society/${societyId}`);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Submission failed');
-    } finally {
       setSubmitting(false);
     }
   }
@@ -65,123 +67,104 @@ export default function SubmitEvidencePage() {
           </p>
         </div>
 
-        {submitted ? (
-          <div
-            style={{
-              padding: '20px',
-              background: '#f0fdf4',
-              border: '1px solid #bbf7d0',
-              borderRadius: 'var(--radius)',
-              color: '#166534',
-              fontSize: '15px',
-              fontWeight: 600,
-            }}
-          >
-            Submitted — pending review
-            <p style={{ fontSize: '13px', fontWeight: 400, marginTop: '6px', color: '#166534' }}>
-              Your submission has been received. Our team will review it before it is published.
-            </p>
-          </div>
-        ) : (
-          <form
-            onSubmit={handleSubmit}
-            style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}
-          >
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-              <label style={{ fontSize: '13px', fontWeight: 600 }}>Evidence type</label>
-              <select
-                value={type}
-                onChange={(e) => setType(e.target.value as EvidenceType)}
-                style={{
-                  padding: '10px 12px',
-                  border: '1px solid var(--border)',
-                  borderRadius: 'var(--radius)',
-                  fontSize: '14px',
-                  background: '#fff',
-                }}
-              >
-                {EVIDENCE_TYPES.map((t) => (
-                  <option key={t.value} value={t.value}>
-                    {t.label}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-              <label style={{ fontSize: '13px', fontWeight: 600 }}>
-                Source description
-              </label>
-              <input
-                type="text"
-                value={sourceRef}
-                onChange={(e) => setSourceRef(e.target.value)}
-                placeholder="e.g. Photo taken at site, Aug 2026"
-                required
-                style={{
-                  padding: '10px 12px',
-                  border: '1px solid var(--border)',
-                  borderRadius: 'var(--radius)',
-                  fontSize: '14px',
-                }}
-              />
-            </div>
-
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-              <label style={{ fontSize: '13px', fontWeight: 600 }}>
-                File reference
-              </label>
-              <input
-                type="text"
-                value={fileRef}
-                onChange={(e) => setFileRef(e.target.value)}
-                placeholder="e.g. uploads/myfile.pdf"
-                required
-                style={{
-                  padding: '10px 12px',
-                  border: '1px solid var(--border)',
-                  borderRadius: 'var(--radius)',
-                  fontSize: '14px',
-                }}
-              />
-              <p style={{ fontSize: '12px', color: 'var(--muted)' }}>
-                File upload pipeline coming soon — enter the file path or name for now.
-              </p>
-            </div>
-
-            {error && (
-              <div
-                style={{
-                  padding: '12px 16px',
-                  background: '#fef2f2',
-                  border: '1px solid #fecaca',
-                  borderRadius: 'var(--radius)',
-                  color: 'var(--error)',
-                  fontSize: '13px',
-                }}
-              >
-                {error}
-              </div>
-            )}
-
-            <button
-              type="submit"
-              disabled={submitting || !sourceRef.trim() || !fileRef.trim()}
+        <form
+          onSubmit={handleSubmit}
+          style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}
+        >
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+            <label style={{ fontSize: '13px', fontWeight: 600 }}>Evidence type</label>
+            <select
+              value={type}
+              onChange={(e) => setType(e.target.value as EvidenceType)}
               style={{
-                padding: '12px 20px',
-                background: submitting ? 'var(--muted)' : '#111',
-                color: '#fff',
-                border: 'none',
+                padding: '10px 12px',
+                border: '1px solid var(--border)',
                 borderRadius: 'var(--radius)',
                 fontSize: '14px',
-                fontWeight: 600,
-                cursor: submitting ? 'not-allowed' : 'pointer',
+                background: '#fff',
               }}
             >
-              {submitting ? 'Submitting…' : 'Submit for review'}
-            </button>
-          </form>
-        )}
+              {EVIDENCE_TYPES.map((t) => (
+                <option key={t.value} value={t.value}>
+                  {t.label}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+            <label style={{ fontSize: '13px', fontWeight: 600 }}>
+              Source description
+            </label>
+            <input
+              type="text"
+              value={sourceRef}
+              onChange={(e) => setSourceRef(e.target.value)}
+              placeholder="e.g. Photo taken at site, Aug 2026"
+              required
+              style={{
+                padding: '10px 12px',
+                border: '1px solid var(--border)',
+                borderRadius: 'var(--radius)',
+                fontSize: '14px',
+              }}
+            />
+          </div>
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+            <label style={{ fontSize: '13px', fontWeight: 600 }}>
+              File reference
+            </label>
+            <input
+              type="text"
+              value={fileRef}
+              onChange={(e) => setFileRef(e.target.value)}
+              placeholder="e.g. uploads/myfile.pdf"
+              required
+              style={{
+                padding: '10px 12px',
+                border: '1px solid var(--border)',
+                borderRadius: 'var(--radius)',
+                fontSize: '14px',
+              }}
+            />
+            <p style={{ fontSize: '12px', color: 'var(--muted)' }}>
+              File upload pipeline coming soon — enter the file path or name for now.
+            </p>
+          </div>
+
+          {error && (
+            <div
+              style={{
+                padding: '12px 16px',
+                background: '#fef2f2',
+                border: '1px solid #fecaca',
+                borderRadius: 'var(--radius)',
+                color: 'var(--error)',
+                fontSize: '13px',
+              }}
+            >
+              {error}
+            </div>
+          )}
+
+          <button
+            type="submit"
+            disabled={submitting || !sourceRef.trim() || !fileRef.trim()}
+            style={{
+              padding: '12px 20px',
+              background: submitting ? 'var(--muted)' : '#111',
+              color: '#fff',
+              border: 'none',
+              borderRadius: 'var(--radius)',
+              fontSize: '14px',
+              fontWeight: 600,
+              cursor: submitting ? 'not-allowed' : 'pointer',
+            }}
+          >
+            {submitting ? 'Submitting…' : 'Submit for review'}
+          </button>
+        </form>
       </article>
     </main>
   );

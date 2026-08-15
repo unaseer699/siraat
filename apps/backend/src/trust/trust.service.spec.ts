@@ -623,4 +623,52 @@ describe('TrustService', () => {
       expect(result).toBe(0);
     });
   });
+
+  // ─── BROWSE SOCIETIES Chunk 1 — deriveVerificationStatus ───────────────────
+
+  describe('deriveVerificationStatus', () => {
+    it('returns PENDING when no claims exist at all', async () => {
+      verFindMock.mockResolvedValue([]);
+
+      const result = await svc.deriveVerificationStatus('SOCIETY', 'non-existent-uuid');
+
+      expect(result).toBe('PENDING');
+    });
+
+    it('returns VERIFIED when the primary NOC claim is VERIFIED with no adverse claims', async () => {
+      verFindMock.mockResolvedValue([VERIFICATION_NOC]);
+      eviFindByMock.mockResolvedValue([EVIDENCE_1]);
+
+      const result = await svc.deriveVerificationStatus('SOCIETY', SOCIETY_ID);
+
+      expect(result).toBe('VERIFIED');
+    });
+
+    // Taj Residencia-style fixture: VERIFIED NOC + DISPUTED adverse claim → DISPUTED, not VERIFIED
+    it('returns DISPUTED when a VERIFIED NOC coexists with a DISPUTED adverse claim', async () => {
+      verFindMock.mockResolvedValue([VERIFICATION_NOC, VERIFICATION_SHOW_CAUSE]);
+      eviFindByMock.mockResolvedValue([EVIDENCE_1]);
+
+      const result = await svc.deriveVerificationStatus('SOCIETY', SOCIETY_ID);
+
+      expect(result).toBe('DISPUTED');
+    });
+
+    it('returns PARTIAL when claims exist but the primary claim is not yet VERIFIED', async () => {
+      verFindMock.mockResolvedValue([VERIFICATION_PENDING]);
+
+      const result = await svc.deriveVerificationStatus('DEVELOPER', DEV_ID_PENDING);
+
+      expect(result).toBe('PARTIAL');
+    });
+
+    it('DISPUTED takes precedence even when the adverse claim is the only claim on record', async () => {
+      verFindMock.mockResolvedValue([VERIFICATION_SHOW_CAUSE]);
+      eviFindByMock.mockResolvedValue([EVIDENCE_2]);
+
+      const result = await svc.deriveVerificationStatus('SOCIETY', SOCIETY_ID);
+
+      expect(result).toBe('DISPUTED');
+    });
+  });
 });
