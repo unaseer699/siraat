@@ -1,11 +1,11 @@
 'use client';
 
 import { useState } from 'react';
-import Link from 'next/link';
 import type { EstimateRequest, EstimateResponse } from '@siraat/shared-types';
 import { fetchConstructionEstimate } from '@/lib/api';
 import { EstimateForm } from '@/components/EstimateForm';
 import { EstimateResults } from '@/components/EstimateResults';
+import { BackLink } from '@/components/BackLink';
 
 export default function ConstructionEstimatePage() {
   const [loading, setLoading] = useState(false);
@@ -38,9 +38,7 @@ export default function ConstructionEstimatePage() {
       }}
     >
       <div style={{ width: '100%', maxWidth: '480px' }}>
-        <Link href="/" style={{ fontSize: '14px', color: 'var(--muted)' }}>
-          ← Back to search
-        </Link>
+        <BackLink />
       </div>
 
       <header style={{ textAlign: 'center' }}>

@@ -6,9 +6,13 @@ import { DeveloperEntity } from './entities/developer.entity';
 import { CandidateSocietyEntity } from './entities/candidate-society.entity';
 import { PropertyIntelligenceService } from './property-intelligence.service';
 import { PropertyIntelligenceController } from './property-intelligence.controller';
+import { TrustModule } from '../trust/trust.module';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([SocietyEntity, PropertyEntity, DeveloperEntity, CandidateSocietyEntity])],
+  imports: [
+    TypeOrmModule.forFeature([SocietyEntity, PropertyEntity, DeveloperEntity, CandidateSocietyEntity]),
+    TrustModule,
+  ],
   controllers: [PropertyIntelligenceController],
   providers: [PropertyIntelligenceService],
   exports: [PropertyIntelligenceService],

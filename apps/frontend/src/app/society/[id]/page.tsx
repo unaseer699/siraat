@@ -3,6 +3,7 @@ import Link from 'next/link';
 import { fetchSocietyVerifications, fetchSocietyScore } from '@/lib/api';
 import { EvidenceDrawer } from '@/components/EvidenceDrawer';
 import { CopyLinkButton } from '@/components/CopyLinkButton';
+import { BackLink } from '@/components/BackLink';
 import StatCard from '@/components/StatCard';
 import { ConfidenceGauge } from '@/components/ConfidenceGauge';
 import { ScoreBreakdown } from '@/components/ScoreBreakdown';
@@ -159,9 +160,7 @@ export default async function SocietyProfilePage({ params }: Props) {
       <article
         style={{ maxWidth: '680px', width: '100%', display: 'flex', flexDirection: 'column', gap: '24px' }}
       >
-        <Link href="/" style={{ fontSize: '14px', color: 'var(--muted)' }}>
-          ← Back to search
-        </Link>
+        <BackLink />
 
         <div>
           <p style={{ fontSize: '12px', color: 'var(--muted)', fontWeight: 600, marginBottom: '4px' }}>

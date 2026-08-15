@@ -1,7 +1,8 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { Suspense, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
+import { useRouter, useSearchParams } from 'next/navigation';
 import type {
   RecommendationResponse,
   RecommendationItem,
@@ -40,7 +41,9 @@ function StatsRow({ stats }: { stats: PlatformStatsResponse | null }) {
         gap: '12px',
       }}
     >
-      <StatCard icon="🏘️" value={societies.value} label="Verified Societies" tone={societies.tone} />
+      <Link href="/browse" style={{ display: 'block', textDecoration: 'none', color: 'inherit' }}>
+        <StatCard icon="🏘️" value={societies.value} label="Verified Societies" tone={societies.tone} />
+      </Link>
       <StatCard icon="📄" value={evidence.value} label="Evidence Items on Record" tone={evidence.tone} />
       <StatCard icon="🏙️" value={cities.value} label="Cities Covered" tone={cities.tone} />
     </div>
@@ -94,7 +97,9 @@ function QuickAccessCard({
   );
 }
 
-export default function HomePage() {
+function HomeView() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<RecommendationResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -103,6 +108,10 @@ export default function HomePage() {
   // ResultsPanel could seed/observe it later.
   const [compareSelection, setCompareSelection] = useState<RecommendationItem[]>([]);
   const [stats, setStats] = useState<PlatformStatsResponse | null>(null);
+  // Tracks the query we last searched (whether triggered by the user or by
+  // restoring the `?q=` param) so the URL-sync effect below doesn't re-fire a
+  // fetch for a query it already knows about — including the push it just made.
+  const lastSyncedQuery = useRef<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -119,7 +128,11 @@ export default function HomePage() {
     };
   }, []);
 
-  async function handleSearch(query: string) {
+  async function handleSearch(query: string, opts?: { skipUrlUpdate?: boolean }) {
+    lastSyncedQuery.current = query;
+    if (!opts?.skipUrlUpdate) {
+      router.push(`/?q=${encodeURIComponent(query)}`, { scroll: false });
+    }
     setLoading(true);
     setError(null);
     setResult(null);
@@ -133,6 +146,16 @@ export default function HomePage() {
       setLoading(false);
     }
   }
+
+  // Restores prior search state on mount and on back/forward navigation — e.g.
+  // after visiting a result's detail page and hitting the browser back button.
+  useEffect(() => {
+    const q = searchParams.get('q');
+    if (q && q !== lastSyncedQuery.current) {
+      handleSearch(q, { skipUrlUpdate: true });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams]);
 
   function toggleCompare(item: RecommendationItem) {
     setCompareSelection((prev) => {
@@ -188,7 +211,7 @@ export default function HomePage() {
           boxShadow: '0 1px 3px rgba(0,0,0,0.08)',
         }}
       >
-        <SearchBar onSearch={handleSearch} loading={loading} />
+        <SearchBar onSearch={handleSearch} loading={loading} initialValue={searchParams.get('q') ?? ''} />
 
         {!result && !loading && !error && (
           <p style={{ color: 'var(--muted)', fontSize: '14px', textAlign: 'center' }}>
@@ -256,5 +279,13 @@ export default function HomePage() {
         />
       )}
     </main>
+  );
+}
+
+export default function HomePage() {
+  return (
+    <Suspense fallback={null}>
+      <HomeView />
+    </Suspense>
   );
 }

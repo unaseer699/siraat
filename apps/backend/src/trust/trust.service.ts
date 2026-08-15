@@ -1,6 +1,7 @@
 import { Injectable, BadRequestException, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, In } from 'typeorm';
+import type { SocietyVerificationStatus } from '@siraat/shared-types';
 import { VerificationEntity } from './entities/verification.entity';
 import { EvidenceEntity } from './entities/evidence.entity';
 import { EvidenceSubmissionEntity } from './entities/evidence-submission.entity';
@@ -14,6 +15,10 @@ export type ClaimType =
   | 'TRANSFER_DEED'
   | 'MORTGAGE_DEED'
   | 'OTHER';
+
+// Adverse claim types whose unresolved (DISPUTED) status overrides an otherwise-VERIFIED
+// primary claim — mirrors ScoringService's ADVERSE_CLAIM_PENALTY concept for confidence_score.
+const ADVERSE_CLAIM_TYPES: ClaimType[] = ['SHOW_CAUSE_NOTICE', 'ILLEGAL_SCHEME_NOTICE'];
 
 export interface VerificationResult {
   verification: VerificationEntity;
@@ -68,6 +73,36 @@ export class TrustService {
 
   async getEvidenceById(id: string): Promise<EvidenceEntity | null> {
     return this.eviRepo.findOneBy({ id });
+  }
+
+  /**
+   * Derives a single overall verification_status from every claim on a subject.
+   * Reused by Browse Societies (property-intelligence) — the one place this precedence
+   * should live; do not re-derive it inline elsewhere. Order matters: an unresolved
+   * adverse claim (DISPUTED SHOW_CAUSE_NOTICE / ILLEGAL_SCHEME_NOTICE) always wins over
+   * an otherwise-VERIFIED primary claim.
+   */
+  async deriveVerificationStatus(
+    subjectType: 'SOCIETY' | 'DEVELOPER',
+    subjectId: string,
+  ): Promise<SocietyVerificationStatus> {
+    const all = await this.getVerifications(subjectType, subjectId);
+    if (all.length === 0) return 'PENDING';
+
+    const hasDisputedAdverseClaim = all.some(
+      (r) =>
+        ADVERSE_CLAIM_TYPES.includes(r.verification.claim_type) && r.verification.status === 'DISPUTED',
+    );
+    if (hasDisputedAdverseClaim) return 'DISPUTED';
+
+    // Primary claim: NOC or PLANNING_APPROVAL first, else the first record (same
+    // precedence as the deprecated getVerification() and ScoringService.computeAndSave()).
+    const primaryClaim =
+      all.find(
+        (r) => r.verification.claim_type === 'NOC' || r.verification.claim_type === 'PLANNING_APPROVAL',
+      ) ?? all[0];
+
+    return primaryClaim.verification.status === 'VERIFIED' ? 'VERIFIED' : 'PARTIAL';
   }
 
   // ─── Platform stats (Home page) ────────────────────────────────────────────

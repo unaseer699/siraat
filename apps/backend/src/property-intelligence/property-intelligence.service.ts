@@ -2,7 +2,8 @@ import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import type { ParsedIntent } from '@siraat/shared-types';
-import type { PropertyDetail, DeveloperProfile } from '@siraat/shared-types';
+import type { PropertyDetail, DeveloperProfile, SocietyListResponse } from '@siraat/shared-types';
+import { TrustService } from '../trust/trust.service';
 import { SocietyEntity } from './entities/society.entity';
 import { PropertyEntity } from './entities/property.entity';
 import { DeveloperEntity } from './entities/developer.entity';
@@ -58,6 +59,7 @@ export class PropertyIntelligenceService {
     private readonly propertyRepo: Repository<PropertyEntity>,
     @InjectRepository(DeveloperEntity)
     private readonly developerRepo: Repository<DeveloperEntity>,
+    private readonly trustSvc: TrustService,
   ) {}
 
   async createSociety(data: {
@@ -114,6 +116,47 @@ export class PropertyIntelligenceService {
 
     const entities = await qb.limit(10).getMany();
     return entities.map(toSocietyResult);
+  }
+
+  // Browse Societies — paginated listing with a per-society verification_status
+  // derived from Trust claims (Law 9: cross-module call, no reach into Trust's schema).
+  async listSocieties(params: {
+    city?: string;
+    page?: number;
+    limit?: number;
+  }): Promise<SocietyListResponse> {
+    const page = params.page && params.page > 0 ? params.page : 1;
+    const limit = params.limit && params.limit > 0 ? params.limit : 20;
+
+    const qb = this.societyRepo.createQueryBuilder('s');
+    if (params.city) {
+      qb.andWhere('LOWER(s.city) = LOWER(:city)', { city: params.city });
+    }
+
+    const [entities, total_count] = await qb
+      .orderBy('s.name', 'ASC')
+      .skip((page - 1) * limit)
+      .take(limit)
+      .getManyAndCount();
+
+    const societies = await Promise.all(
+      entities.map(async (e) => ({
+        id: e.id,
+        name: e.name,
+        city: e.city,
+        price_range: { min: e.min_price, max: e.max_price },
+        area_range: { min: e.min_area_marla, max: e.max_area_marla },
+        property_types: e.property_types,
+        verification_status: await this.trustSvc.deriveVerificationStatus('SOCIETY', e.id),
+      })),
+    );
+
+    return {
+      societies,
+      total_count,
+      page,
+      total_pages: Math.ceil(total_count / limit),
+    };
   }
 
   // Platform stats (Home page) — distinct city values across all onboarded Societies.
