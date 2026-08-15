@@ -6,6 +6,7 @@ import type {
   VerificationListResponse,
   PropertyDetail,
   DeveloperProfile,
+  DeveloperStats,
   EstimateRequest,
   EstimateResponse,
   MaterialRateSourceTier,
@@ -91,6 +92,13 @@ export async function fetchDeveloperVerification(
   developerId: string,
 ): Promise<VerificationListResponse> {
   return apiFetch(`/v1/trust/developers/${developerId}/verification`);
+}
+
+// Aggregate stats (evidence count, project history, linked societies) — lives in
+// property_intelligence, a separate context/table from the trust claims above
+// (no FK between them), and is fetched independently.
+export async function fetchDeveloperStats(developerId: string): Promise<DeveloperStats> {
+  return apiFetch(`/v1/property-intelligence/developers/${developerId}/stats`);
 }
 
 export async function fetchPropertyDetail(propertyId: string): Promise<PropertyDetail> {

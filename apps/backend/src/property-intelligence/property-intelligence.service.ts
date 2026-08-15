@@ -5,6 +5,7 @@ import type { ParsedIntent } from '@siraat/shared-types';
 import type {
   PropertyDetail,
   DeveloperProfile,
+  DeveloperStats,
   SocietyListResponse,
   SocietyChangesResponse,
   SocietyChangeSummary,
@@ -241,6 +242,34 @@ export class PropertyIntelligenceService {
       id: dev.id,
       name: dev.name,
       project_history: dev.project_history,
+      is_siraat_affiliated: dev.is_siraat_affiliated,
+    };
+  }
+
+  // ─── DEVELOPER PROFILE Chunk 1 ──────────────────────────────────────────────
+
+  // linked_societies is always [] — no data path currently associates a Developer
+  // with specific Societies (SocietyEntity has no developer_id field; flagged and
+  // deferred during the navigation audit). Do not infer/guess this association;
+  // populate it only once it actually exists in the data model.
+  async getDeveloperStats(id: string): Promise<DeveloperStats | null> {
+    const dev = await this.developerRepo.findOneBy({ id });
+    if (!dev) return null;
+
+    const [verification_status, verifications] = await Promise.all([
+      this.trustSvc.deriveVerificationStatus('DEVELOPER', id),
+      this.trustSvc.getVerifications('DEVELOPER', id),
+    ]);
+
+    const evidence_count = verifications.reduce((sum, v) => sum + v.evidence.length, 0);
+
+    return {
+      developer_id: dev.id,
+      developer_name: dev.name,
+      verification_status,
+      project_history: dev.project_history,
+      linked_societies: [],
+      evidence_count,
       is_siraat_affiliated: dev.is_siraat_affiliated,
     };
   }

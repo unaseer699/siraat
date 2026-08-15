@@ -27,6 +27,7 @@ describe('PropertyIntelligenceService', () => {
   let obsSaveMock: jest.Mock;
   let obsFindMock: jest.Mock;
   let societyFindOneByMock: jest.Mock;
+  let developerFindOneByMock: jest.Mock;
 
   beforeEach(async () => {
     qbMocks = {
@@ -51,6 +52,7 @@ describe('PropertyIntelligenceService', () => {
     obsSaveMock = jest.fn((entity) => Promise.resolve({ id: 'new-obs-uuid', ...entity }));
     obsFindMock = jest.fn().mockResolvedValue([]);
     societyFindOneByMock = jest.fn().mockResolvedValue(null);
+    developerFindOneByMock = jest.fn().mockResolvedValue(null);
 
     const module = await Test.createTestingModule({
       providers: [
@@ -60,7 +62,10 @@ describe('PropertyIntelligenceService', () => {
           useValue: { createQueryBuilder: jest.fn(() => qbMocks), findOneBy: societyFindOneByMock },
         },
         { provide: getRepositoryToken(PropertyEntity), useValue: {} },
-        { provide: getRepositoryToken(DeveloperEntity), useValue: {} },
+        {
+          provide: getRepositoryToken(DeveloperEntity),
+          useValue: { findOneBy: developerFindOneByMock },
+        },
         {
           provide: getRepositoryToken(ObservationEntity),
           useValue: { create: obsCreateMock, save: obsSaveMock, find: obsFindMock },
@@ -203,6 +208,86 @@ describe('PropertyIntelligenceService', () => {
       expect(result.page).toBe(1);
       expect(qbMocks.skip).toHaveBeenCalledWith(0);
       expect(qbMocks.take).toHaveBeenCalledWith(20);
+    });
+  });
+
+  // ─── DEVELOPER PROFILE Chunk 1 ────────────────────────────────────────────────
+
+  describe('getDeveloperStats', () => {
+    const DEV_A: Partial<DeveloperEntity> = {
+      id: 'dev-a-uuid',
+      name: 'Zameen Developers',
+      project_history: ['Green Valley Phase 1', 'Green Valley Phase 2'],
+      is_siraat_affiliated: true,
+    };
+
+    it('returns null for a non-existent developer id (controller maps this to 404)', async () => {
+      developerFindOneByMock.mockResolvedValue(null);
+
+      const result = await service.getDeveloperStats('missing-uuid');
+
+      expect(result).toBeNull();
+    });
+
+    it('derives verification_status via TrustService, same as Browse (reused, not re-implemented)', async () => {
+      developerFindOneByMock.mockResolvedValue(DEV_A);
+      deriveVerificationStatusMock.mockResolvedValue('DISPUTED');
+      trustGetVerificationsMock.mockResolvedValue([]);
+
+      const result = await service.getDeveloperStats(DEV_A.id!);
+
+      expect(deriveVerificationStatusMock).toHaveBeenCalledWith('DEVELOPER', DEV_A.id);
+      expect(result!.verification_status).toBe('DISPUTED');
+    });
+
+    it('sums evidence across every claim on the developer (multi-claim fixture)', async () => {
+      developerFindOneByMock.mockResolvedValue(DEV_A);
+      deriveVerificationStatusMock.mockResolvedValue('VERIFIED');
+      trustGetVerificationsMock.mockResolvedValue([
+        { verification: { id: 'ver-1', claim_type: 'NOC' }, evidence: [{ id: 'e1' }, { id: 'e2' }] },
+        { verification: { id: 'ver-2', claim_type: 'SHOW_CAUSE_NOTICE' }, evidence: [{ id: 'e3' }] },
+      ]);
+
+      const result = await service.getDeveloperStats(DEV_A.id!);
+
+      expect(result!.evidence_count).toBe(3);
+    });
+
+    it('returns evidence_count: 0 for a developer with no claims yet', async () => {
+      developerFindOneByMock.mockResolvedValue(DEV_A);
+      deriveVerificationStatusMock.mockResolvedValue('PENDING');
+      trustGetVerificationsMock.mockResolvedValue([]);
+
+      const result = await service.getDeveloperStats(DEV_A.id!);
+
+      expect(result!.evidence_count).toBe(0);
+    });
+
+    it('maps developer_id, developer_name, project_history, and is_siraat_affiliated from the entity', async () => {
+      developerFindOneByMock.mockResolvedValue(DEV_A);
+      deriveVerificationStatusMock.mockResolvedValue('PENDING');
+      trustGetVerificationsMock.mockResolvedValue([]);
+
+      const result = await service.getDeveloperStats(DEV_A.id!);
+
+      expect(result).toMatchObject({
+        developer_id: 'dev-a-uuid',
+        developer_name: 'Zameen Developers',
+        project_history: ['Green Valley Phase 1', 'Green Valley Phase 2'],
+        is_siraat_affiliated: true,
+      });
+    });
+
+    // No data path currently associates a Developer with specific Societies
+    // (SocietyEntity has no developer_id field) — must be [], never fabricated.
+    it('returns linked_societies: [] given no current data association', async () => {
+      developerFindOneByMock.mockResolvedValue(DEV_A);
+      deriveVerificationStatusMock.mockResolvedValue('PENDING');
+      trustGetVerificationsMock.mockResolvedValue([]);
+
+      const result = await service.getDeveloperStats(DEV_A.id!);
+
+      expect(result!.linked_societies).toEqual([]);
     });
   });
 
