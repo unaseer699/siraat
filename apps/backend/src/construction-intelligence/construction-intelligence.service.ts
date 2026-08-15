@@ -1,7 +1,8 @@
-import { Injectable, BadRequestException } from '@nestjs/common';
+import { Injectable, BadRequestException, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { MaterialRateEntity, MaterialRateSourceTier } from './entities/material-rate.entity';
+import { ObservationEntity } from './entities/observation.entity';
 import { computeMaterialRateIsStale, stalenessThresholdDaysFor } from './staleness';
 
 export interface CreateMaterialRateInput {
@@ -49,10 +50,35 @@ function toResult(e: MaterialRateEntity): MaterialRateResult {
 
 @Injectable()
 export class ConstructionIntelligenceService {
+  private readonly logger = new Logger(ConstructionIntelligenceService.name);
+
   constructor(
     @InjectRepository(MaterialRateEntity)
     private readonly rateRepo: Repository<MaterialRateEntity>,
+    @InjectRepository(ObservationEntity)
+    private readonly obsRepo: Repository<ObservationEntity>,
   ) {}
+
+  // Fire-and-forget, append-only state-change ledger (Law 3: FACT, immutable).
+  // Never throws — an Observation write failure must never fail the rate entry
+  // that triggered it, so failures are logged and swallowed here.
+  async logObservation(data: {
+    entity_ref: string;
+    metric: string;
+    old_value: string | null;
+    new_value: string;
+    source_ref: string;
+  }): Promise<void> {
+    try {
+      const observation = this.obsRepo.create({ ...data, record_type: 'FACT' });
+      await this.obsRepo.save(observation);
+    } catch (err) {
+      this.logger.error(
+        `Failed to log Observation (metric=${data.metric}, entity_ref=${data.entity_ref})`,
+        err instanceof Error ? err.stack : String(err),
+      );
+    }
+  }
 
   async createMaterialRate(data: CreateMaterialRateInput): Promise<MaterialRateResult> {
     if (data.source_tier === 'SUPPLIER_VERIFIED' && !data.source_contact) {
@@ -61,12 +87,34 @@ export class ConstructionIntelligenceService {
       );
     }
 
+    // Most recent prior rate for this exact material/city combo, looked up before
+    // inserting the new row — the baseline for Observation logging below.
+    const priorRate = await this.rateRepo
+      .createQueryBuilder('r')
+      .where('LOWER(r.material_name) = LOWER(:material_name)', { material_name: data.material_name })
+      .andWhere('LOWER(r.city) = LOWER(:city)', { city: data.city })
+      .orderBy('r.recorded_date', 'DESC')
+      .getOne();
+
     const entity = this.rateRepo.create({
       ...data,
       record_type: 'FACT',
       is_stale: computeMaterialRateIsStale(data.recorded_date, data.source_tier),
     });
     const saved = await this.rateRepo.save(entity);
+
+    // Only log when a prior rate existed AND the price actually changed — a
+    // re-entry at the same price is not a meaningful Observation.
+    if (priorRate && Number(priorRate.price) !== Number(data.price)) {
+      await this.logObservation({
+        entity_ref: saved.id,
+        metric: 'material_price',
+        old_value: String(priorRate.price),
+        new_value: String(data.price),
+        source_ref: data.source_name,
+      });
+    }
+
     return toResult(saved);
   }
 

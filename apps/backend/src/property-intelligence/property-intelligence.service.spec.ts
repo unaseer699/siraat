@@ -4,6 +4,7 @@ import { PropertyIntelligenceService } from './property-intelligence.service';
 import { SocietyEntity } from './entities/society.entity';
 import { PropertyEntity } from './entities/property.entity';
 import { DeveloperEntity } from './entities/developer.entity';
+import { ObservationEntity } from './entities/observation.entity';
 import { TrustService } from '../trust/trust.service';
 
 describe('PropertyIntelligenceService', () => {
@@ -18,6 +19,8 @@ describe('PropertyIntelligenceService', () => {
     getManyAndCount: jest.Mock;
   };
   let deriveVerificationStatusMock: jest.Mock;
+  let obsCreateMock: jest.Mock;
+  let obsSaveMock: jest.Mock;
 
   beforeEach(async () => {
     qbMocks = {
@@ -36,6 +39,8 @@ describe('PropertyIntelligenceService', () => {
     qbMocks.take.mockReturnValue(qbMocks);
 
     deriveVerificationStatusMock = jest.fn().mockResolvedValue('PENDING');
+    obsCreateMock = jest.fn((data) => data);
+    obsSaveMock = jest.fn((entity) => Promise.resolve({ id: 'new-obs-uuid', ...entity }));
 
     const module = await Test.createTestingModule({
       providers: [
@@ -46,6 +51,10 @@ describe('PropertyIntelligenceService', () => {
         },
         { provide: getRepositoryToken(PropertyEntity), useValue: {} },
         { provide: getRepositoryToken(DeveloperEntity), useValue: {} },
+        {
+          provide: getRepositoryToken(ObservationEntity),
+          useValue: { create: obsCreateMock, save: obsSaveMock },
+        },
         {
           provide: TrustService,
           useValue: { deriveVerificationStatus: deriveVerificationStatusMock },
@@ -180,6 +189,44 @@ describe('PropertyIntelligenceService', () => {
       expect(result.page).toBe(1);
       expect(qbMocks.skip).toHaveBeenCalledWith(0);
       expect(qbMocks.take).toHaveBeenCalledWith(20);
+    });
+  });
+
+  // ─── OBSERVATION LOGGING Chunk 1 ─────────────────────────────────────────────
+
+  describe('logObservation', () => {
+    it('writes a FACT Observation row with the given fields', async () => {
+      await service.logObservation({
+        entity_ref: 'soc-a-uuid',
+        metric: 'confidence_score',
+        old_value: '0.80',
+        new_value: '0.93',
+        source_ref: 'ScoringService.computeAndSave',
+      });
+
+      expect(obsCreateMock).toHaveBeenCalledWith({
+        entity_ref: 'soc-a-uuid',
+        metric: 'confidence_score',
+        old_value: '0.80',
+        new_value: '0.93',
+        source_ref: 'ScoringService.computeAndSave',
+        record_type: 'FACT',
+      });
+      expect(obsSaveMock).toHaveBeenCalledTimes(1);
+    });
+
+    it('swallows a write failure instead of throwing', async () => {
+      obsSaveMock.mockRejectedValueOnce(new Error('db unavailable'));
+
+      await expect(
+        service.logObservation({
+          entity_ref: 'soc-a-uuid',
+          metric: 'confidence_score',
+          old_value: '0.80',
+          new_value: '0.93',
+          source_ref: 'ScoringService.computeAndSave',
+        }),
+      ).resolves.toBeUndefined();
     });
   });
 });

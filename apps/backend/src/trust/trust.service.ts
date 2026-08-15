@@ -1,10 +1,11 @@
-import { Injectable, BadRequestException, NotFoundException } from '@nestjs/common';
+import { Injectable, BadRequestException, Logger, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, In } from 'typeorm';
 import type { SocietyVerificationStatus } from '@siraat/shared-types';
 import { VerificationEntity } from './entities/verification.entity';
 import { EvidenceEntity } from './entities/evidence.entity';
 import { EvidenceSubmissionEntity } from './entities/evidence-submission.entity';
+import { ObservationEntity } from './entities/observation.entity';
 
 export type ClaimType =
   | 'NOC'
@@ -27,6 +28,8 @@ export interface VerificationResult {
 
 @Injectable()
 export class TrustService {
+  private readonly logger = new Logger(TrustService.name);
+
   constructor(
     @InjectRepository(VerificationEntity)
     private readonly verRepo: Repository<VerificationEntity>,
@@ -34,7 +37,30 @@ export class TrustService {
     private readonly eviRepo: Repository<EvidenceEntity>,
     @InjectRepository(EvidenceSubmissionEntity)
     private readonly subRepo: Repository<EvidenceSubmissionEntity>,
+    @InjectRepository(ObservationEntity)
+    private readonly obsRepo: Repository<ObservationEntity>,
   ) {}
+
+  // Fire-and-forget, append-only state-change ledger (Law 3: FACT, immutable).
+  // Never throws — an Observation write failure must never fail the Verification
+  // write that triggered it, so failures are logged and swallowed here.
+  async logObservation(data: {
+    entity_ref: string;
+    metric: string;
+    old_value: string | null;
+    new_value: string;
+    source_ref: string;
+  }): Promise<void> {
+    try {
+      const observation = this.obsRepo.create({ ...data, record_type: 'FACT' });
+      await this.obsRepo.save(observation);
+    } catch (err) {
+      this.logger.error(
+        `Failed to log Observation (metric=${data.metric}, entity_ref=${data.entity_ref})`,
+        err instanceof Error ? err.stack : String(err),
+      );
+    }
+  }
 
   async getVerifications(
     subjectType: 'SOCIETY' | 'DEVELOPER',
@@ -147,7 +173,18 @@ export class TrustService {
       ...data,
       verified_at: data.status === 'VERIFIED' ? new Date() : null,
     });
-    return this.verRepo.save(entity);
+    const saved = await this.verRepo.save(entity);
+
+    // Brand-new Verification — always a change from "no record" (old_value: null).
+    await this.logObservation({
+      entity_ref: saved.id,
+      metric: 'verification_status',
+      old_value: null,
+      new_value: saved.status,
+      source_ref: saved.claim,
+    });
+
+    return saved;
   }
 
   // ─── Capability 4: Evidence Submission flywheel ───────────────────────────
@@ -280,8 +317,22 @@ export class TrustService {
     if (verification.evidence_refs.length === 0) {
       throw new BadRequestException('Cannot promote to VERIFIED with zero evidence references');
     }
+    const oldStatus = verification.status;
     verification.status = 'VERIFIED';
     verification.verified_at = new Date();
-    return this.verRepo.save(verification);
+    const saved = await this.verRepo.save(verification);
+
+    // Skip if it was already VERIFIED — no real state change, would just be noise.
+    if (oldStatus !== saved.status) {
+      await this.logObservation({
+        entity_ref: saved.id,
+        metric: 'verification_status',
+        old_value: oldStatus,
+        new_value: saved.status,
+        source_ref: saved.claim,
+      });
+    }
+
+    return saved;
   }
 }

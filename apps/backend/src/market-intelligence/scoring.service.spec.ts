@@ -3,6 +3,7 @@ import { getRepositoryToken } from '@nestjs/typeorm';
 import { ScoringService } from './scoring.service';
 import { ScoreEntity } from './entities/score.entity';
 import { TrustService } from '../trust/trust.service';
+import { PropertyIntelligenceService } from '../property-intelligence/property-intelligence.service';
 import type { SocietyResult } from '../property-intelligence/property-intelligence.service';
 
 const baseSociety: SocietyResult = {
@@ -64,6 +65,7 @@ describe('ScoringService', () => {
   let saveMock: jest.Mock;
   let findOneMock: jest.Mock;
   let trustGetVerificationsMock: jest.Mock;
+  let logObservationMock: jest.Mock;
 
   beforeEach(async () => {
     createMock = jest.fn((data) => data);
@@ -72,6 +74,7 @@ describe('ScoringService', () => {
     trustGetVerificationsMock = jest
       .fn()
       .mockResolvedValue([MOCK_NOC_RESULT]);
+    logObservationMock = jest.fn().mockResolvedValue(undefined);
 
     const module = await Test.createTestingModule({
       providers: [
@@ -83,6 +86,10 @@ describe('ScoringService', () => {
         {
           provide: TrustService,
           useValue: { getVerifications: trustGetVerificationsMock },
+        },
+        {
+          provide: PropertyIntelligenceService,
+          useValue: { logObservation: logObservationMock },
         },
       ],
     }).compile();
@@ -275,5 +282,77 @@ describe('ScoringService', () => {
       expect.arrayContaining(['mock-evidence-001', 'mock-evidence-002', 'mock-evidence-003']),
     );
     expect(created.derived_from).toHaveLength(3);
+  });
+
+  // ─── OBSERVATION LOGGING Chunk 1 ──────────────────────────────────────────
+
+  describe('Observation logging', () => {
+    it('logs a confidence_score Observation when recomputation produces a genuinely changed value', async () => {
+      const staleDate = new Date();
+      staleDate.setDate(staleDate.getDate() - (baseSociety.staleness_threshold_days + 1));
+      const oldScore = savedScore({
+        subject_id: baseSociety.id,
+        subject_type: 'SOCIETY',
+        is_stale: false,
+        computed_at: staleDate,
+        confidence_score: 0.5,
+      });
+      findOneMock.mockResolvedValueOnce(oldScore);
+      trustGetVerificationsMock.mockResolvedValueOnce([MOCK_NOC_RESULT]);
+
+      const result = await svc.computeAndSave(baseSociety);
+
+      expect(logObservationMock).toHaveBeenCalledWith({
+        entity_ref: baseSociety.id,
+        metric: 'confidence_score',
+        old_value: '0.5',
+        new_value: String(result.confidence_score),
+        source_ref: 'ScoringService.computeAndSave',
+      });
+    });
+
+    it('does not create a duplicate Observation when recomputation produces the same value', async () => {
+      const staleDate = new Date();
+      staleDate.setDate(staleDate.getDate() - (baseSociety.staleness_threshold_days + 1));
+      const oldScore = savedScore({
+        subject_id: baseSociety.id,
+        subject_type: 'SOCIETY',
+        is_stale: false,
+        computed_at: staleDate,
+        confidence_score: 0.93, // matches what baseSociety + MOCK_NOC_RESULT recomputes to
+      });
+      findOneMock.mockResolvedValueOnce(oldScore);
+      trustGetVerificationsMock.mockResolvedValueOnce([MOCK_NOC_RESULT]);
+
+      await svc.computeAndSave(baseSociety);
+
+      expect(logObservationMock).not.toHaveBeenCalled();
+    });
+
+    it('does not attempt to log an Observation when no prior Score existed for this subject', async () => {
+      findOneMock.mockResolvedValueOnce(null);
+
+      await svc.computeAndSave(baseSociety);
+
+      expect(logObservationMock).not.toHaveBeenCalled();
+    });
+
+    it('an Observation write failure does not break score computation', async () => {
+      const staleDate = new Date();
+      staleDate.setDate(staleDate.getDate() - (baseSociety.staleness_threshold_days + 1));
+      const oldScore = savedScore({
+        subject_id: baseSociety.id,
+        subject_type: 'SOCIETY',
+        is_stale: false,
+        computed_at: staleDate,
+        confidence_score: 0.5,
+      });
+      findOneMock.mockResolvedValueOnce(oldScore);
+      logObservationMock.mockRejectedValueOnce(new Error('db unavailable'));
+
+      await expect(svc.computeAndSave(baseSociety)).resolves.toMatchObject({
+        record_type: 'GENERATED',
+      });
+    });
   });
 });

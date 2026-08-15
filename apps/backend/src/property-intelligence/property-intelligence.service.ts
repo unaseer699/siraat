@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import type { ParsedIntent } from '@siraat/shared-types';
@@ -7,6 +7,7 @@ import { TrustService } from '../trust/trust.service';
 import { SocietyEntity } from './entities/society.entity';
 import { PropertyEntity } from './entities/property.entity';
 import { DeveloperEntity } from './entities/developer.entity';
+import { ObservationEntity } from './entities/observation.entity';
 
 export interface SocietyResult {
   id: string;
@@ -52,6 +53,8 @@ function toSocietyResult(e: SocietyEntity): SocietyResult {
 
 @Injectable()
 export class PropertyIntelligenceService {
+  private readonly logger = new Logger(PropertyIntelligenceService.name);
+
   constructor(
     @InjectRepository(SocietyEntity)
     private readonly societyRepo: Repository<SocietyEntity>,
@@ -59,8 +62,32 @@ export class PropertyIntelligenceService {
     private readonly propertyRepo: Repository<PropertyEntity>,
     @InjectRepository(DeveloperEntity)
     private readonly developerRepo: Repository<DeveloperEntity>,
+    @InjectRepository(ObservationEntity)
+    private readonly observationRepo: Repository<ObservationEntity>,
     private readonly trustSvc: TrustService,
   ) {}
+
+  // Fire-and-forget, append-only state-change ledger (Law 3: FACT, immutable).
+  // Never throws — an Observation write failure must never fail the operation
+  // that triggered it (e.g. Score computation), so failures are logged and
+  // swallowed here rather than propagated to the caller.
+  async logObservation(data: {
+    entity_ref: string;
+    metric: string;
+    old_value: string | null;
+    new_value: string;
+    source_ref: string;
+  }): Promise<void> {
+    try {
+      const observation = this.observationRepo.create({ ...data, record_type: 'FACT' });
+      await this.observationRepo.save(observation);
+    } catch (err) {
+      this.logger.error(
+        `Failed to log Observation (metric=${data.metric}, entity_ref=${data.entity_ref})`,
+        err instanceof Error ? err.stack : String(err),
+      );
+    }
+  }
 
   async createSociety(data: {
     name: string;

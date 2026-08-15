@@ -5,6 +5,7 @@ import { TrustService } from './trust.service';
 import { VerificationEntity } from './entities/verification.entity';
 import { EvidenceEntity } from './entities/evidence.entity';
 import { EvidenceSubmissionEntity } from './entities/evidence-submission.entity';
+import { ObservationEntity } from './entities/observation.entity';
 
 const SOCIETY_ID = 'a1b2c3d4-0001-0001-0001-000000000001';
 const DEV_ID_VERIFIED = 'd1b2c3d4-0001-0001-0001-000000000001';
@@ -86,6 +87,8 @@ describe('TrustService', () => {
   let subSaveMock: jest.Mock;
   let eviCountMock: jest.Mock;
   let verQbMocks: { select: jest.Mock; where: jest.Mock; andWhere: jest.Mock; getRawOne: jest.Mock };
+  let obsCreateMock: jest.Mock;
+  let obsSaveMock: jest.Mock;
 
   beforeEach(async () => {
     verFindMock = jest.fn().mockResolvedValue([]);
@@ -116,6 +119,8 @@ describe('TrustService', () => {
     verQbMocks.select.mockReturnValue(verQbMocks);
     verQbMocks.where.mockReturnValue(verQbMocks);
     verQbMocks.andWhere.mockReturnValue(verQbMocks);
+    obsCreateMock = jest.fn((data) => data);
+    obsSaveMock = jest.fn((entity) => Promise.resolve({ id: 'new-obs-uuid', ...entity }));
 
     const module = await Test.createTestingModule({
       providers: [
@@ -150,6 +155,10 @@ describe('TrustService', () => {
             create: subCreateMock,
             save: subSaveMock,
           },
+        },
+        {
+          provide: getRepositoryToken(ObservationEntity),
+          useValue: { create: obsCreateMock, save: obsSaveMock },
         },
       ],
     }).compile();
@@ -574,6 +583,77 @@ describe('TrustService', () => {
     expect(result.subject_id).toBe(SOCIETY_ID);
     expect(verSaveMock).toHaveBeenCalledWith(expect.objectContaining({ id: 'ver-target-uuid', status: 'VERIFIED' }));
     expect(verSaveMock).not.toHaveBeenCalledWith(expect.objectContaining({ id: 'ver-unrelated-uuid' }));
+  });
+
+  // ─── OBSERVATION LOGGING Chunk 1 ───────────────────────────────────────────
+
+  describe('Observation logging', () => {
+    it('createVerification logs an Observation with old_value null and the new status', async () => {
+      const result = await svc.createVerification({
+        subject_type: 'SOCIETY',
+        subject_id: 'some-uuid',
+        claim: 'NOC Approved',
+        claim_type: 'NOC',
+        status: 'VERIFIED',
+        evidence_refs: ['evi-001'],
+      });
+
+      expect(obsSaveMock).toHaveBeenCalledTimes(1);
+      expect(obsCreateMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          entity_ref: result.id,
+          metric: 'verification_status',
+          old_value: null,
+          new_value: 'VERIFIED',
+          record_type: 'FACT',
+        }),
+      );
+    });
+
+    it('promoteVerificationToVerified logs an Observation with correct old/new status values', async () => {
+      verFindOneByMock.mockResolvedValue({
+        ...VERIFICATION_PENDING,
+        id: 'ver-target-uuid',
+        evidence_refs: [EVIDENCE_1.id],
+      });
+
+      await svc.promoteVerificationToVerified('ver-target-uuid');
+
+      expect(obsCreateMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          entity_ref: 'ver-target-uuid',
+          metric: 'verification_status',
+          old_value: 'PENDING',
+          new_value: 'VERIFIED',
+        }),
+      );
+    });
+
+    it('promoteVerificationToVerified does not log a duplicate Observation when already VERIFIED', async () => {
+      verFindOneByMock.mockResolvedValue({
+        ...VERIFICATION_VERIFIED,
+        id: 'ver-target-uuid',
+      });
+
+      await svc.promoteVerificationToVerified('ver-target-uuid');
+
+      expect(obsSaveMock).not.toHaveBeenCalled();
+    });
+
+    it('an Observation write failure does not break createVerification', async () => {
+      obsSaveMock.mockRejectedValueOnce(new Error('db unavailable'));
+
+      await expect(
+        svc.createVerification({
+          subject_type: 'SOCIETY',
+          subject_id: 'some-uuid',
+          claim: 'NOC Approved',
+          claim_type: 'NOC',
+          status: 'VERIFIED',
+          evidence_refs: ['evi-001'],
+        }),
+      ).resolves.toMatchObject({ status: 'VERIFIED' });
+    });
   });
 
   // ─── HOME PAGE Chunk 1 — platform stats ───────────────────────────────────

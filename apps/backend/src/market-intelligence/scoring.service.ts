@@ -1,7 +1,8 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import type { SocietyResult } from '../property-intelligence/property-intelligence.service';
+import { PropertyIntelligenceService } from '../property-intelligence/property-intelligence.service';
 import { TrustService } from '../trust/trust.service';
 import { ScoreEntity } from './entities/score.entity';
 import type { ScoreBreakdown } from '@siraat/shared-types';
@@ -13,14 +14,19 @@ const ADVERSE_CLAIM_PENALTY = 0.20;
 
 @Injectable()
 export class ScoringService {
+  private readonly logger = new Logger(ScoringService.name);
+
   constructor(
     @InjectRepository(ScoreEntity)
     private readonly repo: Repository<ScoreEntity>,
     private readonly trustSvc: TrustService,
+    private readonly propertyIntelSvc: PropertyIntelligenceService,
   ) {}
 
   async computeAndSave(society: SocietyResult): Promise<ScoreEntity> {
-    // Reuse an existing non-stale Score within the staleness window — avoids unbounded growth
+    // Reuse an existing non-stale Score within the staleness window — avoids unbounded growth.
+    // Also doubles as the "prior score" baseline for Observation logging below: if we're
+    // past this point, `existing` (when present) is the last confidence_score on record.
     const cutoff = new Date();
     cutoff.setDate(cutoff.getDate() - society.staleness_threshold_days);
     const existing = await this.repo.findOne({
@@ -78,7 +84,29 @@ export class ScoringService {
       record_type: 'GENERATED',
     });
 
-    return this.repo.save(score);
+    const saved = await this.repo.save(score);
+
+    // Only log when the value genuinely changed — an identical recomputation
+    // (e.g. cache expired but nothing about the society actually moved) is noise,
+    // not an Observation. Owned by Property Intelligence (the Society's context),
+    // not Market Intelligence — logged via its public API, never its schema directly.
+    if (existing && Number(existing.confidence_score) !== Number(saved.confidence_score)) {
+      try {
+        await this.propertyIntelSvc.logObservation({
+          entity_ref: society.id,
+          metric: 'confidence_score',
+          old_value: String(existing.confidence_score),
+          new_value: String(saved.confidence_score),
+          source_ref: 'ScoringService.computeAndSave',
+        });
+      } catch (err) {
+        // logObservation already swallows its own write failures — this guards the
+        // cross-module call boundary itself, so score computation can never fail here.
+        this.logger.error('Failed to log confidence_score Observation', err instanceof Error ? err.stack : String(err));
+      }
+    }
+
+    return saved;
   }
 
   async findById(id: string): Promise<ScoreEntity | null> {
