@@ -134,6 +134,16 @@ Each item: **Priority** (Low / Medium / High) · **Found in** (capability) ·
   on-behalf-of token validation). Do not implement piecemeal; implement holistically once
   the Identity capability is defined.
 
+### 15. apiFetch doesn't surface HTTP status codes to callers
+- **Priority:** Low
+- **Found in:** Developer Profile (frontend chunk 2)
+- **Target:** General cleanup
+- Every independent optional-data fetch (Society score, Developer stats, etc.)
+  currently catches all failures generically and degrades to null/unavailable —
+  a real 404 and a transient 500 produce identical UI messaging. If ever worth
+  improving, this should be a single change to apiFetch surfacing status codes,
+  applied consistently across all callers at once, not a per-page fix.
+
 ---
 
 ## Resolved Items

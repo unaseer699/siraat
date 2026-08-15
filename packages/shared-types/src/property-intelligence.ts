@@ -48,6 +48,29 @@ export interface SocietyListResponse {
   total_pages: number;
 }
 
+// ─── DEVELOPER PROFILE Chunk 1 ───────────────────────────────────────────────
+// linked_societies is always [] for now — no data path associates a Developer
+// with specific Societies yet (SocietyEntity has no developer_id field, flagged
+// and deferred during the navigation audit). Populate this only once that
+// association actually exists in the data model; never infer/guess it.
+
+export interface LinkedSociety {
+  id: string;
+  name: string;
+  city: string;
+  verification_status: SocietyVerificationStatus;
+}
+
+export interface DeveloperStats {
+  developer_id: string;
+  developer_name: string;
+  verification_status: SocietyVerificationStatus;
+  project_history: string[];
+  linked_societies: LinkedSociety[];
+  evidence_count: number;
+  is_siraat_affiliated: boolean;
+}
+
 // ─── WATCHLIST Chunk 1 — Society Changes ─────────────────────────────────────
 // Session-based watchlist tracking lives entirely in the browser (no User/Identity
 // system exists yet). This is the backend half: given society IDs the browser is

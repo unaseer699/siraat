@@ -37,4 +37,11 @@ export class PropertyIntelligenceController {
     if (!property) throw new NotFoundException(`Property ${id} not found`);
     return property;
   }
+
+  @Get('developers/:id/stats')
+  async getDeveloperStats(@Param('id') id: string) {
+    const stats = await this.piSvc.getDeveloperStats(id);
+    if (!stats) throw new NotFoundException(`Developer ${id} not found`);
+    return stats;
+  }
 }
