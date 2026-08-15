@@ -1,5 +1,7 @@
 import { Test } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
+import { In, MoreThan } from 'typeorm';
+import { BadRequestException } from '@nestjs/common';
 import { PropertyIntelligenceService } from './property-intelligence.service';
 import { SocietyEntity } from './entities/society.entity';
 import { PropertyEntity } from './entities/property.entity';
@@ -19,8 +21,12 @@ describe('PropertyIntelligenceService', () => {
     getManyAndCount: jest.Mock;
   };
   let deriveVerificationStatusMock: jest.Mock;
+  let trustGetVerificationsMock: jest.Mock;
+  let trustGetObservationsSinceMock: jest.Mock;
   let obsCreateMock: jest.Mock;
   let obsSaveMock: jest.Mock;
+  let obsFindMock: jest.Mock;
+  let societyFindOneByMock: jest.Mock;
 
   beforeEach(async () => {
     qbMocks = {
@@ -39,25 +45,33 @@ describe('PropertyIntelligenceService', () => {
     qbMocks.take.mockReturnValue(qbMocks);
 
     deriveVerificationStatusMock = jest.fn().mockResolvedValue('PENDING');
+    trustGetVerificationsMock = jest.fn().mockResolvedValue([]);
+    trustGetObservationsSinceMock = jest.fn().mockResolvedValue([]);
     obsCreateMock = jest.fn((data) => data);
     obsSaveMock = jest.fn((entity) => Promise.resolve({ id: 'new-obs-uuid', ...entity }));
+    obsFindMock = jest.fn().mockResolvedValue([]);
+    societyFindOneByMock = jest.fn().mockResolvedValue(null);
 
     const module = await Test.createTestingModule({
       providers: [
         PropertyIntelligenceService,
         {
           provide: getRepositoryToken(SocietyEntity),
-          useValue: { createQueryBuilder: jest.fn(() => qbMocks) },
+          useValue: { createQueryBuilder: jest.fn(() => qbMocks), findOneBy: societyFindOneByMock },
         },
         { provide: getRepositoryToken(PropertyEntity), useValue: {} },
         { provide: getRepositoryToken(DeveloperEntity), useValue: {} },
         {
           provide: getRepositoryToken(ObservationEntity),
-          useValue: { create: obsCreateMock, save: obsSaveMock },
+          useValue: { create: obsCreateMock, save: obsSaveMock, find: obsFindMock },
         },
         {
           provide: TrustService,
-          useValue: { deriveVerificationStatus: deriveVerificationStatusMock },
+          useValue: {
+            deriveVerificationStatus: deriveVerificationStatusMock,
+            getVerifications: trustGetVerificationsMock,
+            getObservationsSince: trustGetObservationsSinceMock,
+          },
         },
       ],
     }).compile();
@@ -227,6 +241,125 @@ describe('PropertyIntelligenceService', () => {
           source_ref: 'ScoringService.computeAndSave',
         }),
       ).resolves.toBeUndefined();
+    });
+  });
+
+  // ─── WATCHLIST Chunk 1 ────────────────────────────────────────────────────
+
+  describe('getObservationsSince', () => {
+    it('queries observations scoped to the given entity_refs and recorded after since', async () => {
+      const since = new Date('2026-08-01');
+      const recentObservation = {
+        entity_ref: 'soc-a-uuid',
+        metric: 'confidence_score',
+        old_value: '0.80',
+        new_value: '0.93',
+        recorded_at: new Date('2026-08-10'),
+      };
+      obsFindMock.mockResolvedValue([recentObservation]);
+
+      const result = await service.getObservationsSince(['soc-a-uuid'], since);
+
+      expect(result).toEqual([recentObservation]);
+      expect(obsFindMock).toHaveBeenCalledWith({
+        where: { entity_ref: In(['soc-a-uuid']), recorded_at: MoreThan(since) },
+        order: { recorded_at: 'DESC' },
+      });
+    });
+
+    it('returns [] without querying when entityRefs is empty', async () => {
+      const result = await service.getObservationsSince([], new Date('2026-08-01'));
+
+      expect(result).toEqual([]);
+      expect(obsFindMock).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('getSocietyChangesSince', () => {
+    const SOCIETY_A = { id: 'soc-a-uuid', name: 'Taj Residencia' };
+    const since = '2026-08-01';
+
+    beforeEach(() => {
+      societyFindOneByMock.mockImplementation(({ id }: { id: string }) =>
+        Promise.resolve(id === SOCIETY_A.id ? SOCIETY_A : null),
+      );
+    });
+
+    it('aggregates observations from both Property Intelligence and Trust for the same society', async () => {
+      obsFindMock.mockResolvedValue([
+        {
+          entity_ref: SOCIETY_A.id,
+          metric: 'confidence_score',
+          old_value: '0.80',
+          new_value: '0.93',
+          recorded_at: new Date('2026-08-10'),
+        },
+      ]);
+      trustGetVerificationsMock.mockResolvedValue([
+        { verification: { id: 'ver-1' }, evidence: [] },
+      ]);
+      trustGetObservationsSinceMock.mockResolvedValue([
+        {
+          entity_ref: 'ver-1',
+          metric: 'verification_status',
+          old_value: 'PENDING',
+          new_value: 'VERIFIED',
+          recorded_at: new Date('2026-08-12'),
+        },
+      ]);
+
+      const result = await service.getSocietyChangesSince([SOCIETY_A.id], since);
+
+      expect(result.changes).toHaveLength(1);
+      const change = result.changes[0];
+      expect(change.society_id).toBe(SOCIETY_A.id);
+      expect(change.society_name).toBe('Taj Residencia');
+      expect(change.has_changes).toBe(true);
+      expect(change.observations).toHaveLength(2);
+      expect(change.observations.map((o) => o.metric)).toEqual(
+        expect.arrayContaining(['confidence_score', 'verification_status']),
+      );
+      // Verification-scoped lookup, not society-scoped — Trust's schema is
+      // read via its public API, never entity_ref = society id directly.
+      expect(trustGetObservationsSinceMock).toHaveBeenCalledWith(['ver-1'], expect.any(Date));
+    });
+
+    it('has_changes: false and empty observations[] for a society with no changes since the given date', async () => {
+      obsFindMock.mockResolvedValue([]);
+      trustGetVerificationsMock.mockResolvedValue([{ verification: { id: 'ver-1' }, evidence: [] }]);
+      trustGetObservationsSinceMock.mockResolvedValue([]);
+
+      const result = await service.getSocietyChangesSince([SOCIETY_A.id], since);
+
+      expect(result.changes).toHaveLength(1);
+      expect(result.changes[0]).toMatchObject({ has_changes: false, observations: [] });
+    });
+
+    it('drops a society_id that does not exist rather than erroring the whole batch', async () => {
+      const result = await service.getSocietyChangesSince(['unknown-uuid'], since);
+
+      expect(result.changes).toEqual([]);
+    });
+
+    it('rejects a batch larger than the max size with a clear error', async () => {
+      const tooMany = Array.from({ length: 21 }, (_, i) => `soc-${i}-uuid`);
+
+      await expect(service.getSocietyChangesSince(tooMany, since)).rejects.toThrow(
+        BadRequestException,
+      );
+      expect(societyFindOneByMock).not.toHaveBeenCalled();
+    });
+
+    it('accepts a batch at exactly the max size', async () => {
+      const exactlyMax = Array.from({ length: 20 }, () => SOCIETY_A.id);
+
+      await expect(service.getSocietyChangesSince(exactlyMax, since)).resolves.toBeDefined();
+    });
+
+    it('rejects an invalid since value with a clear error', async () => {
+      await expect(
+        service.getSocietyChangesSince([SOCIETY_A.id], 'not-a-date'),
+      ).rejects.toThrow(BadRequestException);
     });
   });
 });

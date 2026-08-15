@@ -1,13 +1,24 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { In, MoreThan, Repository } from 'typeorm';
 import type { ParsedIntent } from '@siraat/shared-types';
-import type { PropertyDetail, DeveloperProfile, SocietyListResponse } from '@siraat/shared-types';
+import type {
+  PropertyDetail,
+  DeveloperProfile,
+  SocietyListResponse,
+  SocietyChangesResponse,
+  SocietyChangeSummary,
+} from '@siraat/shared-types';
 import { TrustService } from '../trust/trust.service';
 import { SocietyEntity } from './entities/society.entity';
 import { PropertyEntity } from './entities/property.entity';
 import { DeveloperEntity } from './entities/developer.entity';
 import { ObservationEntity } from './entities/observation.entity';
+
+// Watchlist Chunk 1: caps how many societies /societies/changes will check in one
+// request — an unbounded society_ids[] would mean an unbounded fan-out of per-society
+// Trust calls below. Rejected outright with a clear error rather than silently truncated.
+const MAX_CHANGES_BATCH_SIZE = 20;
 
 export interface SocietyResult {
   id: string;
@@ -231,6 +242,75 @@ export class PropertyIntelligenceService {
       name: dev.name,
       project_history: dev.project_history,
       is_siraat_affiliated: dev.is_siraat_affiliated,
+    };
+  }
+
+  // ─── WATCHLIST Chunk 1 — Society Changes ───────────────────────────────────
+
+  // Read side of this context's own Observation ledger — entityRefs here is
+  // typically just [societyId], but kept array-shaped for symmetry with
+  // TrustService.getObservationsSince and any future multi-entity_ref use.
+  async getObservationsSince(entityRefs: string[], since: Date): Promise<ObservationEntity[]> {
+    if (entityRefs.length === 0) return [];
+    return this.observationRepo.find({
+      where: { entity_ref: In(entityRefs), recorded_at: MoreThan(since) },
+      order: { recorded_at: 'DESC' },
+    });
+  }
+
+  // Given society IDs the browser's local watchlist is tracking, report what
+  // changed since a given date. Aggregates across Property Intelligence's own
+  // Observation ledger (direct Society changes) and Trust's (Verification
+  // status changes for that Society's claims) — read via TrustService's public
+  // API (Law 9: no reach into trust.observations directly), the same
+  // cross-module pattern ScoringService already uses. Material rate
+  // Observations are never included — they aren't Society-scoped.
+  async getSocietyChangesSince(societyIds: string[], since: string): Promise<SocietyChangesResponse> {
+    if (societyIds.length > MAX_CHANGES_BATCH_SIZE) {
+      throw new BadRequestException(
+        `Cannot check more than ${MAX_CHANGES_BATCH_SIZE} societies at once (received ${societyIds.length})`,
+      );
+    }
+
+    const sinceDate = new Date(since);
+    if (Number.isNaN(sinceDate.getTime())) {
+      throw new BadRequestException(`'since' is not a valid date: ${since}`);
+    }
+
+    const changes = await Promise.all(
+      societyIds.map((societyId) => this.buildSocietyChangeSummary(societyId, sinceDate)),
+    );
+
+    return { changes: changes.filter((c): c is SocietyChangeSummary => c !== null) };
+  }
+
+  private async buildSocietyChangeSummary(
+    societyId: string,
+    since: Date,
+  ): Promise<SocietyChangeSummary | null> {
+    const society = await this.societyRepo.findOneBy({ id: societyId });
+    if (!society) return null; // Unknown society id — dropped from the batch, not an error.
+
+    const ownObservations = await this.getObservationsSince([societyId], since);
+
+    const verifications = await this.trustSvc.getVerifications('SOCIETY', societyId);
+    const verificationIds = verifications.map((v) => v.verification.id);
+    const trustObservations = await this.trustSvc.getObservationsSince(verificationIds, since);
+
+    const observations = [...ownObservations, ...trustObservations]
+      .sort((a, b) => b.recorded_at.getTime() - a.recorded_at.getTime())
+      .map((o) => ({
+        metric: o.metric,
+        old_value: o.old_value,
+        new_value: o.new_value,
+        recorded_at: o.recorded_at.toISOString(),
+      }));
+
+    return {
+      society_id: societyId,
+      society_name: society.name,
+      has_changes: observations.length > 0,
+      observations,
     };
   }
 }

@@ -1,6 +1,7 @@
 import { Test } from '@nestjs/testing';
 import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { getRepositoryToken } from '@nestjs/typeorm';
+import { In, MoreThan } from 'typeorm';
 import { TrustService } from './trust.service';
 import { VerificationEntity } from './entities/verification.entity';
 import { EvidenceEntity } from './entities/evidence.entity';
@@ -89,6 +90,7 @@ describe('TrustService', () => {
   let verQbMocks: { select: jest.Mock; where: jest.Mock; andWhere: jest.Mock; getRawOne: jest.Mock };
   let obsCreateMock: jest.Mock;
   let obsSaveMock: jest.Mock;
+  let obsFindMock: jest.Mock;
 
   beforeEach(async () => {
     verFindMock = jest.fn().mockResolvedValue([]);
@@ -121,6 +123,7 @@ describe('TrustService', () => {
     verQbMocks.andWhere.mockReturnValue(verQbMocks);
     obsCreateMock = jest.fn((data) => data);
     obsSaveMock = jest.fn((entity) => Promise.resolve({ id: 'new-obs-uuid', ...entity }));
+    obsFindMock = jest.fn().mockResolvedValue([]);
 
     const module = await Test.createTestingModule({
       providers: [
@@ -158,7 +161,7 @@ describe('TrustService', () => {
         },
         {
           provide: getRepositoryToken(ObservationEntity),
-          useValue: { create: obsCreateMock, save: obsSaveMock },
+          useValue: { create: obsCreateMock, save: obsSaveMock, find: obsFindMock },
         },
       ],
     }).compile();
@@ -653,6 +656,37 @@ describe('TrustService', () => {
           evidence_refs: ['evi-001'],
         }),
       ).resolves.toMatchObject({ status: 'VERIFIED' });
+    });
+  });
+
+  // ─── WATCHLIST Chunk 1 — getObservationsSince ──────────────────────────────
+
+  describe('getObservationsSince', () => {
+    it('queries observations scoped to the given entity_refs and recorded after since', async () => {
+      const since = new Date('2026-08-01');
+      const recentObservation = {
+        entity_ref: 'ver-target-uuid',
+        metric: 'verification_status',
+        old_value: 'PENDING',
+        new_value: 'VERIFIED',
+        recorded_at: new Date('2026-08-10'),
+      };
+      obsFindMock.mockResolvedValue([recentObservation]);
+
+      const result = await svc.getObservationsSince(['ver-target-uuid'], since);
+
+      expect(result).toEqual([recentObservation]);
+      expect(obsFindMock).toHaveBeenCalledWith({
+        where: { entity_ref: In(['ver-target-uuid']), recorded_at: MoreThan(since) },
+        order: { recorded_at: 'DESC' },
+      });
+    });
+
+    it('returns [] without querying when entityRefs is empty', async () => {
+      const result = await svc.getObservationsSince([], new Date('2026-08-01'));
+
+      expect(result).toEqual([]);
+      expect(obsFindMock).not.toHaveBeenCalled();
     });
   });
 

@@ -3,6 +3,7 @@ import Link from 'next/link';
 import { fetchSocietyVerifications, fetchSocietyScore } from '@/lib/api';
 import { EvidenceDrawer } from '@/components/EvidenceDrawer';
 import { CopyLinkButton } from '@/components/CopyLinkButton';
+import { WatchButton } from '@/components/WatchButton';
 import { BackLink } from '@/components/BackLink';
 import StatCard from '@/components/StatCard';
 import { ConfidenceGauge } from '@/components/ConfidenceGauge';
@@ -172,8 +173,9 @@ export default async function SocietyProfilePage({ params }: Props) {
           </p>
         </div>
 
-        <div>
+        <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
           <CopyLinkButton />
+          <WatchButton societyId={params.id} societyName={score?.society_name ?? params.id} />
         </div>
 
         {/* Score breakdown */}
