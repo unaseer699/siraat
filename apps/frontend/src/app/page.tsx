@@ -182,6 +182,12 @@ function HomeView() {
         gap: '40px',
       }}
     >
+      <div style={{ width: '100%', maxWidth: '720px', display: 'flex', justifyContent: 'flex-end' }}>
+        <Link href="/watchlist" style={{ fontSize: '13px', fontWeight: 600, color: 'var(--muted)' }}>
+          ☆ Watchlist
+        </Link>
+      </div>
+
       <header style={{ textAlign: 'center', maxWidth: '640px' }}>
         <h1 style={{ fontSize: '52px', fontWeight: 800, letterSpacing: '-1.5px', lineHeight: 1.1 }}>
           Siraat

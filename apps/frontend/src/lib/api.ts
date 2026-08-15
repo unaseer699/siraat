@@ -11,6 +11,8 @@ import type {
   MaterialRateSourceTier,
   PlatformStatsResponse,
   SocietyListResponse,
+  SocietyChangesRequest,
+  SocietyChangesResponse,
 } from '@siraat/shared-types';
 
 const BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001';
@@ -66,6 +68,17 @@ export async function fetchSocieties(params?: {
 
 export async function fetchSocietyScore(societyId: string): Promise<SocietyScoreResponse> {
   return apiFetch(`/v1/market-intelligence/societies/${societyId}/score`);
+}
+
+// Watchlist Chunk 2 — reports what changed for a browser-supplied batch of
+// watched society IDs since each one's "date added".
+export async function fetchSocietyChanges(
+  req: SocietyChangesRequest,
+): Promise<SocietyChangesResponse> {
+  return apiFetch('/v1/property-intelligence/societies/changes', {
+    method: 'POST',
+    body: JSON.stringify(req),
+  });
 }
 
 export async function fetchSocietyVerifications(

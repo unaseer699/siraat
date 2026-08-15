@@ -1,6 +1,6 @@
 import { Injectable, BadRequestException, Logger, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, In } from 'typeorm';
+import { Repository, In, MoreThan } from 'typeorm';
 import type { SocietyVerificationStatus } from '@siraat/shared-types';
 import { VerificationEntity } from './entities/verification.entity';
 import { EvidenceEntity } from './entities/evidence.entity';
@@ -60,6 +60,17 @@ export class TrustService {
         err instanceof Error ? err.stack : String(err),
       );
     }
+  }
+
+  // Read side of the ledger above — used by PropertyIntelligenceService's Watchlist
+  // "what changed" endpoint via a public API call (Law 9: no reach into trust's schema).
+  // entityRefs is typically a Society's Verification ids, not the Society id itself.
+  async getObservationsSince(entityRefs: string[], since: Date): Promise<ObservationEntity[]> {
+    if (entityRefs.length === 0) return [];
+    return this.obsRepo.find({
+      where: { entity_ref: In(entityRefs), recorded_at: MoreThan(since) },
+      order: { recorded_at: 'DESC' },
+    });
   }
 
   async getVerifications(

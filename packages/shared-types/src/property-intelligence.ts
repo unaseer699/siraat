@@ -1,3 +1,5 @@
+import { z } from 'zod';
+
 export interface SocietySummary {
   id: string;
   name: string;
@@ -44,4 +46,36 @@ export interface SocietyListResponse {
   total_count: number;
   page: number;
   total_pages: number;
+}
+
+// ─── WATCHLIST Chunk 1 — Society Changes ─────────────────────────────────────
+// Session-based watchlist tracking lives entirely in the browser (no User/Identity
+// system exists yet). This is the backend half: given society IDs the browser is
+// already tracking, report what changed since a given date.
+
+export const SocietyChangesRequestSchema = z.object({
+  society_ids: z.array(z.string().uuid()),
+  // ISO date or datetime string — validated as a real date server-side, not
+  // constrained to full ISO-8601 datetime here, so a plain YYYY-MM-DD (e.g. from
+  // a browser <input type="date">) is accepted too.
+  since: z.string().min(1),
+});
+export type SocietyChangesRequest = z.infer<typeof SocietyChangesRequestSchema>;
+
+export interface ObservationSummary {
+  metric: string;
+  old_value: string | null;
+  new_value: string;
+  recorded_at: string;
+}
+
+export interface SocietyChangeSummary {
+  society_id: string;
+  society_name: string;
+  has_changes: boolean;
+  observations: ObservationSummary[];
+}
+
+export interface SocietyChangesResponse {
+  changes: SocietyChangeSummary[];
 }
