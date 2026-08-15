@@ -3,6 +3,7 @@ import { BadRequestException } from '@nestjs/common';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import { ConstructionIntelligenceService } from './construction-intelligence.service';
 import { MaterialRateEntity } from './entities/material-rate.entity';
+import { ObservationEntity } from './entities/observation.entity';
 
 function isoDaysAgo(days: number): string {
   const d = new Date();
@@ -30,11 +31,15 @@ describe('ConstructionIntelligenceService', () => {
   let saveMock: jest.Mock;
   let qbMocks: {
     select: jest.Mock;
+    where: jest.Mock;
     andWhere: jest.Mock;
     orderBy: jest.Mock;
     getMany: jest.Mock;
     getRawOne: jest.Mock;
+    getOne: jest.Mock;
   };
+  let obsCreateMock: jest.Mock;
+  let obsSaveMock: jest.Mock;
 
   beforeEach(async () => {
     createMock = jest.fn((data) => data);
@@ -43,14 +48,19 @@ describe('ConstructionIntelligenceService', () => {
     );
     qbMocks = {
       select: jest.fn(),
+      where: jest.fn(),
       andWhere: jest.fn(),
       orderBy: jest.fn(),
       getMany: jest.fn().mockResolvedValue([]),
       getRawOne: jest.fn().mockResolvedValue({ count: '0' }),
+      getOne: jest.fn().mockResolvedValue(null), // no prior rate by default
     };
     qbMocks.select.mockReturnValue(qbMocks);
+    qbMocks.where.mockReturnValue(qbMocks);
     qbMocks.andWhere.mockReturnValue(qbMocks);
     qbMocks.orderBy.mockReturnValue(qbMocks);
+    obsCreateMock = jest.fn((data) => data);
+    obsSaveMock = jest.fn((entity) => Promise.resolve({ id: 'new-obs-uuid', ...entity }));
 
     const module = await Test.createTestingModule({
       providers: [
@@ -62,6 +72,10 @@ describe('ConstructionIntelligenceService', () => {
             save: saveMock,
             createQueryBuilder: jest.fn(() => qbMocks),
           },
+        },
+        {
+          provide: getRepositoryToken(ObservationEntity),
+          useValue: { create: obsCreateMock, save: obsSaveMock },
         },
       ],
     }).compile();
@@ -112,6 +126,50 @@ describe('ConstructionIntelligenceService', () => {
       );
       expect(result.is_stale).toBe(true);
       expect(result.staleness_threshold_days).toBe(7);
+    });
+  });
+
+  describe('createMaterialRate — Observation logging (Chunk 1)', () => {
+    it('logs a material_price Observation when a prior rate exists at a different price', async () => {
+      qbMocks.getOne.mockResolvedValue({ price: 1400 });
+
+      await service.createMaterialRate(buildInput({ price: 1550 }));
+
+      expect(obsCreateMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          metric: 'material_price',
+          old_value: '1400',
+          new_value: '1550',
+          source_ref: 'Al-Rehman Traders',
+          record_type: 'FACT',
+        }),
+      );
+      expect(obsSaveMock).toHaveBeenCalledTimes(1);
+    });
+
+    it('does not log an Observation when the price is unchanged from the prior rate', async () => {
+      qbMocks.getOne.mockResolvedValue({ price: 1550 });
+
+      await service.createMaterialRate(buildInput({ price: 1550 }));
+
+      expect(obsSaveMock).not.toHaveBeenCalled();
+    });
+
+    it('does not log an Observation when no prior rate exists for the material/city combo', async () => {
+      qbMocks.getOne.mockResolvedValue(null);
+
+      await service.createMaterialRate(buildInput());
+
+      expect(obsSaveMock).not.toHaveBeenCalled();
+    });
+
+    it('an Observation write failure does not break createMaterialRate', async () => {
+      qbMocks.getOne.mockResolvedValue({ price: 1400 });
+      obsSaveMock.mockRejectedValueOnce(new Error('db unavailable'));
+
+      await expect(service.createMaterialRate(buildInput({ price: 1550 }))).resolves.toMatchObject({
+        price: 1550,
+      });
     });
   });
 

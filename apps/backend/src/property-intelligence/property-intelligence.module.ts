@@ -4,13 +4,20 @@ import { SocietyEntity } from './entities/society.entity';
 import { PropertyEntity } from './entities/property.entity';
 import { DeveloperEntity } from './entities/developer.entity';
 import { CandidateSocietyEntity } from './entities/candidate-society.entity';
+import { ObservationEntity } from './entities/observation.entity';
 import { PropertyIntelligenceService } from './property-intelligence.service';
 import { PropertyIntelligenceController } from './property-intelligence.controller';
 import { TrustModule } from '../trust/trust.module';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([SocietyEntity, PropertyEntity, DeveloperEntity, CandidateSocietyEntity]),
+    TypeOrmModule.forFeature([
+      SocietyEntity,
+      PropertyEntity,
+      DeveloperEntity,
+      CandidateSocietyEntity,
+      ObservationEntity,
+    ]),
     TrustModule,
   ],
   controllers: [PropertyIntelligenceController],
