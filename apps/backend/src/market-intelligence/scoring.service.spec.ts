@@ -24,6 +24,7 @@ const baseSociety: SocietyResult = {
   is_stale: false,
   staleness_threshold_days: 30,
   record_type: 'FACT',
+  developer_id: null,
 };
 
 const affiliatedSociety: SocietyResult = {

@@ -40,6 +40,10 @@ const CreateSocietyBodySchema = z.object({
   is_siraat_affiliated: z.boolean(),
   affiliation_disclosure: z.string().nullable().default(null),
   noc_summary: z.string().nullable().default(null),
+  // Optional — how the developer_id ↔ Society link actually gets populated
+  // going forward. Never required; existing/new societies with no known
+  // developer stay developer_id: null.
+  developer_id: z.string().uuid().nullable().default(null),
   claim: z.string().min(1),
   claim_type: z.enum(CLAIM_TYPES),
   target_status: z.enum(['VERIFIED', 'PENDING']),
@@ -130,5 +134,12 @@ export class AdminController {
   @Get('material-rates')
   listMaterialRates(@Query('city') city?: string, @Query('material') material?: string) {
     return this.adminSvc.listMaterialRates({ city, material });
+  }
+
+  // DEVELOPER-SOCIETY LINK Chunk 3 — powers the admin new-society developer
+  // search-as-you-type field.
+  @Get('developers')
+  searchDevelopers(@Query('search') search?: string) {
+    return this.adminSvc.searchDevelopers(search ?? '');
   }
 }

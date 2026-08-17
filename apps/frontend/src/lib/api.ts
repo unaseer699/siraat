@@ -199,6 +199,7 @@ export interface CreateSocietyBody {
   is_siraat_affiliated: boolean;
   affiliation_disclosure: string | null;
   noc_summary: string | null;
+  developer_id: string | null;
   claim: string;
   claim_type: ClaimType;
   target_status: 'VERIFIED' | 'PENDING';
@@ -215,6 +216,17 @@ export interface AddClaimBody {
 export async function fetchCandidateSocieties(status?: string): Promise<CandidateSociety[]> {
   const qs = status ? `?status=${encodeURIComponent(status)}` : '';
   return apiFetch(`/v1/admin/candidate-societies${qs}`);
+}
+
+export interface DeveloperSearchResult {
+  id: string;
+  name: string;
+}
+
+// DEVELOPER-SOCIETY LINK Chunk 3 — powers the admin new-society developer
+// search-as-you-type field.
+export async function searchDevelopers(query: string): Promise<DeveloperSearchResult[]> {
+  return apiFetch(`/v1/admin/developers?search=${encodeURIComponent(query)}`);
 }
 
 export async function createSociety(

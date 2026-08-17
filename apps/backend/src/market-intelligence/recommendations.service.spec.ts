@@ -32,6 +32,7 @@ const mockSociety: SocietyResult = {
   is_stale: false,
   staleness_threshold_days: 30,
   record_type: 'FACT',
+  developer_id: null,
 };
 
 const affiliatedSociety: SocietyResult = {
@@ -52,6 +53,7 @@ const affiliatedSociety: SocietyResult = {
   is_stale: false,
   staleness_threshold_days: 30,
   record_type: 'FACT',
+  developer_id: null,
 };
 
 function makeScore(society: SocietyResult, override?: Partial<ScoreEntity>): ScoreEntity {
@@ -79,7 +81,10 @@ function makeScore(society: SocietyResult, override?: Partial<ScoreEntity>): Sco
 describe('RecommendationsService', () => {
   let svc: RecommendationsService;
   let piSvc: jest.Mocked<
-    Pick<PropertyIntelligenceService, 'findMatchingSocieties' | 'findSocietyById' | 'listDistinctCities'>
+    Pick<
+      PropertyIntelligenceService,
+      'findMatchingSocieties' | 'findSocietyById' | 'listDistinctCities' | 'findDeveloperById'
+    >
   >;
   let scoreSvc: jest.Mocked<Pick<ScoringService, 'computeAndSave' | 'findById'>>;
   let trustSvc: jest.Mocked<
@@ -95,6 +100,7 @@ describe('RecommendationsService', () => {
       findMatchingSocieties: jest.fn().mockResolvedValue([mockSociety]),
       findSocietyById: jest.fn().mockResolvedValue(mockSociety),
       listDistinctCities: jest.fn().mockResolvedValue([]),
+      findDeveloperById: jest.fn().mockResolvedValue(null),
     };
     scoreSvc = {
       computeAndSave: jest.fn().mockImplementation((s: SocietyResult) =>
@@ -242,6 +248,39 @@ describe('RecommendationsService', () => {
   it('getRecommendationDetail throws 404 for unknown id', async () => {
     scoreSvc.findById.mockResolvedValue(null);
     await expect(svc.getRecommendationDetail('non-existent-id')).rejects.toThrow(NotFoundException);
+  });
+
+  // ─── DEVELOPER-SOCIETY LINK Chunk 1 ────────────────────────────────────────
+
+  it('getRecommendationDetail returns developer_id: null and developer_name: null when the society has no linked developer', async () => {
+    const score = makeScore(mockSociety);
+    scoreSvc.findById.mockResolvedValue(score);
+    piSvc.findSocietyById.mockResolvedValue(mockSociety);
+
+    const detail = await svc.getRecommendationDetail(score.id);
+
+    expect(detail.developer_id).toBeNull();
+    expect(detail.developer_name).toBeNull();
+    expect(piSvc.findDeveloperById).not.toHaveBeenCalled();
+  });
+
+  it('getRecommendationDetail resolves developer_id and developer_name when the society has a linked developer', async () => {
+    const societyWithDeveloper = { ...mockSociety, developer_id: 'dev-a-uuid' };
+    const score = makeScore(societyWithDeveloper);
+    scoreSvc.findById.mockResolvedValue(score);
+    piSvc.findSocietyById.mockResolvedValue(societyWithDeveloper);
+    piSvc.findDeveloperById.mockResolvedValue({
+      id: 'dev-a-uuid',
+      name: 'Zameen Developers',
+      project_history: [],
+      is_siraat_affiliated: false,
+    });
+
+    const detail = await svc.getRecommendationDetail(score.id);
+
+    expect(piSvc.findDeveloperById).toHaveBeenCalledWith('dev-a-uuid');
+    expect(detail.developer_id).toBe('dev-a-uuid');
+    expect(detail.developer_name).toBe('Zameen Developers');
   });
 
   // ─── SAVE/SHARE Chunk 1 — GET /recommendations/{id}/export ────────────────
@@ -429,6 +468,32 @@ describe('RecommendationsService', () => {
     const result = await svc.getSocietyScore(mockSociety.id);
 
     expect(result.price_range).toEqual({ min: null, max: null });
+  });
+
+  // DEVELOPER-SOCIETY LINK Chunk 2 — mirrors the getRecommendationDetail tests above.
+
+  it('getSocietyScore returns developer_id: null and developer_name: null when the society has no linked developer', async () => {
+    const result = await svc.getSocietyScore(mockSociety.id);
+
+    expect(result.developer_id).toBeNull();
+    expect(result.developer_name).toBeNull();
+    expect(piSvc.findDeveloperById).not.toHaveBeenCalled();
+  });
+
+  it('getSocietyScore resolves developer_id and developer_name when the society has a linked developer', async () => {
+    piSvc.findSocietyById.mockResolvedValue({ ...mockSociety, developer_id: 'dev-a-uuid' });
+    piSvc.findDeveloperById.mockResolvedValue({
+      id: 'dev-a-uuid',
+      name: 'Zameen Developers',
+      project_history: [],
+      is_siraat_affiliated: false,
+    });
+
+    const result = await svc.getSocietyScore(mockSociety.id);
+
+    expect(piSvc.findDeveloperById).toHaveBeenCalledWith('dev-a-uuid');
+    expect(result.developer_id).toBe('dev-a-uuid');
+    expect(result.developer_name).toBe('Zameen Developers');
   });
 
   it('getSocietyScore returns 404 (NotFoundException) for a non-existent society id', async () => {

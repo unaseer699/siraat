@@ -62,6 +62,12 @@ export class SocietyEntity {
   @Column({ type: 'varchar', length: 10, default: 'FACT' })
   record_type: 'FACT' | 'GENERATED';
 
+  // UUID string, no SQL FK per Law 2 — references DeveloperEntity.id, which lives
+  // in the same property_intelligence schema, but Society and Developer remain
+  // independently owned rows with no cross-entity FK constraint between them.
+  @Column({ type: 'uuid', nullable: true })
+  developer_id: string | null;
+
   @CreateDateColumn()
   created_at: Date;
 

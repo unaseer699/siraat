@@ -171,6 +171,14 @@ export default async function SocietyProfilePage({ params }: Props) {
           <p style={{ fontSize: '13px', color: 'var(--muted)', marginTop: '4px' }}>
             {claims.length} verification claim{claims.length !== 1 ? 's' : ''} on record
           </p>
+          {score?.developer_id && (
+            <Link
+              href={`/developer/${score.developer_id}`}
+              style={{ fontSize: '13px', color: '#2563eb', fontWeight: 500, marginTop: '4px', display: 'inline-block' }}
+            >
+              Developed by {score.developer_name ?? 'Developer'} →
+            </Link>
+          )}
         </div>
 
         <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>

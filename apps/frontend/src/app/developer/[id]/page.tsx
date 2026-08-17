@@ -247,9 +247,9 @@ export default async function BuilderProfilePage({ params, searchParams }: PageP
           </div>
         )}
 
-        {/* Linked societies — always [] today (no developer_id on SocietyEntity
-            yet), but this activates automatically once that association exists,
-            same forward-compatible pattern as affiliation_disclosure. */}
+        {/* Linked societies — real data via SocietyEntity.developer_id
+            (DEVELOPER-SOCIETY LINK Chunk 1/2). Empty until an admin actually
+            links a society to this developer at onboarding. */}
         {stats && stats.linked_societies.length > 0 && (
           <div
             style={{

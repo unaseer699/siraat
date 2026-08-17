@@ -92,6 +92,13 @@ export class RecommendationsService {
     const society = await this.piSvc.findSocietyById(score.subject_id);
     if (!society) throw new NotFoundException(`Society ${score.subject_id} not found`);
 
+    // DEVELOPER-SOCIETY LINK Chunk 1 — society.developer_id is a plain UUID
+    // reference (no SQL FK per Law 2); resolve the name for display, null
+    // whenever no developer is linked.
+    const developer = society.developer_id
+      ? await this.piSvc.findDeveloperById(society.developer_id)
+      : null;
+
     const evidenceItems = await this.trustSvc.findEvidenceByIds(score.derived_from);
     const evidenceSummaries = evidenceItems.map((e) => ({
       id: e.id,
@@ -118,6 +125,8 @@ export class RecommendationsService {
       record_type: 'GENERATED',
       computed_at: score.computed_at.toISOString(),
       breakdown: score.breakdown ?? null,
+      developer_id: society.developer_id,
+      developer_name: developer?.name ?? null,
     };
   }
 
@@ -142,6 +151,13 @@ export class RecommendationsService {
     // Reuses the existing staleness-window caching logic — no new scoring code.
     const score = await this.scoreSvc.computeAndSave(society);
 
+    // DEVELOPER-SOCIETY LINK Chunk 2 — same resolution as getRecommendationDetail
+    // above: plain UUID reference (no SQL FK per Law 2), null whenever no
+    // developer is linked.
+    const developer = society.developer_id
+      ? await this.piSvc.findDeveloperById(society.developer_id)
+      : null;
+
     return {
       society_id: society.id,
       society_name: society.name,
@@ -158,6 +174,8 @@ export class RecommendationsService {
         min: this.toNullableNumber(society.min_area_marla),
         max: this.toNullableNumber(society.max_area_marla),
       },
+      developer_id: society.developer_id,
+      developer_name: developer?.name ?? null,
     };
   }
 
