@@ -151,6 +151,13 @@ export class RecommendationsService {
     // Reuses the existing staleness-window caching logic — no new scoring code.
     const score = await this.scoreSvc.computeAndSave(society);
 
+    // DEVELOPER-SOCIETY LINK Chunk 2 — same resolution as getRecommendationDetail
+    // above: plain UUID reference (no SQL FK per Law 2), null whenever no
+    // developer is linked.
+    const developer = society.developer_id
+      ? await this.piSvc.findDeveloperById(society.developer_id)
+      : null;
+
     return {
       society_id: society.id,
       society_name: society.name,
@@ -167,6 +174,8 @@ export class RecommendationsService {
         min: this.toNullableNumber(society.min_area_marla),
         max: this.toNullableNumber(society.max_area_marla),
       },
+      developer_id: society.developer_id,
+      developer_name: developer?.name ?? null,
     };
   }
 

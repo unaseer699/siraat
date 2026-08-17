@@ -160,6 +160,11 @@ export const SocietyScoreResponseSchema = z.object({
   // without a second endpoint or client-side caching.
   price_range: NumericRangeSchema,
   area_range: NumericRangeSchema,
+  // DEVELOPER-SOCIETY LINK Chunk 2 — same pattern as RecommendationDetail
+  // above: sourced from the Society's developer_id (plain UUID reference, no
+  // SQL FK per Law 2). developer_name is null whenever developer_id is null.
+  developer_id: z.string().uuid().nullable(),
+  developer_name: z.string().nullable(),
 });
 export type SocietyScoreResponse = z.infer<typeof SocietyScoreResponseSchema>;
 

@@ -135,4 +135,11 @@ export class AdminController {
   listMaterialRates(@Query('city') city?: string, @Query('material') material?: string) {
     return this.adminSvc.listMaterialRates({ city, material });
   }
+
+  // DEVELOPER-SOCIETY LINK Chunk 3 — powers the admin new-society developer
+  // search-as-you-type field.
+  @Get('developers')
+  searchDevelopers(@Query('search') search?: string) {
+    return this.adminSvc.searchDevelopers(search ?? '');
+  }
 }

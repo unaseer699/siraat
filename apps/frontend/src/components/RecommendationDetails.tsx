@@ -144,6 +144,14 @@ export function RecommendationDetails({ detail }: Props) {
         >
           {detail.society_name}
         </Link>
+        {detail.developer_id && (
+          <Link
+            href={`/developer/${detail.developer_id}`}
+            style={{ color: 'var(--muted)', marginTop: '4px', display: 'block' }}
+          >
+            by {detail.developer_name ?? 'Developer'}
+          </Link>
+        )}
         <p style={{ fontSize: '24px', fontWeight: 700, marginTop: '8px' }}>
           {formatPKR(detail.price)}
         </p>

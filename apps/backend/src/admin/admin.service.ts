@@ -178,4 +178,9 @@ export class AdminService {
   async listMaterialRates(filters: { city?: string; material?: string }): Promise<MaterialRateResult[]> {
     return this.ciSvc.listMaterialRates(filters);
   }
+
+  // DEVELOPER-SOCIETY LINK Chunk 3 — GET /v1/admin/developers?search=
+  async searchDevelopers(query: string): Promise<{ id: string; name: string }[]> {
+    return this.piSvc.searchDevelopers(query);
+  }
 }

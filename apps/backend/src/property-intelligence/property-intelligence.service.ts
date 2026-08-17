@@ -1,6 +1,6 @@
 import { BadRequestException, Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { In, MoreThan, Repository } from 'typeorm';
+import { ILike, In, MoreThan, Repository } from 'typeorm';
 import type { ParsedIntent } from '@siraat/shared-types';
 import type {
   PropertyDetail,
@@ -21,6 +21,10 @@ import { ObservationEntity } from './entities/observation.entity';
 // request — an unbounded society_ids[] would mean an unbounded fan-out of per-society
 // Trust calls below. Rejected outright with a clear error rather than silently truncated.
 const MAX_CHANGES_BATCH_SIZE = 20;
+
+// DEVELOPER-SOCIETY LINK Chunk 3: caps GET /admin/developers?search= results —
+// a broad query (e.g. a single letter) must never dump the whole developers table.
+const DEVELOPER_SEARCH_LIMIT = 10;
 
 export interface SocietyResult {
   id: string;
@@ -246,6 +250,21 @@ export class PropertyIntelligenceService {
       property_type: property.property_type,
       area_marla: Number(property.area_marla),
     };
+  }
+
+  // DEVELOPER-SOCIETY LINK Chunk 3 — powers the admin new-society developer
+  // search-as-you-type field. Case-insensitive substring match; a blank/whitespace
+  // query returns [] rather than the whole table.
+  async searchDevelopers(query: string): Promise<{ id: string; name: string }[]> {
+    const trimmed = query.trim();
+    if (!trimmed) return [];
+
+    const results = await this.developerRepo.find({
+      where: { name: ILike(`%${trimmed}%`) },
+      order: { name: 'ASC' },
+      take: DEVELOPER_SEARCH_LIMIT,
+    });
+    return results.map((d) => ({ id: d.id, name: d.name }));
   }
 
   async findDeveloperById(id: string): Promise<DeveloperProfile | null> {

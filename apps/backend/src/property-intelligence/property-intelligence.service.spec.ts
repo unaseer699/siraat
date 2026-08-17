@@ -1,6 +1,6 @@
 import { Test } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
-import { In, MoreThan } from 'typeorm';
+import { ILike, In, MoreThan } from 'typeorm';
 import { BadRequestException } from '@nestjs/common';
 import { PropertyIntelligenceService } from './property-intelligence.service';
 import { SocietyEntity } from './entities/society.entity';
@@ -31,6 +31,7 @@ describe('PropertyIntelligenceService', () => {
   let societyCreateMock: jest.Mock;
   let societySaveMock: jest.Mock;
   let developerFindOneByMock: jest.Mock;
+  let developerFindMock: jest.Mock;
 
   beforeEach(async () => {
     qbMocks = {
@@ -59,6 +60,7 @@ describe('PropertyIntelligenceService', () => {
     societyCreateMock = jest.fn((data) => data);
     societySaveMock = jest.fn((entity) => Promise.resolve({ id: 'soc-new-uuid', ...entity }));
     developerFindOneByMock = jest.fn().mockResolvedValue(null);
+    developerFindMock = jest.fn().mockResolvedValue([]);
 
     const module = await Test.createTestingModule({
       providers: [
@@ -76,7 +78,7 @@ describe('PropertyIntelligenceService', () => {
         { provide: getRepositoryToken(PropertyEntity), useValue: {} },
         {
           provide: getRepositoryToken(DeveloperEntity),
-          useValue: { findOneBy: developerFindOneByMock },
+          useValue: { findOneBy: developerFindOneByMock, find: developerFindMock },
         },
         {
           provide: getRepositoryToken(ObservationEntity),
@@ -283,6 +285,48 @@ describe('PropertyIntelligenceService', () => {
       societyFindByMock.mockResolvedValue([]);
 
       const result = await service.findSocietiesByDeveloperId('dev-a-uuid');
+
+      expect(result).toEqual([]);
+    });
+  });
+
+  // ─── DEVELOPER-SOCIETY LINK Chunk 3 ──────────────────────────────────────────
+
+  describe('searchDevelopers', () => {
+    it('returns matching developers (id, name only) for a non-empty query', async () => {
+      developerFindMock.mockResolvedValue([
+        { id: 'dev-a-uuid', name: 'Zameen Developers', project_history: [], is_siraat_affiliated: false },
+      ]);
+
+      const result = await service.searchDevelopers('zameen');
+
+      expect(result).toEqual([{ id: 'dev-a-uuid', name: 'Zameen Developers' }]);
+    });
+
+    it('performs a case-insensitive substring match capped at the search limit', async () => {
+      await service.searchDevelopers('zam');
+
+      expect(developerFindMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { name: ILike('%zam%') },
+          take: 10,
+        }),
+      );
+    });
+
+    it('returns [] for an empty or whitespace-only query, without hitting the repository', async () => {
+      const empty = await service.searchDevelopers('');
+      const whitespace = await service.searchDevelopers('   ');
+
+      expect(empty).toEqual([]);
+      expect(whitespace).toEqual([]);
+      expect(developerFindMock).not.toHaveBeenCalled();
+    });
+
+    it('returns [] when no developer name matches', async () => {
+      developerFindMock.mockResolvedValue([]);
+
+      const result = await service.searchDevelopers('no-such-developer');
 
       expect(result).toEqual([]);
     });

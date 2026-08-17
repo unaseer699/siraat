@@ -1,9 +1,9 @@
 'use client';
 
-import { Suspense, useState, type CSSProperties, type FormEvent } from 'react';
+import { Suspense, useEffect, useRef, useState, type CSSProperties, type FormEvent } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
-import { createSociety, type AdminEvidenceItem, type ClaimType } from '@/lib/api';
+import { createSociety, searchDevelopers, type AdminEvidenceItem, type ClaimType, type DeveloperSearchResult } from '@/lib/api';
 import { EvidenceEditor } from '../EvidenceEditor';
 import {
   CLAIM_TYPE_OPTIONS,
@@ -17,6 +17,145 @@ function optionalNumber(v: string): number | null {
   if (!v.trim()) return null;
   const n = Number(v);
   return Number.isFinite(n) ? n : null;
+}
+
+// DEVELOPER-SOCIETY LINK Chunk 3 — search-as-you-type over GET /admin/developers.
+// The operator only ever sees developer names; the selected UUID is tracked
+// internally (developerId) and never rendered back into the input.
+function DeveloperSearchField({
+  query,
+  onQueryChange,
+  developerId,
+  onSelect,
+  onClear,
+}: {
+  query: string;
+  onQueryChange: (v: string) => void;
+  developerId: string | null;
+  onSelect: (result: DeveloperSearchResult) => void;
+  onClear: () => void;
+}) {
+  const [results, setResults] = useState<DeveloperSearchResult[]>([]);
+  const [searching, setSearching] = useState(false);
+  const requestId = useRef(0);
+
+  useEffect(() => {
+    const trimmed = query.trim();
+    if (!trimmed || developerId) {
+      setResults([]);
+      setSearching(false);
+      return;
+    }
+
+    setSearching(true);
+    const id = ++requestId.current;
+    const timer = setTimeout(async () => {
+      try {
+        const found = await searchDevelopers(trimmed);
+        if (id === requestId.current) setResults(found);
+      } catch {
+        if (id === requestId.current) setResults([]);
+      } finally {
+        if (id === requestId.current) setSearching(false);
+      }
+    }, 300);
+
+    return () => clearTimeout(timer);
+  }, [query, developerId]);
+
+  const showDropdown = !developerId && query.trim().length > 0 && (searching || results.length > 0);
+
+  return (
+    <div style={{ ...fieldGroupStyle, position: 'relative' }}>
+      <label style={labelStyle}>Developer (optional)</label>
+      <div style={{ display: 'flex', gap: '8px' }}>
+        <input
+          type="text"
+          value={query}
+          onChange={(e) => onQueryChange(e.target.value)}
+          placeholder="Start typing a developer name…"
+          autoComplete="off"
+          style={{ ...inputStyle, flex: 1 }}
+        />
+        {developerId && (
+          <button
+            type="button"
+            onClick={onClear}
+            style={{
+              padding: '0 12px',
+              border: '1px solid var(--border)',
+              borderRadius: 'var(--radius)',
+              background: '#fff',
+              fontSize: '13px',
+              color: 'var(--muted)',
+              cursor: 'pointer',
+            }}
+          >
+            Clear
+          </button>
+        )}
+      </div>
+
+      {developerId ? (
+        <p style={{ fontSize: '12px', color: '#166534' }}>✓ Linked — this society will show under this developer&apos;s profile.</p>
+      ) : (
+        <p style={{ fontSize: '12px', color: 'var(--muted)' }}>
+          Leave blank if the developer is unknown. Select a match to link it.
+        </p>
+      )}
+
+      {showDropdown && (
+        <ul
+          style={{
+            position: 'absolute',
+            top: '100%',
+            left: 0,
+            right: 0,
+            zIndex: 10,
+            margin: 0,
+            marginTop: '4px',
+            padding: '4px',
+            listStyle: 'none',
+            background: '#fff',
+            border: '1px solid var(--border)',
+            borderRadius: 'var(--radius)',
+            boxShadow: '0 4px 12px rgba(0,0,0,0.08)',
+            maxHeight: '220px',
+            overflowY: 'auto',
+          }}
+        >
+          {searching && (
+            <li style={{ padding: '8px 10px', fontSize: '13px', color: 'var(--muted)' }}>Searching…</li>
+          )}
+          {!searching && results.length === 0 && (
+            <li style={{ padding: '8px 10px', fontSize: '13px', color: 'var(--muted)' }}>No matching developers</li>
+          )}
+          {!searching &&
+            results.map((r) => (
+              <li key={r.id}>
+                <button
+                  type="button"
+                  onClick={() => onSelect(r)}
+                  style={{
+                    width: '100%',
+                    textAlign: 'left',
+                    padding: '8px 10px',
+                    border: 'none',
+                    background: 'transparent',
+                    fontSize: '14px',
+                    cursor: 'pointer',
+                    borderRadius: '6px',
+                  }}
+                  onMouseDown={(e) => e.preventDefault()}
+                >
+                  {r.name}
+                </button>
+              </li>
+            ))}
+        </ul>
+      )}
+    </div>
+  );
 }
 
 function NewSocietyForm() {
@@ -34,6 +173,8 @@ function NewSocietyForm() {
   const [isAffiliated, setIsAffiliated] = useState(false);
   const [affiliationDisclosure, setAffiliationDisclosure] = useState('');
   const [nocSummary, setNocSummary] = useState('');
+  const [developerQuery, setDeveloperQuery] = useState('');
+  const [developerId, setDeveloperId] = useState<string | null>(null);
   const [claim, setClaim] = useState('');
   const [claimType, setClaimType] = useState<ClaimType>('NOC');
   const [targetStatus, setTargetStatus] = useState<'VERIFIED' | 'PENDING'>('PENDING');
@@ -58,6 +199,22 @@ function NewSocietyForm() {
   const canSubmit =
     name.trim() && city.trim() && claim.trim() && confidenceValid && evidenceOk && affiliationOk;
 
+  function handleDeveloperSelect(r: DeveloperSearchResult) {
+    setDeveloperId(r.id);
+    setDeveloperQuery(r.name);
+  }
+
+  function handleDeveloperQueryChange(v: string) {
+    setDeveloperQuery(v);
+    // Any edit invalidates a prior selection — must re-select to link again.
+    setDeveloperId(null);
+  }
+
+  function handleDeveloperClear() {
+    setDeveloperId(null);
+    setDeveloperQuery('');
+  }
+
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
     if (!canSubmit) return;
@@ -77,6 +234,7 @@ function NewSocietyForm() {
         is_siraat_affiliated: isAffiliated,
         affiliation_disclosure: isAffiliated ? affiliationDisclosure.trim() : null,
         noc_summary: nocSummary.trim() || null,
+        developer_id: developerId,
         claim: claim.trim(),
         claim_type: claimType,
         target_status: targetStatus,
@@ -202,6 +360,14 @@ function NewSocietyForm() {
                   style={{ ...inputStyle, resize: 'vertical' }}
                 />
               </div>
+
+              <DeveloperSearchField
+                query={developerQuery}
+                onQueryChange={handleDeveloperQueryChange}
+                developerId={developerId}
+                onSelect={handleDeveloperSelect}
+                onClear={handleDeveloperClear}
+              />
 
               <div style={fieldGroupStyle}>
                 <label style={labelStyle}>Base confidence (0.0–1.0)</label>

@@ -102,6 +102,7 @@ describe('AdminService', () => {
   // PropertyIntelligenceService mocks
   let createSocietyMock: jest.Mock;
   let findSocietyByIdMock: jest.Mock;
+  let searchDevelopersMock: jest.Mock;
 
   // TrustService mocks
   let createVerificationMock: jest.Mock;
@@ -122,6 +123,7 @@ describe('AdminService', () => {
   beforeEach(async () => {
     createSocietyMock          = jest.fn().mockResolvedValue(SOCIETY_RESULT);
     findSocietyByIdMock        = jest.fn().mockResolvedValue(SOCIETY_RESULT);
+    searchDevelopersMock       = jest.fn().mockResolvedValue([]);
     createVerificationMock     = jest.fn().mockResolvedValue(VERIFICATION_ENTITY);
     createAndLinkEvidenceMock  = jest.fn().mockResolvedValue(EVIDENCE_ENTITY);
     promoteVerificationToVerifiedMock = jest.fn().mockResolvedValue(VERIFIED_ENTITY);
@@ -139,8 +141,9 @@ describe('AdminService', () => {
         {
           provide: PropertyIntelligenceService,
           useValue: {
-            createSociety:   createSocietyMock,
-            findSocietyById: findSocietyByIdMock,
+            createSociety:    createSocietyMock,
+            findSocietyById:  findSocietyByIdMock,
+            searchDevelopers: searchDevelopersMock,
           },
         },
         {
@@ -398,6 +401,17 @@ describe('AdminService', () => {
     const result = await svc.listMaterialRates({ city: 'Islamabad', material: 'Cement' });
     expect(listMaterialRatesMock).toHaveBeenCalledWith({ city: 'Islamabad', material: 'Cement' });
     expect(result).toEqual([MATERIAL_RATE_RESULT]);
+  });
+
+  // ─── DEVELOPER-SOCIETY LINK Chunk 3 ────────────────────────────────────────
+
+  it('searchDevelopers delegates to PropertyIntelligenceService.searchDevelopers', async () => {
+    searchDevelopersMock.mockResolvedValue([{ id: 'dev-a-uuid', name: 'Zameen Developers' }]);
+
+    const result = await svc.searchDevelopers('zameen');
+
+    expect(searchDevelopersMock).toHaveBeenCalledWith('zameen');
+    expect(result).toEqual([{ id: 'dev-a-uuid', name: 'Zameen Developers' }]);
   });
 
   // ─── Auth guard (controller-level wiring check) ───────────────────────────

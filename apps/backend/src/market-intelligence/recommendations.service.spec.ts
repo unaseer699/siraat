@@ -470,6 +470,32 @@ describe('RecommendationsService', () => {
     expect(result.price_range).toEqual({ min: null, max: null });
   });
 
+  // DEVELOPER-SOCIETY LINK Chunk 2 — mirrors the getRecommendationDetail tests above.
+
+  it('getSocietyScore returns developer_id: null and developer_name: null when the society has no linked developer', async () => {
+    const result = await svc.getSocietyScore(mockSociety.id);
+
+    expect(result.developer_id).toBeNull();
+    expect(result.developer_name).toBeNull();
+    expect(piSvc.findDeveloperById).not.toHaveBeenCalled();
+  });
+
+  it('getSocietyScore resolves developer_id and developer_name when the society has a linked developer', async () => {
+    piSvc.findSocietyById.mockResolvedValue({ ...mockSociety, developer_id: 'dev-a-uuid' });
+    piSvc.findDeveloperById.mockResolvedValue({
+      id: 'dev-a-uuid',
+      name: 'Zameen Developers',
+      project_history: [],
+      is_siraat_affiliated: false,
+    });
+
+    const result = await svc.getSocietyScore(mockSociety.id);
+
+    expect(piSvc.findDeveloperById).toHaveBeenCalledWith('dev-a-uuid');
+    expect(result.developer_id).toBe('dev-a-uuid');
+    expect(result.developer_name).toBe('Zameen Developers');
+  });
+
   it('getSocietyScore returns 404 (NotFoundException) for a non-existent society id', async () => {
     piSvc.findSocietyById.mockResolvedValue(null);
 
