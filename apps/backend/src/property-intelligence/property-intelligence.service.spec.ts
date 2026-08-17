@@ -27,6 +27,9 @@ describe('PropertyIntelligenceService', () => {
   let obsSaveMock: jest.Mock;
   let obsFindMock: jest.Mock;
   let societyFindOneByMock: jest.Mock;
+  let societyFindByMock: jest.Mock;
+  let societyCreateMock: jest.Mock;
+  let societySaveMock: jest.Mock;
   let developerFindOneByMock: jest.Mock;
 
   beforeEach(async () => {
@@ -52,6 +55,9 @@ describe('PropertyIntelligenceService', () => {
     obsSaveMock = jest.fn((entity) => Promise.resolve({ id: 'new-obs-uuid', ...entity }));
     obsFindMock = jest.fn().mockResolvedValue([]);
     societyFindOneByMock = jest.fn().mockResolvedValue(null);
+    societyFindByMock = jest.fn().mockResolvedValue([]);
+    societyCreateMock = jest.fn((data) => data);
+    societySaveMock = jest.fn((entity) => Promise.resolve({ id: 'soc-new-uuid', ...entity }));
     developerFindOneByMock = jest.fn().mockResolvedValue(null);
 
     const module = await Test.createTestingModule({
@@ -59,7 +65,13 @@ describe('PropertyIntelligenceService', () => {
         PropertyIntelligenceService,
         {
           provide: getRepositoryToken(SocietyEntity),
-          useValue: { createQueryBuilder: jest.fn(() => qbMocks), findOneBy: societyFindOneByMock },
+          useValue: {
+            createQueryBuilder: jest.fn(() => qbMocks),
+            findOneBy: societyFindOneByMock,
+            findBy: societyFindByMock,
+            create: societyCreateMock,
+            save: societySaveMock,
+          },
         },
         { provide: getRepositoryToken(PropertyEntity), useValue: {} },
         {
@@ -211,6 +223,71 @@ describe('PropertyIntelligenceService', () => {
     });
   });
 
+  // ─── DEVELOPER-SOCIETY LINK Chunk 1 ──────────────────────────────────────────
+
+  describe('createSociety', () => {
+    function buildInput(overrides: object = {}) {
+      return {
+        name: 'Test Society',
+        city: 'Islamabad',
+        min_price: null,
+        max_price: null,
+        min_area_marla: null,
+        max_area_marla: null,
+        property_types: ['PLOT'],
+        noc_approved: false,
+        base_confidence: 0.5,
+        is_siraat_affiliated: false,
+        affiliation_disclosure: null,
+        noc_summary: null,
+        developer_id: null,
+        ...overrides,
+      };
+    }
+
+    it('stores developer_id when provided', async () => {
+      const result = await service.createSociety(buildInput({ developer_id: 'dev-a-uuid' }));
+
+      expect(societyCreateMock).toHaveBeenCalledWith(
+        expect.objectContaining({ developer_id: 'dev-a-uuid' }),
+      );
+      expect(result.developer_id).toBe('dev-a-uuid');
+    });
+
+    // Regression: most existing fixtures/callers won't set this field.
+    it('a society with developer_id: null still works correctly', async () => {
+      const result = await service.createSociety(buildInput());
+
+      expect(societyCreateMock).toHaveBeenCalledWith(
+        expect.objectContaining({ developer_id: null }),
+      );
+      expect(result.developer_id).toBeNull();
+    });
+  });
+
+  describe('findSocietiesByDeveloperId', () => {
+    it('returns every society linked to a developer with 2+ linked societies', async () => {
+      societyFindByMock.mockResolvedValue([
+        { id: 'soc-a-uuid', name: 'Green Valley', city: 'Islamabad', developer_id: 'dev-a-uuid' },
+        { id: 'soc-b-uuid', name: 'Green Valley Phase 2', city: 'Islamabad', developer_id: 'dev-a-uuid' },
+      ]);
+
+      const result = await service.findSocietiesByDeveloperId('dev-a-uuid');
+
+      expect(societyFindByMock).toHaveBeenCalledWith({ developer_id: 'dev-a-uuid' });
+      expect(result).toHaveLength(2);
+      expect(result.map((s) => s.id)).toEqual(['soc-a-uuid', 'soc-b-uuid']);
+    });
+
+    it('returns [] for a developer with no linked societies', async () => {
+      societyFindByMock.mockResolvedValue([]);
+
+      const result = await service.findSocietiesByDeveloperId('dev-a-uuid');
+
+      expect(result).toEqual([]);
+    });
+  });
+
   // ─── DEVELOPER PROFILE Chunk 1 ────────────────────────────────────────────────
 
   describe('getDeveloperStats', () => {
@@ -278,16 +355,38 @@ describe('PropertyIntelligenceService', () => {
       });
     });
 
-    // No data path currently associates a Developer with specific Societies
-    // (SocietyEntity has no developer_id field) — must be [], never fabricated.
-    it('returns linked_societies: [] given no current data association', async () => {
+    it('returns linked_societies: [] for a developer with no linked societies', async () => {
       developerFindOneByMock.mockResolvedValue(DEV_A);
       deriveVerificationStatusMock.mockResolvedValue('PENDING');
       trustGetVerificationsMock.mockResolvedValue([]);
+      societyFindByMock.mockResolvedValue([]);
 
       const result = await service.getDeveloperStats(DEV_A.id!);
 
       expect(result!.linked_societies).toEqual([]);
+    });
+
+    // DEVELOPER-SOCIETY LINK Chunk 1 — real linked_societies via
+    // findSocietiesByDeveloperId, no longer hardcoded to [].
+    it('returns real linked_societies, each with its own derived verification_status', async () => {
+      developerFindOneByMock.mockResolvedValue(DEV_A);
+      trustGetVerificationsMock.mockResolvedValue([]);
+      societyFindByMock.mockResolvedValue([
+        { id: 'soc-a-uuid', name: 'Green Valley Phase 1', city: 'Islamabad', developer_id: DEV_A.id },
+        { id: 'soc-b-uuid', name: 'Green Valley Phase 2', city: 'Islamabad', developer_id: DEV_A.id },
+      ]);
+      deriveVerificationStatusMock.mockImplementation((subjectType: string, subjectId: string) => {
+        if (subjectType === 'DEVELOPER') return Promise.resolve('PARTIAL');
+        return Promise.resolve(subjectId === 'soc-a-uuid' ? 'VERIFIED' : 'PENDING');
+      });
+
+      const result = await service.getDeveloperStats(DEV_A.id!);
+
+      expect(societyFindByMock).toHaveBeenCalledWith({ developer_id: DEV_A.id });
+      expect(result!.linked_societies).toEqual([
+        { id: 'soc-a-uuid', name: 'Green Valley Phase 1', city: 'Islamabad', verification_status: 'VERIFIED' },
+        { id: 'soc-b-uuid', name: 'Green Valley Phase 2', city: 'Islamabad', verification_status: 'PENDING' },
+      ]);
     });
   });
 

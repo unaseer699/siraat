@@ -6,6 +6,7 @@ import type {
   PropertyDetail,
   DeveloperProfile,
   DeveloperStats,
+  LinkedSociety,
   SocietyListResponse,
   SocietyChangesResponse,
   SocietyChangeSummary,
@@ -39,6 +40,7 @@ export interface SocietyResult {
   is_stale: boolean;
   staleness_threshold_days: number;
   record_type: 'FACT' | 'GENERATED';
+  developer_id: string | null;
 }
 
 function toSocietyResult(e: SocietyEntity): SocietyResult {
@@ -60,6 +62,7 @@ function toSocietyResult(e: SocietyEntity): SocietyResult {
     is_stale: e.is_stale,
     staleness_threshold_days: e.staleness_threshold_days,
     record_type: e.record_type,
+    developer_id: e.developer_id,
   };
 }
 
@@ -114,6 +117,9 @@ export class PropertyIntelligenceService {
     is_siraat_affiliated: boolean;
     affiliation_disclosure: string | null;
     noc_summary: string | null;
+    // Optional — most societies still onboard without a known developer.
+    // Never required; a plain UUID reference, no SQL FK per Law 2.
+    developer_id: string | null;
   }): Promise<SocietyResult> {
     const entity = this.societyRepo.create({
       ...data,
@@ -129,6 +135,13 @@ export class PropertyIntelligenceService {
   async findSocietyById(id: string): Promise<SocietyResult | null> {
     const entity = await this.societyRepo.findOneBy({ id });
     return entity ? toSocietyResult(entity) : null;
+  }
+
+  // DEVELOPER-SOCIETY LINK Chunk 1 — powers linked_societies on the Developer
+  // Profile endpoint (getDeveloperStats below).
+  async findSocietiesByDeveloperId(developerId: string): Promise<SocietyResult[]> {
+    const entities = await this.societyRepo.findBy({ developer_id: developerId });
+    return entities.map(toSocietyResult);
   }
 
   async findMatchingSocieties(criteria: ParsedIntent): Promise<SocietyResult[]> {
@@ -246,29 +259,39 @@ export class PropertyIntelligenceService {
     };
   }
 
-  // ─── DEVELOPER PROFILE Chunk 1 ──────────────────────────────────────────────
+  // ─── DEVELOPER PROFILE Chunk 1 / DEVELOPER-SOCIETY LINK Chunk 1 ────────────
 
-  // linked_societies is always [] — no data path currently associates a Developer
-  // with specific Societies (SocietyEntity has no developer_id field; flagged and
-  // deferred during the navigation audit). Do not infer/guess this association;
-  // populate it only once it actually exists in the data model.
+  // linked_societies now comes from findSocietiesByDeveloperId (SocietyEntity.
+  // developer_id, added in DEVELOPER-SOCIETY LINK Chunk 1) — real, not hardcoded.
+  // Each linked society's verification_status is derived the same way Browse
+  // derives it (via TrustService, not re-implemented here).
   async getDeveloperStats(id: string): Promise<DeveloperStats | null> {
     const dev = await this.developerRepo.findOneBy({ id });
     if (!dev) return null;
 
-    const [verification_status, verifications] = await Promise.all([
+    const [verification_status, verifications, linkedSocietyRows] = await Promise.all([
       this.trustSvc.deriveVerificationStatus('DEVELOPER', id),
       this.trustSvc.getVerifications('DEVELOPER', id),
+      this.findSocietiesByDeveloperId(id),
     ]);
 
     const evidence_count = verifications.reduce((sum, v) => sum + v.evidence.length, 0);
+
+    const linked_societies: LinkedSociety[] = await Promise.all(
+      linkedSocietyRows.map(async (s) => ({
+        id: s.id,
+        name: s.name,
+        city: s.city,
+        verification_status: await this.trustSvc.deriveVerificationStatus('SOCIETY', s.id),
+      })),
+    );
 
     return {
       developer_id: dev.id,
       developer_name: dev.name,
       verification_status,
       project_history: dev.project_history,
-      linked_societies: [],
+      linked_societies,
       evidence_count,
       is_siraat_affiliated: dev.is_siraat_affiliated,
     };

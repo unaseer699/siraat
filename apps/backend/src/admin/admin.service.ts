@@ -32,6 +32,7 @@ export interface CreateSocietyInput {
   is_siraat_affiliated: boolean;
   affiliation_disclosure: string | null;
   noc_summary: string | null;
+  developer_id: string | null;
   claim: string;
   claim_type: ClaimType;
   target_status: 'VERIFIED' | 'PENDING';
@@ -89,6 +90,7 @@ export class AdminService {
       is_siraat_affiliated: data.is_siraat_affiliated,
       affiliation_disclosure: data.affiliation_disclosure,
       noc_summary: data.noc_summary,
+      developer_id: data.developer_id,
     });
 
     // Create PENDING verification first so createAndLinkEvidence can find and update it

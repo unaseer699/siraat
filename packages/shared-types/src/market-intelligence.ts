@@ -127,6 +127,11 @@ export const RecommendationDetailSchema = z.object({
   record_type: RecordTypeSchema,
   computed_at: z.string().datetime(),
   breakdown: ScoreBreakdownSchema.nullable(),
+  // DEVELOPER-SOCIETY LINK Chunk 1 — sourced from the Society's developer_id
+  // (plain UUID reference, no SQL FK per Law 2). developer_name is resolved
+  // from the Developer record and is null whenever developer_id is null.
+  developer_id: z.string().uuid().nullable(),
+  developer_name: z.string().nullable(),
 });
 export type RecommendationDetail = z.infer<typeof RecommendationDetailSchema>;
 

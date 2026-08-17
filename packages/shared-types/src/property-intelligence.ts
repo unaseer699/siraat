@@ -48,11 +48,11 @@ export interface SocietyListResponse {
   total_pages: number;
 }
 
-// ─── DEVELOPER PROFILE Chunk 1 ───────────────────────────────────────────────
-// linked_societies is always [] for now — no data path associates a Developer
-// with specific Societies yet (SocietyEntity has no developer_id field, flagged
-// and deferred during the navigation audit). Populate this only once that
-// association actually exists in the data model; never infer/guess it.
+// ─── DEVELOPER PROFILE Chunk 1 / DEVELOPER-SOCIETY LINK Chunk 1 ─────────────
+// linked_societies is populated from SocietyEntity.developer_id (added in
+// DEVELOPER-SOCIETY LINK Chunk 1) — a plain UUID string reference, no SQL FK
+// per Law 2. Existing societies created before that column existed simply
+// have developer_id: null and never appear here.
 
 export interface LinkedSociety {
   id: string;

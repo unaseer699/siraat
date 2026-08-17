@@ -92,6 +92,13 @@ export class RecommendationsService {
     const society = await this.piSvc.findSocietyById(score.subject_id);
     if (!society) throw new NotFoundException(`Society ${score.subject_id} not found`);
 
+    // DEVELOPER-SOCIETY LINK Chunk 1 — society.developer_id is a plain UUID
+    // reference (no SQL FK per Law 2); resolve the name for display, null
+    // whenever no developer is linked.
+    const developer = society.developer_id
+      ? await this.piSvc.findDeveloperById(society.developer_id)
+      : null;
+
     const evidenceItems = await this.trustSvc.findEvidenceByIds(score.derived_from);
     const evidenceSummaries = evidenceItems.map((e) => ({
       id: e.id,
@@ -118,6 +125,8 @@ export class RecommendationsService {
       record_type: 'GENERATED',
       computed_at: score.computed_at.toISOString(),
       breakdown: score.breakdown ?? null,
+      developer_id: society.developer_id,
+      developer_name: developer?.name ?? null,
     };
   }
 

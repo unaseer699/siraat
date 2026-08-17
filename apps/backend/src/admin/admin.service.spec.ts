@@ -85,6 +85,7 @@ function buildSocietyInput(overrides: object = {}) {
     is_siraat_affiliated: false,
     affiliation_disclosure: null,
     noc_summary: null,
+    developer_id: null,
     claim: 'NOC Approved by CDA',
     claim_type: 'NOC' as const,
     target_status: 'PENDING' as const,
@@ -199,6 +200,23 @@ describe('AdminService', () => {
     );
     expect(promoteVerificationToVerifiedMock).not.toHaveBeenCalled();
     expect(result.society_id).toBe(SOCIETY_ID);
+  });
+
+  it('passes developer_id through to PropertyIntelligenceService.createSociety when provided', async () => {
+    await svc.createSocietyWithFirstClaim(buildSocietyInput({ developer_id: 'dev-a-uuid' }));
+
+    expect(createSocietyMock).toHaveBeenCalledWith(
+      expect.objectContaining({ developer_id: 'dev-a-uuid' }),
+    );
+  });
+
+  // Regression: most existing callers won't set this field.
+  it('passes developer_id: null through when not provided', async () => {
+    await svc.createSocietyWithFirstClaim(buildSocietyInput());
+
+    expect(createSocietyMock).toHaveBeenCalledWith(
+      expect.objectContaining({ developer_id: null }),
+    );
   });
 
   it('links evidence and promotes to VERIFIED when target_status is VERIFIED', async () => {

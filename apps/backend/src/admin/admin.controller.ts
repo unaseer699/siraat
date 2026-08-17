@@ -40,6 +40,10 @@ const CreateSocietyBodySchema = z.object({
   is_siraat_affiliated: z.boolean(),
   affiliation_disclosure: z.string().nullable().default(null),
   noc_summary: z.string().nullable().default(null),
+  // Optional — how the developer_id ↔ Society link actually gets populated
+  // going forward. Never required; existing/new societies with no known
+  // developer stay developer_id: null.
+  developer_id: z.string().uuid().nullable().default(null),
   claim: z.string().min(1),
   claim_type: z.enum(CLAIM_TYPES),
   target_status: z.enum(['VERIFIED', 'PENDING']),
