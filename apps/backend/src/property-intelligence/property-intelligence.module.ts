@@ -3,6 +3,7 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { SocietyEntity } from './entities/society.entity';
 import { PropertyEntity } from './entities/property.entity';
 import { DeveloperEntity } from './entities/developer.entity';
+import { ContractorEntity } from './entities/contractor.entity';
 import { CandidateSocietyEntity } from './entities/candidate-society.entity';
 import { ObservationEntity } from './entities/observation.entity';
 import { PropertyIntelligenceService } from './property-intelligence.service';
@@ -15,6 +16,7 @@ import { TrustModule } from '../trust/trust.module';
       SocietyEntity,
       PropertyEntity,
       DeveloperEntity,
+      ContractorEntity,
       CandidateSocietyEntity,
       ObservationEntity,
     ]),

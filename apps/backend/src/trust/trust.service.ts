@@ -2,7 +2,7 @@ import { Injectable, BadRequestException, Logger, NotFoundException } from '@nes
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, In, MoreThan } from 'typeorm';
 import type { SocietyVerificationStatus } from '@siraat/shared-types';
-import { VerificationEntity } from './entities/verification.entity';
+import { VerificationEntity, type VerificationSubjectType } from './entities/verification.entity';
 import { EvidenceEntity } from './entities/evidence.entity';
 import { EvidenceSubmissionEntity } from './entities/evidence-submission.entity';
 import { ObservationEntity } from './entities/observation.entity';
@@ -74,7 +74,7 @@ export class TrustService {
   }
 
   async getVerifications(
-    subjectType: 'SOCIETY' | 'DEVELOPER',
+    subjectType: VerificationSubjectType,
     subjectId: string,
   ): Promise<VerificationResult[]> {
     const verifications = await this.verRepo.find({
@@ -120,7 +120,7 @@ export class TrustService {
    * an otherwise-VERIFIED primary claim.
    */
   async deriveVerificationStatus(
-    subjectType: 'SOCIETY' | 'DEVELOPER',
+    subjectType: VerificationSubjectType,
     subjectId: string,
   ): Promise<SocietyVerificationStatus> {
     const all = await this.getVerifications(subjectType, subjectId);

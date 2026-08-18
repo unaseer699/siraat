@@ -2,10 +2,12 @@ import { Test } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import { ILike, In, MoreThan } from 'typeorm';
 import { BadRequestException } from '@nestjs/common';
+import type { TradeCategory } from '@siraat/shared-types';
 import { PropertyIntelligenceService } from './property-intelligence.service';
 import { SocietyEntity } from './entities/society.entity';
 import { PropertyEntity } from './entities/property.entity';
 import { DeveloperEntity } from './entities/developer.entity';
+import { ContractorEntity } from './entities/contractor.entity';
 import { ObservationEntity } from './entities/observation.entity';
 import { TrustService } from '../trust/trust.service';
 
@@ -20,6 +22,13 @@ describe('PropertyIntelligenceService', () => {
     getRawMany: jest.Mock;
     getManyAndCount: jest.Mock;
   };
+  let contractorQbMocks: {
+    andWhere: jest.Mock;
+    orderBy: jest.Mock;
+    skip: jest.Mock;
+    take: jest.Mock;
+    getManyAndCount: jest.Mock;
+  };
   let deriveVerificationStatusMock: jest.Mock;
   let trustGetVerificationsMock: jest.Mock;
   let trustGetObservationsSinceMock: jest.Mock;
@@ -32,6 +41,9 @@ describe('PropertyIntelligenceService', () => {
   let societySaveMock: jest.Mock;
   let developerFindOneByMock: jest.Mock;
   let developerFindMock: jest.Mock;
+  let contractorCreateMock: jest.Mock;
+  let contractorSaveMock: jest.Mock;
+  let contractorFindOneByMock: jest.Mock;
 
   beforeEach(async () => {
     qbMocks = {
@@ -49,6 +61,18 @@ describe('PropertyIntelligenceService', () => {
     qbMocks.skip.mockReturnValue(qbMocks);
     qbMocks.take.mockReturnValue(qbMocks);
 
+    contractorQbMocks = {
+      andWhere: jest.fn(),
+      orderBy: jest.fn(),
+      skip: jest.fn(),
+      take: jest.fn(),
+      getManyAndCount: jest.fn().mockResolvedValue([[], 0]),
+    };
+    contractorQbMocks.andWhere.mockReturnValue(contractorQbMocks);
+    contractorQbMocks.orderBy.mockReturnValue(contractorQbMocks);
+    contractorQbMocks.skip.mockReturnValue(contractorQbMocks);
+    contractorQbMocks.take.mockReturnValue(contractorQbMocks);
+
     deriveVerificationStatusMock = jest.fn().mockResolvedValue('PENDING');
     trustGetVerificationsMock = jest.fn().mockResolvedValue([]);
     trustGetObservationsSinceMock = jest.fn().mockResolvedValue([]);
@@ -61,6 +85,9 @@ describe('PropertyIntelligenceService', () => {
     societySaveMock = jest.fn((entity) => Promise.resolve({ id: 'soc-new-uuid', ...entity }));
     developerFindOneByMock = jest.fn().mockResolvedValue(null);
     developerFindMock = jest.fn().mockResolvedValue([]);
+    contractorCreateMock = jest.fn((data) => data);
+    contractorSaveMock = jest.fn((entity) => Promise.resolve({ id: 'con-new-uuid', ...entity }));
+    contractorFindOneByMock = jest.fn().mockResolvedValue(null);
 
     const module = await Test.createTestingModule({
       providers: [
@@ -79,6 +106,15 @@ describe('PropertyIntelligenceService', () => {
         {
           provide: getRepositoryToken(DeveloperEntity),
           useValue: { findOneBy: developerFindOneByMock, find: developerFindMock },
+        },
+        {
+          provide: getRepositoryToken(ContractorEntity),
+          useValue: {
+            createQueryBuilder: jest.fn(() => contractorQbMocks),
+            findOneBy: contractorFindOneByMock,
+            create: contractorCreateMock,
+            save: contractorSaveMock,
+          },
         },
         {
           provide: getRepositoryToken(ObservationEntity),
@@ -431,6 +467,161 @@ describe('PropertyIntelligenceService', () => {
         { id: 'soc-a-uuid', name: 'Green Valley Phase 1', city: 'Islamabad', verification_status: 'VERIFIED' },
         { id: 'soc-b-uuid', name: 'Green Valley Phase 2', city: 'Islamabad', verification_status: 'PENDING' },
       ]);
+    });
+  });
+
+  // ─── CONTRACTOR DIRECTORY Chunk 1 ────────────────────────────────────────────
+
+  function buildContractorInput(overrides: object = {}) {
+    return {
+      name: 'Ali Electrical Services',
+      trade_categories: ['ELECTRICIAN'] as TradeCategory[],
+      service_cities: ['Islamabad'],
+      contact_phone: '+92 300 1112222',
+      contact_whatsapp: null,
+      is_siraat_affiliated: false,
+      ...overrides,
+    };
+  }
+
+  describe('createContractor', () => {
+    it('creates a contractor with multiple trade_categories', async () => {
+      const input = buildContractorInput({ trade_categories: ['TILE_WORK', 'PAINTER'] });
+
+      const result = await service.createContractor(input);
+
+      expect(contractorCreateMock).toHaveBeenCalledWith(
+        expect.objectContaining({ trade_categories: ['TILE_WORK', 'PAINTER'], record_type: 'FACT' }),
+      );
+      expect(result.trade_categories).toEqual(['TILE_WORK', 'PAINTER']);
+      expect(result.record_type).toBe('FACT');
+    });
+
+    it('creates a contractor with a single trade category', async () => {
+      const result = await service.createContractor(buildContractorInput());
+
+      expect(result.trade_categories).toEqual(['ELECTRICIAN']);
+      expect(result.name).toBe('Ali Electrical Services');
+      expect(result.contact_whatsapp).toBeNull();
+      expect(result.is_siraat_affiliated).toBe(false);
+    });
+  });
+
+  describe('findContractorById', () => {
+    it('returns the contractor when found', async () => {
+      contractorFindOneByMock.mockResolvedValue({
+        id: 'con-a-uuid',
+        name: 'Ali Electrical Services',
+        trade_categories: ['ELECTRICIAN'],
+        service_cities: ['Islamabad'],
+        contact_phone: '+92 300 1112222',
+        contact_whatsapp: null,
+        is_siraat_affiliated: false,
+        record_type: 'FACT',
+      });
+
+      const result = await service.findContractorById('con-a-uuid');
+
+      expect(result).not.toBeNull();
+      expect(result!.name).toBe('Ali Electrical Services');
+    });
+
+    it('returns null when no contractor matches the id', async () => {
+      contractorFindOneByMock.mockResolvedValue(null);
+
+      const result = await service.findContractorById('non-existent-uuid');
+
+      expect(result).toBeNull();
+    });
+  });
+
+  describe('searchContractors', () => {
+    const CONTRACTOR_ROW = {
+      id: 'con-a-uuid',
+      name: 'Ali Electrical Services',
+      trade_categories: ['ELECTRICIAN'],
+      service_cities: ['Islamabad', 'Rawalpindi'],
+      contact_phone: '+92 300 1112222',
+      contact_whatsapp: '+92 300 1112222',
+      is_siraat_affiliated: false,
+      record_type: 'FACT',
+    };
+
+    it('filters by trade_category using the same array-containment pattern as property_type', async () => {
+      contractorQbMocks.getManyAndCount.mockResolvedValue([[CONTRACTOR_ROW], 1]);
+
+      const result = await service.searchContractors({ trade_category: 'ELECTRICIAN' });
+
+      expect(contractorQbMocks.andWhere).toHaveBeenCalledWith(
+        ':category = ANY(c.trade_categories)',
+        { category: 'ELECTRICIAN' },
+      );
+      expect(result.contractors).toHaveLength(1);
+      expect(result.contractors[0].id).toBe('con-a-uuid');
+    });
+
+    it('filters by city case-insensitively across the service_cities array', async () => {
+      contractorQbMocks.getManyAndCount.mockResolvedValue([[CONTRACTOR_ROW], 1]);
+
+      await service.searchContractors({ city: 'islamabad' });
+
+      expect(contractorQbMocks.andWhere).toHaveBeenCalledWith(
+        expect.stringContaining('unnest(c.service_cities)'),
+        { city: 'islamabad' },
+      );
+    });
+
+    it('combines trade_category and city filters together', async () => {
+      contractorQbMocks.getManyAndCount.mockResolvedValue([[CONTRACTOR_ROW], 1]);
+
+      await service.searchContractors({ trade_category: 'ELECTRICIAN', city: 'Islamabad' });
+
+      expect(contractorQbMocks.andWhere).toHaveBeenCalledTimes(2);
+    });
+
+    it('returns [] with total_count 0 when no contractors match', async () => {
+      contractorQbMocks.getManyAndCount.mockResolvedValue([[], 0]);
+
+      const result = await service.searchContractors({ trade_category: 'PLUMBER' });
+
+      expect(result.contractors).toEqual([]);
+      expect(result.total_count).toBe(0);
+      expect(result.total_pages).toBe(0);
+    });
+
+    // ─── Pagination — matches the Browse Societies (listSocieties) pattern ───
+
+    it('defaults to page 1, limit 20 — same defaults as listSocieties', async () => {
+      contractorQbMocks.getManyAndCount.mockResolvedValue([[CONTRACTOR_ROW], 1]);
+
+      const result = await service.searchContractors({});
+
+      expect(contractorQbMocks.skip).toHaveBeenCalledWith(0);
+      expect(contractorQbMocks.take).toHaveBeenCalledWith(20);
+      expect(result.page).toBe(1);
+    });
+
+    it('applies page/limit and computes total_pages via skip/take/getManyAndCount, same as listSocieties', async () => {
+      contractorQbMocks.getManyAndCount.mockResolvedValue([[CONTRACTOR_ROW], 45]);
+
+      const result = await service.searchContractors({ page: 2, limit: 10 });
+
+      expect(contractorQbMocks.skip).toHaveBeenCalledWith(10);
+      expect(contractorQbMocks.take).toHaveBeenCalledWith(10);
+      expect(contractorQbMocks.orderBy).toHaveBeenCalledWith('c.name', 'ASC');
+      expect(result.page).toBe(2);
+      expect(result.total_count).toBe(45);
+      expect(result.total_pages).toBe(5);
+    });
+
+    it('falls back to defaults for a non-positive page/limit, same guard as listSocieties', async () => {
+      contractorQbMocks.getManyAndCount.mockResolvedValue([[], 0]);
+
+      const result = await service.searchContractors({ page: 0, limit: -5 });
+
+      expect(contractorQbMocks.skip).toHaveBeenCalledWith(0);
+      expect(contractorQbMocks.take).toHaveBeenCalledWith(20);
+      expect(result.page).toBe(1);
     });
   });
 
