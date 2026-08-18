@@ -1,7 +1,7 @@
 import { Test } from '@nestjs/testing';
 import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { getRepositoryToken } from '@nestjs/typeorm';
-import { AdminService } from './admin.service';
+import { AdminService, type CreateContractorInput } from './admin.service';
 import { PropertyIntelligenceService } from '../property-intelligence/property-intelligence.service';
 import { TrustService } from '../trust/trust.service';
 import { ConstructionIntelligenceService } from '../construction-intelligence/construction-intelligence.service';
@@ -69,6 +69,17 @@ const MATERIAL_RATE_RESULT = {
   staleness_threshold_days: 14,
 };
 
+const CONTRACTOR_RESULT = {
+  id: 'con-uuid-0001',
+  name: 'Ali Electrical Services',
+  trade_categories: ['ELECTRICIAN'] as const,
+  service_cities: ['Islamabad'],
+  contact_phone: '+92 300 1112222',
+  contact_whatsapp: null,
+  is_siraat_affiliated: false,
+  record_type: 'FACT' as const,
+};
+
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function buildSocietyInput(overrides: object = {}) {
@@ -103,6 +114,9 @@ describe('AdminService', () => {
   let createSocietyMock: jest.Mock;
   let findSocietyByIdMock: jest.Mock;
   let searchDevelopersMock: jest.Mock;
+  let findContractorByIdMock: jest.Mock;
+  let createContractorMock: jest.Mock;
+  let searchContractorsMock: jest.Mock;
 
   // TrustService mocks
   let createVerificationMock: jest.Mock;
@@ -124,6 +138,9 @@ describe('AdminService', () => {
     createSocietyMock          = jest.fn().mockResolvedValue(SOCIETY_RESULT);
     findSocietyByIdMock        = jest.fn().mockResolvedValue(SOCIETY_RESULT);
     searchDevelopersMock       = jest.fn().mockResolvedValue([]);
+    findContractorByIdMock    = jest.fn().mockResolvedValue(null);
+    createContractorMock      = jest.fn().mockResolvedValue(CONTRACTOR_RESULT);
+    searchContractorsMock     = jest.fn().mockResolvedValue({ contractors: [], total_count: 0, page: 1, total_pages: 0 });
     createVerificationMock     = jest.fn().mockResolvedValue(VERIFICATION_ENTITY);
     createAndLinkEvidenceMock  = jest.fn().mockResolvedValue(EVIDENCE_ENTITY);
     promoteVerificationToVerifiedMock = jest.fn().mockResolvedValue(VERIFIED_ENTITY);
@@ -141,9 +158,12 @@ describe('AdminService', () => {
         {
           provide: PropertyIntelligenceService,
           useValue: {
-            createSociety:    createSocietyMock,
-            findSocietyById:  findSocietyByIdMock,
-            searchDevelopers: searchDevelopersMock,
+            createSociety:     createSocietyMock,
+            findSocietyById:   findSocietyByIdMock,
+            searchDevelopers:  searchDevelopersMock,
+            findContractorById: findContractorByIdMock,
+            createContractor:   createContractorMock,
+            searchContractors:  searchContractorsMock,
           },
         },
         {
@@ -287,14 +307,15 @@ describe('AdminService', () => {
     expect(result.candidate_marked_onboarded).toBe(false);
   });
 
-  // ─── addClaimToSociety ────────────────────────────────────────────────────
+  // ─── addClaim (generalized from addClaimToSociety, CONTRACTOR DIRECTORY Chunk 2) ──
 
   it('throws NotFoundException when society does not exist', async () => {
     findSocietyByIdMock.mockResolvedValue(null);
 
     await expect(
-      svc.addClaimToSociety({
-        society_id: 'nonexistent-uuid',
+      svc.addClaim({
+        subject_type: 'SOCIETY',
+        subject_id: 'nonexistent-uuid',
         claim: 'Some claim',
         claim_type: 'NOC',
         target_status: 'PENDING',
@@ -305,8 +326,9 @@ describe('AdminService', () => {
 
   it('throws BadRequestException for VERIFIED claim with no evidence', async () => {
     await expect(
-      svc.addClaimToSociety({
-        society_id: SOCIETY_ID,
+      svc.addClaim({
+        subject_type: 'SOCIETY',
+        subject_id: SOCIETY_ID,
         claim: 'NOC Approved',
         claim_type: 'NOC',
         target_status: 'VERIFIED',
@@ -316,8 +338,9 @@ describe('AdminService', () => {
   });
 
   it('creates verification with PENDING status and no evidence records', async () => {
-    const result = await svc.addClaimToSociety({
-      society_id: SOCIETY_ID,
+    const result = await svc.addClaim({
+      subject_type: 'SOCIETY',
+      subject_id: SOCIETY_ID,
       claim: 'NOC Approved',
       claim_type: 'NOC',
       target_status: 'PENDING',
@@ -327,6 +350,7 @@ describe('AdminService', () => {
     expect(createEvidenceRecordMock).not.toHaveBeenCalled();
     expect(createVerificationMock).toHaveBeenCalledWith(
       expect.objectContaining({
+        subject_type: 'SOCIETY',
         subject_id: SOCIETY_ID,
         status: 'PENDING',
         evidence_refs: [],
@@ -336,8 +360,9 @@ describe('AdminService', () => {
   });
 
   it('creates evidence records first then verification with evidence IDs (VERIFIED flow)', async () => {
-    const result = await svc.addClaimToSociety({
-      society_id: SOCIETY_ID,
+    const result = await svc.addClaim({
+      subject_type: 'SOCIETY',
+      subject_id: SOCIETY_ID,
       claim: 'NOC Approved',
       claim_type: 'NOC',
       target_status: 'VERIFIED',
@@ -356,8 +381,9 @@ describe('AdminService', () => {
   });
 
   it('creates evidence for DISPUTED claim and passes IDs to verification', async () => {
-    await svc.addClaimToSociety({
-      society_id: SOCIETY_ID,
+    await svc.addClaim({
+      subject_type: 'SOCIETY',
+      subject_id: SOCIETY_ID,
       claim: 'Illegal scheme notice',
       claim_type: 'ILLEGAL_SCHEME_NOTICE',
       target_status: 'DISPUTED',
@@ -368,6 +394,52 @@ describe('AdminService', () => {
     expect(createVerificationMock).toHaveBeenCalledWith(
       expect.objectContaining({ status: 'DISPUTED', evidence_refs: [EVI_ID] }),
     );
+  });
+
+  // ─── CONTRACTOR DIRECTORY Chunk 2 — addClaim for subject_type: 'CONTRACTOR' ──
+  // Proves the same generalized flow works for Contractor, not just Society —
+  // same shape as the Chunk 1 TrustService genericity tests, one layer up.
+
+  it('addClaim works for subject_type CONTRACTOR: 404 when the contractor does not exist', async () => {
+    findContractorByIdMock.mockResolvedValue(null);
+
+    await expect(
+      svc.addClaim({
+        subject_type: 'CONTRACTOR',
+        subject_id: 'nonexistent-uuid',
+        claim: 'Licensed electrician — PEC registered',
+        claim_type: 'OTHER',
+        target_status: 'PENDING',
+        evidence: [],
+      }),
+    ).rejects.toThrow(NotFoundException);
+    expect(findSocietyByIdMock).not.toHaveBeenCalled();
+  });
+
+  it('addClaim works for subject_type CONTRACTOR: creates verification with evidence IDs (VERIFIED flow)', async () => {
+    const CONTRACTOR_ID = 'con-a-uuid';
+    findContractorByIdMock.mockResolvedValue({ id: CONTRACTOR_ID, name: 'Ali Electrical Services' });
+
+    const result = await svc.addClaim({
+      subject_type: 'CONTRACTOR',
+      subject_id: CONTRACTOR_ID,
+      claim: 'Licensed electrician — PEC registered',
+      claim_type: 'OTHER',
+      target_status: 'VERIFIED',
+      evidence: [EVIDENCE_ITEM],
+    });
+
+    expect(findContractorByIdMock).toHaveBeenCalledWith(CONTRACTOR_ID);
+    expect(createEvidenceRecordMock).toHaveBeenCalledWith(EVIDENCE_ITEM);
+    expect(createVerificationMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        subject_type: 'CONTRACTOR',
+        subject_id: CONTRACTOR_ID,
+        status: 'VERIFIED',
+        evidence_refs: [EVI_ID],
+      }),
+    );
+    expect(result.verification_id).toBe(VER_ID);
   });
 
   // ─── createEvidence ───────────────────────────────────────────────────────
@@ -412,6 +484,38 @@ describe('AdminService', () => {
 
     expect(searchDevelopersMock).toHaveBeenCalledWith('zameen');
     expect(result).toEqual([{ id: 'dev-a-uuid', name: 'Zameen Developers' }]);
+  });
+
+  // ─── CONTRACTOR DIRECTORY Chunk 2 ──────────────────────────────────────────
+
+  it('createContractor delegates to PropertyIntelligenceService.createContractor', async () => {
+    const input: CreateContractorInput = {
+      name: 'Ali Electrical Services',
+      trade_categories: ['ELECTRICIAN'],
+      service_cities: ['Islamabad'],
+      contact_phone: '+92 300 1112222',
+      contact_whatsapp: null,
+      is_siraat_affiliated: false,
+    };
+
+    const result = await svc.createContractor(input);
+
+    expect(createContractorMock).toHaveBeenCalledWith(input);
+    expect(result).toBe(CONTRACTOR_RESULT);
+  });
+
+  it('searchContractors delegates to PropertyIntelligenceService.searchContractors with the given filters', async () => {
+    searchContractorsMock.mockResolvedValue({
+      contractors: [CONTRACTOR_RESULT],
+      total_count: 1,
+      page: 1,
+      total_pages: 1,
+    });
+
+    const result = await svc.searchContractors({ trade_category: 'ELECTRICIAN', city: 'Islamabad' });
+
+    expect(searchContractorsMock).toHaveBeenCalledWith({ trade_category: 'ELECTRICIAN', city: 'Islamabad' });
+    expect(result.contractors).toEqual([CONTRACTOR_RESULT]);
   });
 
   // ─── Auth guard (controller-level wiring check) ───────────────────────────

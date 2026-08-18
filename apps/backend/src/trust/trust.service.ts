@@ -166,8 +166,11 @@ export class TrustService {
   }
 
   // Used internally and in tests; no public POST endpoint this capability
+  // (public POST is AdminService.addClaim, which calls this generically).
+  // CONTRACTOR DIRECTORY Chunk 2 — widened to VerificationSubjectType; body
+  // below never branched on subject_type, so no logic change was needed.
   async createVerification(data: {
-    subject_type: 'SOCIETY' | 'DEVELOPER';
+    subject_type: VerificationSubjectType;
     subject_id: string;
     claim: string;
     claim_type: ClaimType;

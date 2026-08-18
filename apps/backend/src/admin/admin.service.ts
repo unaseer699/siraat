@@ -1,7 +1,12 @@
 import { Injectable, BadRequestException, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { PropertyIntelligenceService } from '../property-intelligence/property-intelligence.service';
+import type { TradeCategory } from '@siraat/shared-types';
+import {
+  PropertyIntelligenceService,
+  type ContractorResult,
+  type ContractorSearchResult,
+} from '../property-intelligence/property-intelligence.service';
 import { TrustService, ClaimType } from '../trust/trust.service';
 import { CandidateSocietyEntity } from '../property-intelligence/entities/candidate-society.entity';
 import {
@@ -39,12 +44,27 @@ export interface CreateSocietyInput {
   evidence: EvidenceInput[];
 }
 
+// CONTRACTOR DIRECTORY Chunk 2 — generalized from the old society-only
+// { society_id } shape. Restricted to 'SOCIETY' | 'CONTRACTOR' here (not the
+// full VerificationSubjectType) because those are the only two subjects with
+// an admin claim-adding entry point today; DEVELOPER claims are still seeded
+// outside this flow.
 export interface AddClaimInput {
-  society_id: string;
+  subject_type: 'SOCIETY' | 'CONTRACTOR';
+  subject_id: string;
   claim: string;
   claim_type: ClaimType;
   target_status: 'VERIFIED' | 'DISPUTED' | 'PENDING';
   evidence: EvidenceInput[];
+}
+
+export interface CreateContractorInput {
+  name: string;
+  trade_categories: TradeCategory[];
+  service_cities: string[];
+  contact_phone: string;
+  contact_whatsapp: string | null;
+  is_siraat_affiliated: boolean;
 }
 
 @Injectable()
@@ -131,7 +151,12 @@ export class AdminService {
     };
   }
 
-  async addClaimToSociety(
+  // CONTRACTOR DIRECTORY Chunk 2 — generalized from addClaimToSociety(). Same
+  // logic as before (evidence-collection loop, then createVerification), just
+  // no longer hardcoded to SOCIETY: the existence check dispatches on
+  // subject_type and subject_type/subject_id flow straight through to
+  // TrustService.createVerification, which (per Chunk 1) was already generic.
+  async addClaim(
     data: AddClaimInput,
   ): Promise<{ verification_id: string }> {
     if (data.target_status === 'VERIFIED' && data.evidence.length === 0) {
@@ -140,9 +165,13 @@ export class AdminService {
       );
     }
 
-    const society = await this.piSvc.findSocietyById(data.society_id);
-    if (!society) {
-      throw new NotFoundException(`Society ${data.society_id} not found`);
+    const subject =
+      data.subject_type === 'SOCIETY'
+        ? await this.piSvc.findSocietyById(data.subject_id)
+        : await this.piSvc.findContractorById(data.subject_id);
+    if (!subject) {
+      const label = data.subject_type === 'SOCIETY' ? 'Society' : 'Contractor';
+      throw new NotFoundException(`${label} ${data.subject_id} not found`);
     }
 
     // Collect evidence IDs before creating the verification (matches CLI script pattern)
@@ -153,8 +182,8 @@ export class AdminService {
     }
 
     const verification = await this.trustSvc.createVerification({
-      subject_type: 'SOCIETY',
-      subject_id: data.society_id,
+      subject_type: data.subject_type,
+      subject_id: data.subject_id,
       claim: data.claim,
       claim_type: data.claim_type,
       status: data.target_status,
@@ -182,5 +211,21 @@ export class AdminService {
   // DEVELOPER-SOCIETY LINK Chunk 3 — GET /v1/admin/developers?search=
   async searchDevelopers(query: string): Promise<{ id: string; name: string }[]> {
     return this.piSvc.searchDevelopers(query);
+  }
+
+  // CONTRACTOR DIRECTORY Chunk 2 — POST /v1/admin/contractors
+  async createContractor(data: CreateContractorInput): Promise<ContractorResult> {
+    return this.piSvc.createContractor(data);
+  }
+
+  // CONTRACTOR DIRECTORY Chunk 2 — GET /v1/admin/contractors, same delegation
+  // pattern as listMaterialRates above.
+  async searchContractors(filters: {
+    trade_category?: string;
+    city?: string;
+    page?: number;
+    limit?: number;
+  }): Promise<ContractorSearchResult> {
+    return this.piSvc.searchContractors(filters);
   }
 }
