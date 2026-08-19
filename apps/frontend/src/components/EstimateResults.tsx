@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import type { EstimateResponse, EstimateLineItem, MaterialRateSourceTier } from '@siraat/shared-types';
 import { ConfidenceGauge } from './ConfidenceGauge';
 import { TRUST_GREEN, WARNING_AMBER, DANGER_RED, NEUTRAL_GRAY, RADIUS } from '../styles/tokens';
@@ -242,6 +243,22 @@ export function EstimateResults({ result }: Props) {
           )}
 
           <LineItemsTable lineItems={result.line_items} />
+
+          {/* CONTRACTOR DIRECTORY Chunk 3 — pre-filtered to the grey-structure
+              trade this estimate covers (excavation/masonry/steel/shuttering
+              are separate trades; MASON_GREY_STRUCTURE is the representative one). */}
+          <Link
+            href="/contractors?trade=MASON_GREY_STRUCTURE"
+            style={{
+              fontSize: '14px',
+              fontWeight: 600,
+              color: '#2563eb',
+              textDecoration: 'none',
+              alignSelf: 'flex-start',
+            }}
+          >
+            Need help building this? Find verified contractors →
+          </Link>
         </>
       )}
     </div>

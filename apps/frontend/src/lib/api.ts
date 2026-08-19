@@ -14,6 +14,9 @@ import type {
   SocietyListResponse,
   SocietyChangesRequest,
   SocietyChangesResponse,
+  TradeCategory,
+  ContractorSummary,
+  ContractorListResponse,
 } from '@siraat/shared-types';
 
 const BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001';
@@ -155,6 +158,33 @@ export async function fetchRecommendationExport(
   return { blob, filename };
 }
 
+// CONTRACTOR DIRECTORY Chunk 3 — public directory listing + profile, same
+// auth level (shared BearerGuard) as fetchSocieties/fetchSocietyScore above.
+export async function fetchContractors(params?: {
+  trade_category?: string;
+  city?: string;
+  page?: number;
+  limit?: number;
+}): Promise<ContractorListResponse> {
+  const qs = new URLSearchParams();
+  if (params?.trade_category) qs.set('trade_category', params.trade_category);
+  if (params?.city) qs.set('city', params.city);
+  if (params?.page) qs.set('page', String(params.page));
+  if (params?.limit) qs.set('limit', String(params.limit));
+  const suffix = qs.toString() ? `?${qs.toString()}` : '';
+  return apiFetch(`/v1/property-intelligence/contractors${suffix}`);
+}
+
+export async function fetchContractor(contractorId: string): Promise<ContractorSummary> {
+  return apiFetch(`/v1/property-intelligence/contractors/${contractorId}`);
+}
+
+export async function fetchContractorVerifications(
+  contractorId: string,
+): Promise<VerificationListResponse> {
+  return apiFetch(`/v1/trust/contractors/${contractorId}/verification`);
+}
+
 // ── Admin (internal, no public UI links to these) ──────────────────────────
 
 export interface CandidateSociety {
@@ -288,6 +318,47 @@ export async function fetchMaterialRates(filters?: {
 
 export async function createMaterialRate(data: CreateMaterialRateBody): Promise<MaterialRateItem> {
   return apiFetch('/v1/admin/material-rates', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
+}
+
+// CONTRACTOR DIRECTORY Chunk 2b — mirrors ContractorResult in
+// apps/backend/src/property-intelligence/property-intelligence.service.ts
+export interface ContractorItem {
+  id: string;
+  name: string;
+  trade_categories: TradeCategory[];
+  service_cities: string[];
+  contact_phone: string;
+  contact_whatsapp: string | null;
+  is_siraat_affiliated: boolean;
+  record_type: 'FACT';
+}
+
+export interface CreateContractorBody {
+  name: string;
+  trade_categories: TradeCategory[];
+  service_cities: string[];
+  contact_phone: string;
+  contact_whatsapp: string | null;
+  is_siraat_affiliated: boolean;
+}
+
+export async function createContractor(data: CreateContractorBody): Promise<ContractorItem> {
+  return apiFetch('/v1/admin/contractors', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
+}
+
+// Same claim-adding shape as addClaimToSociety, just against the contractor
+// subject_type on the backend (both routes share AdminService.addClaim()).
+export async function addClaimToContractor(
+  contractorId: string,
+  data: AddClaimBody,
+): Promise<{ verification_id: string }> {
+  return apiFetch(`/v1/admin/contractors/${contractorId}/claims`, {
     method: 'POST',
     body: JSON.stringify(data),
   });

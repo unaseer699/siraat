@@ -51,6 +51,15 @@ export class TrustController {
     return { claims: results.map(serializeClaim) };
   }
 
+  // CONTRACTOR DIRECTORY Chunk 3 — same shape/pattern as developer verification above.
+  @Get('contractors/:id/verification')
+  async getContractorVerification(@Param('id') id: string) {
+    const results = await this.trustSvc.getVerifications('CONTRACTOR', id);
+    if (results.length === 0)
+      throw new NotFoundException(`No verification records found for contractor ${id}`);
+    return { claims: results.map(serializeClaim) };
+  }
+
   @Get('evidence/:id')
   async getEvidence(@Param('id') id: string) {
     const evidence = await this.trustSvc.getEvidenceById(id);

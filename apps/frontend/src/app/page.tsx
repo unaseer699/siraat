@@ -258,6 +258,12 @@ function HomeView() {
           title="How Siraat Verifies Societies"
           description="Every score combines documented Evidence, Regulatory Records (NOC, approvals), and Independent Verification — affiliation never influences the score."
         />
+        <QuickAccessCard
+          href="/contractors"
+          icon="🔧"
+          title="Find Contractors"
+          description="Browse verified electricians, plumbers, masons and other trades by city — same claim-and-evidence trust model as societies."
+        />
       </div>
 
       {error && (

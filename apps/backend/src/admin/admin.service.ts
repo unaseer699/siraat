@@ -1,12 +1,8 @@
 import { Injectable, BadRequestException, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import type { TradeCategory } from '@siraat/shared-types';
-import {
-  PropertyIntelligenceService,
-  type ContractorResult,
-  type ContractorSearchResult,
-} from '../property-intelligence/property-intelligence.service';
+import type { TradeCategory, ContractorSummary, ContractorListResponse } from '@siraat/shared-types';
+import { PropertyIntelligenceService } from '../property-intelligence/property-intelligence.service';
 import { TrustService, ClaimType } from '../trust/trust.service';
 import { CandidateSocietyEntity } from '../property-intelligence/entities/candidate-society.entity';
 import {
@@ -214,7 +210,7 @@ export class AdminService {
   }
 
   // CONTRACTOR DIRECTORY Chunk 2 — POST /v1/admin/contractors
-  async createContractor(data: CreateContractorInput): Promise<ContractorResult> {
+  async createContractor(data: CreateContractorInput): Promise<ContractorSummary> {
     return this.piSvc.createContractor(data);
   }
 
@@ -225,7 +221,7 @@ export class AdminService {
     city?: string;
     page?: number;
     limit?: number;
-  }): Promise<ContractorSearchResult> {
+  }): Promise<ContractorListResponse> {
     return this.piSvc.searchContractors(filters);
   }
 }

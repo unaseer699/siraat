@@ -4,16 +4,19 @@ import { useState } from 'react';
 
 interface Props {
   label?: string;
+  // What to copy — defaults to the current page URL (sharing this page IS
+  // sharing its link, so there's nothing to call the backend for). Contractor
+  // Profile passes a phone number instead to reuse this same button style
+  // for "Copy Number".
+  text?: string;
 }
 
-// Sharing this page IS sharing its link — the URL already resolves to this exact
-// record server-side, so there's nothing to call the backend for.
-export function CopyLinkButton({ label = 'Copy Link' }: Props) {
+export function CopyLinkButton({ label = 'Copy Link', text }: Props) {
   const [copied, setCopied] = useState(false);
 
   async function handleCopy() {
     try {
-      await navigator.clipboard.writeText(window.location.href);
+      await navigator.clipboard.writeText(text ?? window.location.href);
       setCopied(true);
       setTimeout(() => setCopied(false), 2500);
     } catch {

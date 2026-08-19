@@ -10,6 +10,8 @@ import type {
   SocietyListResponse,
   SocietyChangesResponse,
   SocietyChangeSummary,
+  ContractorSummary,
+  ContractorListResponse,
 } from '@siraat/shared-types';
 import { TrustService } from '../trust/trust.service';
 import { SocietyEntity } from './entities/society.entity';
@@ -78,18 +80,10 @@ function toSocietyResult(e: SocietyEntity): SocietyResult {
 
 // ─── CONTRACTOR DIRECTORY Chunk 1 ────────────────────────────────────────────
 
-export interface ContractorResult {
-  id: string;
-  name: string;
-  trade_categories: TradeCategory[];
-  service_cities: string[];
-  contact_phone: string;
-  contact_whatsapp: string | null;
-  is_siraat_affiliated: boolean;
-  record_type: 'FACT';
-}
-
-function toContractorResult(e: ContractorEntity): ContractorResult {
+// Fields straight off the entity — verification_status is spliced in
+// separately at each call site below (a TrustService call, so it can't live
+// in this plain sync helper).
+function toContractorFields(e: ContractorEntity) {
   return {
     id: e.id,
     name: e.name,
@@ -100,13 +94,6 @@ function toContractorResult(e: ContractorEntity): ContractorResult {
     is_siraat_affiliated: e.is_siraat_affiliated,
     record_type: e.record_type,
   };
-}
-
-export interface ContractorSearchResult {
-  contractors: ContractorResult[];
-  total_count: number;
-  page: number;
-  total_pages: number;
 }
 
 @Injectable()
@@ -369,25 +356,37 @@ export class PropertyIntelligenceService {
     contact_phone: string;
     contact_whatsapp: string | null;
     is_siraat_affiliated: boolean;
-  }): Promise<ContractorResult> {
+  }): Promise<ContractorSummary> {
     const entity = this.contractorRepo.create({ ...data, record_type: 'FACT' });
     const saved = await this.contractorRepo.save(entity);
-    return toContractorResult(saved);
+    return {
+      ...toContractorFields(saved),
+      verification_status: await this.trustSvc.deriveVerificationStatus('CONTRACTOR', saved.id),
+    };
   }
 
-  async findContractorById(id: string): Promise<ContractorResult | null> {
+  // CONTRACTOR DIRECTORY Chunk 3 — also backs the public GET
+  // /property-intelligence/contractors/:id profile route; the admin addClaim
+  // existence check just discards the extra verification_status field.
+  async findContractorById(id: string): Promise<ContractorSummary | null> {
     const entity = await this.contractorRepo.findOneBy({ id });
-    return entity ? toContractorResult(entity) : null;
+    if (!entity) return null;
+    return {
+      ...toContractorFields(entity),
+      verification_status: await this.trustSvc.deriveVerificationStatus('CONTRACTOR', entity.id),
+    };
   }
 
   // Paginated the same way listSocieties (Browse Societies) is: page/limit
   // default and clamp the same way, order alphabetically, getManyAndCount.
+  // CONTRACTOR DIRECTORY Chunk 3 — also backs the public GET
+  // /property-intelligence/contractors route (same delegation as GET /admin/contractors).
   async searchContractors(params: {
     trade_category?: string;
     city?: string;
     page?: number;
     limit?: number;
-  }): Promise<ContractorSearchResult> {
+  }): Promise<ContractorListResponse> {
     const page = params.page && params.page > 0 ? params.page : 1;
     const limit = params.limit && params.limit > 0 ? params.limit : DEFAULT_CONTRACTOR_PAGE_SIZE;
 
@@ -410,8 +409,16 @@ export class PropertyIntelligenceService {
       .take(limit)
       .getManyAndCount();
 
+    // Same per-row TrustService derivation + Promise.all shape as listSocieties above.
+    const contractors = await Promise.all(
+      entities.map(async (e) => ({
+        ...toContractorFields(e),
+        verification_status: await this.trustSvc.deriveVerificationStatus('CONTRACTOR', e.id),
+      })),
+    );
+
     return {
-      contractors: entities.map(toContractorResult),
+      contractors,
       total_count,
       page,
       total_pages: Math.ceil(total_count / limit),
