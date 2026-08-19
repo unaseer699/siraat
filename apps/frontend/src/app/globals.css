@@ -24,3 +24,14 @@ body {
 }
 
 a { color: var(--brand); text-decoration: none; }
+
+/* Home page quick-access cards (apps/frontend/src/app/page.tsx) — no hover
+   convention existed anywhere else in the app to reuse, so this is the
+   minimal one: a border-color shift to the existing --brand token, no
+   transform/scale/shadow effects. */
+.qa-card {
+  transition: border-color 0.15s ease;
+}
+.qa-card:hover {
+  border-color: var(--brand);
+}

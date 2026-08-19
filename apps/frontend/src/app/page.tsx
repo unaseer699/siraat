@@ -1,8 +1,9 @@
 'use client';
 
-import { Suspense, useEffect, useRef, useState } from 'react';
+import { Suspense, useEffect, useRef, useState, type ComponentType } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
+import { Scale, Building2, ShieldCheck, Wrench, type LucideProps } from 'lucide-react';
 import type {
   RecommendationResponse,
   RecommendationItem,
@@ -11,87 +12,110 @@ import type {
 import { fetchRecommendations, fetchPlatformStats } from '@/lib/api';
 import { SearchBar } from '@/components/SearchBar';
 import { ResultsPanel } from '@/components/ResultsPanel';
-import StatCard from '@/components/StatCard';
-import { RADIUS } from '@/styles/tokens';
+import { NEUTRAL_GRAY, RADIUS } from '@/styles/tokens';
 
-// Renders a single headline stat. A count of 0 (fresh install / no data yet)
-// is shown as an honest "Just getting started" rather than a bare "0" that
-// could read as a broken/errored metric — same honesty principle the platform
-// applies to its own coverage data (see NOT_COVERED state elsewhere).
-function statValue(count: number): { value: string; tone: 'success' | 'neutral' } {
-  return count === 0
-    ? { value: 'Just getting started', tone: 'neutral' }
-    : { value: count.toLocaleString(), tone: 'success' };
+// A count of 0 (fresh install / no data yet) is shown as an honest "Just
+// getting started" rather than a bare "0" that could read as a broken/errored
+// metric — same honesty principle the platform applies to its own coverage
+// data (see NOT_COVERED state elsewhere). Unchanged from the previous
+// StatCard-based layout, just no longer paired with a success/neutral tone
+// since the plain inline row below doesn't color-code numbers.
+function statValue(count: number): string {
+  return count === 0 ? 'Just getting started' : count.toLocaleString();
 }
 
+// Plain inline row with thin dividers, replacing the bordered StatCard grid —
+// numbers still come straight from the live fetchPlatformStats() call, only
+// the container is restyled.
 function StatsRow({ stats }: { stats: PlatformStatsResponse | null }) {
   if (!stats) return null;
 
-  const societies = statValue(stats.verified_societies_count);
-  const evidence = statValue(stats.total_evidence_count);
-  const cities = statValue(stats.cities_covered.length);
+  const items: { value: string; label: string; href?: string; aria: string }[] = [
+    {
+      value: statValue(stats.verified_societies_count),
+      label: 'Societies',
+      href: '/browse',
+      aria: 'Browse verified societies',
+    },
+    { value: statValue(stats.total_evidence_count), label: 'Evidence', aria: 'Evidence items on record' },
+    { value: statValue(stats.cities_covered.length), label: 'Cities', aria: 'Cities covered' },
+  ];
 
   return (
-    <div
-      style={{
-        width: '100%',
-        maxWidth: '720px',
-        display: 'grid',
-        gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
-        gap: '12px',
-      }}
-    >
-      <Link href="/browse" style={{ display: 'block', textDecoration: 'none', color: 'inherit' }}>
-        <StatCard icon="🏘️" value={societies.value} label="Verified Societies" tone={societies.tone} />
-      </Link>
-      <StatCard icon="📄" value={evidence.value} label="Evidence Items on Record" tone={evidence.tone} />
-      <StatCard icon="🏙️" value={cities.value} label="Cities Covered" tone={cities.tone} />
+    <div style={{ display: 'flex', justifyContent: 'center', flexWrap: 'wrap' }}>
+      {items.map((item, i) => {
+        const inner = (
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '2px', padding: '0 28px' }}>
+            <span style={{ fontSize: '20px', fontWeight: 700, color: 'var(--text)' }}>{item.value}</span>
+            <span style={{ fontSize: '12px', color: 'var(--muted)', fontWeight: 600 }}>{item.label}</span>
+          </div>
+        );
+        return (
+          <div
+            key={item.label}
+            style={{ borderRight: i < items.length - 1 ? `0.5px solid ${NEUTRAL_GRAY}40` : 'none' }}
+          >
+            {item.href ? (
+              <Link href={item.href} aria-label={item.aria} style={{ color: 'inherit', textDecoration: 'none' }}>
+                {inner}
+              </Link>
+            ) : (
+              inner
+            )}
+          </div>
+        );
+      })}
     </div>
   );
 }
 
+// Icon-first: icon + 1-2 word title only, no body copy. `qa-card` is the
+// hover convention defined once in globals.css (border-color shift, no
+// transform — nothing else in the app uses a hover transform to reuse).
 function QuickAccessCard({
   href,
-  icon,
+  icon: Icon,
   title,
-  description,
+  ariaLabel,
 }: {
   href?: string;
-  icon: string;
+  icon: ComponentType<LucideProps>;
   title: string;
-  description: string;
+  ariaLabel: string;
 }) {
   const content = (
     <div
+      className={href ? 'qa-card' : undefined}
       style={{
         background: '#fff',
         border: '1px solid var(--border)',
         borderRadius: RADIUS.md,
-        padding: '20px',
+        padding: '24px 20px',
         height: '100%',
         display: 'flex',
         flexDirection: 'column',
-        gap: '8px',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: '10px',
+        textAlign: 'center',
         boxShadow: '0 1px 3px rgba(0,0,0,0.08)',
       }}
     >
-      <span style={{ fontSize: '22px', lineHeight: 1 }}>{icon}</span>
-      <h3 style={{ fontSize: '15px', fontWeight: 700, color: 'var(--text)' }}>{title}</h3>
-      <p style={{ fontSize: '13px', color: 'var(--muted)', lineHeight: 1.5, flex: 1 }}>
-        {description}
-      </p>
-      {href && (
-        <span style={{ fontSize: '13px', fontWeight: 600, color: 'var(--brand)' }}>Open →</span>
-      )}
+      <Icon size={26} color="var(--brand)" aria-hidden="true" />
+      <h3 style={{ fontSize: '14px', fontWeight: 700, color: 'var(--text)' }}>{title}</h3>
     </div>
   );
 
   if (!href) {
-    return <div style={{ flex: '1 1 220px', minWidth: '220px' }}>{content}</div>;
+    return (
+      <div style={{ flex: '1 1 220px', minWidth: '220px' }} aria-label={ariaLabel}>
+        {content}
+      </div>
+    );
   }
 
   return (
-    <Link href={href} style={{ flex: '1 1 220px', minWidth: '220px', display: 'block' }}>
+    <Link href={href} aria-label={ariaLabel} style={{ flex: '1 1 220px', minWidth: '220px', display: 'block' }}>
       {content}
     </Link>
   );
@@ -192,29 +216,21 @@ function HomeView() {
         <h1 style={{ fontSize: '52px', fontWeight: 800, letterSpacing: '-1.5px', lineHeight: 1.1 }}>
           Siraat
         </h1>
-        <p style={{ fontSize: '20px', color: 'var(--muted)', marginTop: '12px' }}>
-          The Trust Operating System for Real Estate
-        </p>
-        <p style={{ fontSize: '15px', fontWeight: 600, color: 'var(--text)', marginTop: '20px' }}>
-          Every recommendation is backed by verified evidence, not opinions.
+        <p style={{ fontSize: '18px', color: 'var(--muted)', marginTop: '14px' }}>
+          Real estate you can verify.
         </p>
       </header>
 
       <StatsRow stats={stats} />
 
-      <section
+      <div
         style={{
           width: '100%',
-          maxWidth: '720px',
-          background: '#fff',
-          border: '1px solid var(--border)',
-          borderRadius: RADIUS.lg,
-          padding: '28px 24px',
+          maxWidth: '680px',
           display: 'flex',
           flexDirection: 'column',
           alignItems: 'center',
           gap: '16px',
-          boxShadow: '0 1px 3px rgba(0,0,0,0.08)',
         }}
       >
         <SearchBar onSearch={handleSearch} loading={loading} initialValue={searchParams.get('q') ?? ''} />
@@ -226,7 +242,7 @@ function HomeView() {
             e.g. &ldquo;10 Marla plot in Islamabad under 2.5 Crore&rdquo;
           </p>
         )}
-      </section>
+      </div>
 
       <div
         style={{
@@ -239,30 +255,26 @@ function HomeView() {
       >
         <QuickAccessCard
           href={compareHref}
-          icon="⚖️"
-          title="Compare Societies"
-          description={
-            canCompare
-              ? `Compare your ${compareSelection.length} selected societies side by side.`
-              : 'Search first, then add 2–3 societies from your results to compare confidence scores side by side.'
-          }
+          icon={Scale}
+          title="Compare"
+          ariaLabel="Compare societies"
         />
         <QuickAccessCard
           href="/construction-estimate"
-          icon="🏗"
-          title="Construction Cost Estimate"
-          description="Grey-structure material cost, broken down by source and freshness — not a guess."
+          icon={Building2}
+          title="Cost Estimate"
+          ariaLabel="Construction cost estimate"
         />
         <QuickAccessCard
-          icon="🛡️"
-          title="How Siraat Verifies Societies"
-          description="Every score combines documented Evidence, Regulatory Records (NOC, approvals), and Independent Verification — affiliation never influences the score."
+          icon={ShieldCheck}
+          title="How We Verify"
+          ariaLabel="How Siraat verifies societies"
         />
         <QuickAccessCard
           href="/contractors"
-          icon="🔧"
-          title="Find Contractors"
-          description="Browse verified electricians, plumbers, masons and other trades by city — same claim-and-evidence trust model as societies."
+          icon={Wrench}
+          title="Contractors"
+          ariaLabel="Find contractors"
         />
       </div>
 

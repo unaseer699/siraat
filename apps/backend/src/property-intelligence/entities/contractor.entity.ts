@@ -22,7 +22,11 @@ export class ContractorEntity {
   @Column({ length: 50 })
   contact_phone: string;
 
-  @Column({ length: 50, nullable: true })
+  // Explicit `type: 'text'` required — a `string | null` union has no usable
+  // design:type reflect-metadata (TypeScript emits `Object`), so TypeORM can't
+  // infer the column type without it. Same pattern as SocietyEntity's
+  // affiliation_disclosure/noc_summary and MaterialRateEntity's source_contact.
+  @Column({ type: 'text', nullable: true })
   contact_whatsapp: string | null;
 
   // Same field/rule as DeveloperEntity — never affects verification or
