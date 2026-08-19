@@ -44,4 +44,32 @@ export class PropertyIntelligenceController {
     if (!stats) throw new NotFoundException(`Developer ${id} not found`);
     return stats;
   }
+
+  // CONTRACTOR DIRECTORY Chunk 3 — public directory listing. Same guard/auth
+  // level as every other route on this controller (BearerGuard is a single
+  // shared API key today, not admin-vs-public scoped — see bearer.guard.ts);
+  // this just delegates to the same PropertyIntelligenceService.searchContractors()
+  // that GET /v1/admin/contractors uses.
+  @Get('contractors')
+  async searchContractors(
+    @Query('trade_category') trade_category?: string,
+    @Query('city') city?: string,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+  ) {
+    return this.piSvc.searchContractors({
+      trade_category,
+      city,
+      page: page !== undefined ? Number(page) : undefined,
+      limit: limit !== undefined ? Number(limit) : undefined,
+    });
+  }
+
+  // CONTRACTOR DIRECTORY Chunk 3 — public profile lookup.
+  @Get('contractors/:id')
+  async getContractor(@Param('id') id: string) {
+    const contractor = await this.piSvc.findContractorById(id);
+    if (!contractor) throw new NotFoundException(`Contractor ${id} not found`);
+    return contractor;
+  }
 }

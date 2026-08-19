@@ -102,3 +102,49 @@ export interface SocietyChangeSummary {
 export interface SocietyChangesResponse {
   changes: SocietyChangeSummary[];
 }
+
+// ─── CONTRACTOR DIRECTORY Chunk 1 ────────────────────────────────────────────
+// A directory (find + verify), not a marketplace — no booking/payment/in-app
+// transactions. Standalone from Developer per founder decision, but lives in
+// the same property_intelligence context: both are "who does the work"
+// concepts, distinct from Society/Property ("what's being built/bought").
+
+export const TradeCategorySchema = z.enum([
+  'EXCAVATION',
+  'MASON_GREY_STRUCTURE',
+  'STEEL_FIXING',
+  'SHUTTERING',
+  'ELECTRICIAN',
+  'PLUMBER',
+  'TILE_WORK',
+  'PAINTER',
+  'WOODWORK_CARPENTER',
+  'ALUMINUM_GLASS',
+  'FALSE_CEILING',
+  'GENERAL_CONTRACTOR',
+]);
+export type TradeCategory = z.infer<typeof TradeCategorySchema>;
+export const TRADE_CATEGORIES = TradeCategorySchema.options;
+
+// CONTRACTOR DIRECTORY Chunk 3 — public directory + profile shapes. Same
+// verification_status derivation as SocietyBrowseSummary (via TrustService,
+// reused not re-implemented) — see PropertyIntelligenceService.searchContractors
+// / findContractorById.
+export interface ContractorSummary {
+  id: string;
+  name: string;
+  trade_categories: TradeCategory[];
+  service_cities: string[];
+  contact_phone: string;
+  contact_whatsapp: string | null;
+  is_siraat_affiliated: boolean;
+  record_type: 'FACT';
+  verification_status: SocietyVerificationStatus;
+}
+
+export interface ContractorListResponse {
+  contractors: ContractorSummary[];
+  total_count: number;
+  page: number;
+  total_pages: number;
+}

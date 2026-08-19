@@ -2,7 +2,7 @@ import { Injectable, BadRequestException, Logger, NotFoundException } from '@nes
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, In, MoreThan } from 'typeorm';
 import type { SocietyVerificationStatus } from '@siraat/shared-types';
-import { VerificationEntity } from './entities/verification.entity';
+import { VerificationEntity, type VerificationSubjectType } from './entities/verification.entity';
 import { EvidenceEntity } from './entities/evidence.entity';
 import { EvidenceSubmissionEntity } from './entities/evidence-submission.entity';
 import { ObservationEntity } from './entities/observation.entity';
@@ -74,7 +74,7 @@ export class TrustService {
   }
 
   async getVerifications(
-    subjectType: 'SOCIETY' | 'DEVELOPER',
+    subjectType: VerificationSubjectType,
     subjectId: string,
   ): Promise<VerificationResult[]> {
     const verifications = await this.verRepo.find({
@@ -120,7 +120,7 @@ export class TrustService {
    * an otherwise-VERIFIED primary claim.
    */
   async deriveVerificationStatus(
-    subjectType: 'SOCIETY' | 'DEVELOPER',
+    subjectType: VerificationSubjectType,
     subjectId: string,
   ): Promise<SocietyVerificationStatus> {
     const all = await this.getVerifications(subjectType, subjectId);
@@ -166,8 +166,11 @@ export class TrustService {
   }
 
   // Used internally and in tests; no public POST endpoint this capability
+  // (public POST is AdminService.addClaim, which calls this generically).
+  // CONTRACTOR DIRECTORY Chunk 2 — widened to VerificationSubjectType; body
+  // below never branched on subject_type, so no logic change was needed.
   async createVerification(data: {
-    subject_type: 'SOCIETY' | 'DEVELOPER';
+    subject_type: VerificationSubjectType;
     subject_id: string;
     claim: string;
     claim_type: ClaimType;

@@ -1,11 +1,15 @@
 import Link from 'next/link';
 import type { CSSProperties } from 'react';
 
-type AdminSection = 'candidates' | 'material-rates';
+type AdminSection = 'candidates' | 'material-rates' | 'contractors';
 
 const SECTIONS: { key: AdminSection; href: string; label: string }[] = [
   { key: 'candidates', href: '/admin/candidates', label: 'Candidate Societies' },
   { key: 'material-rates', href: '/admin/material-rates', label: 'Material Rates' },
+  // CONTRACTOR DIRECTORY Chunk 2b — no standalone list page yet, so the tab
+  // opens straight into the onboarding form (same as Material Rates doubling
+  // as both list and create).
+  { key: 'contractors', href: '/admin/new-contractor', label: 'Contractors' },
 ];
 
 // Shared nav row so the admin tools are reachable from one another instead of

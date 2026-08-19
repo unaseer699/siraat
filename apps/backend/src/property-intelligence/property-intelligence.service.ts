@@ -1,7 +1,7 @@
 import { BadRequestException, Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { ILike, In, MoreThan, Repository } from 'typeorm';
-import type { ParsedIntent } from '@siraat/shared-types';
+import type { ParsedIntent, TradeCategory } from '@siraat/shared-types';
 import type {
   PropertyDetail,
   DeveloperProfile,
@@ -10,11 +10,14 @@ import type {
   SocietyListResponse,
   SocietyChangesResponse,
   SocietyChangeSummary,
+  ContractorSummary,
+  ContractorListResponse,
 } from '@siraat/shared-types';
 import { TrustService } from '../trust/trust.service';
 import { SocietyEntity } from './entities/society.entity';
 import { PropertyEntity } from './entities/property.entity';
 import { DeveloperEntity } from './entities/developer.entity';
+import { ContractorEntity } from './entities/contractor.entity';
 import { ObservationEntity } from './entities/observation.entity';
 
 // Watchlist Chunk 1: caps how many societies /societies/changes will check in one
@@ -25,6 +28,11 @@ const MAX_CHANGES_BATCH_SIZE = 20;
 // DEVELOPER-SOCIETY LINK Chunk 3: caps GET /admin/developers?search= results —
 // a broad query (e.g. a single letter) must never dump the whole developers table.
 const DEVELOPER_SEARCH_LIMIT = 10;
+
+// CONTRACTOR DIRECTORY Chunk 1 — same default page size as Browse Societies
+// (listSocieties below), kept as a named constant since searchContractors
+// references it in more than one place.
+const DEFAULT_CONTRACTOR_PAGE_SIZE = 20;
 
 export interface SocietyResult {
   id: string;
@@ -70,6 +78,24 @@ function toSocietyResult(e: SocietyEntity): SocietyResult {
   };
 }
 
+// ─── CONTRACTOR DIRECTORY Chunk 1 ────────────────────────────────────────────
+
+// Fields straight off the entity — verification_status is spliced in
+// separately at each call site below (a TrustService call, so it can't live
+// in this plain sync helper).
+function toContractorFields(e: ContractorEntity) {
+  return {
+    id: e.id,
+    name: e.name,
+    trade_categories: e.trade_categories,
+    service_cities: e.service_cities,
+    contact_phone: e.contact_phone,
+    contact_whatsapp: e.contact_whatsapp,
+    is_siraat_affiliated: e.is_siraat_affiliated,
+    record_type: e.record_type,
+  };
+}
+
 @Injectable()
 export class PropertyIntelligenceService {
   private readonly logger = new Logger(PropertyIntelligenceService.name);
@@ -81,6 +107,8 @@ export class PropertyIntelligenceService {
     private readonly propertyRepo: Repository<PropertyEntity>,
     @InjectRepository(DeveloperEntity)
     private readonly developerRepo: Repository<DeveloperEntity>,
+    @InjectRepository(ContractorEntity)
+    private readonly contractorRepo: Repository<ContractorEntity>,
     @InjectRepository(ObservationEntity)
     private readonly observationRepo: Repository<ObservationEntity>,
     private readonly trustSvc: TrustService,
@@ -313,6 +341,87 @@ export class PropertyIntelligenceService {
       linked_societies,
       evidence_count,
       is_siraat_affiliated: dev.is_siraat_affiliated,
+    };
+  }
+
+  // ─── CONTRACTOR DIRECTORY Chunk 1 — Schema & Core Service ──────────────────
+  // Standalone entity, organized the same way Developer is (methods live
+  // directly on this service — no dedicated ContractorService). A directory
+  // (find + verify) only; no booking/payment/in-app-transaction fields.
+
+  async createContractor(data: {
+    name: string;
+    trade_categories: TradeCategory[];
+    service_cities: string[];
+    contact_phone: string;
+    contact_whatsapp: string | null;
+    is_siraat_affiliated: boolean;
+  }): Promise<ContractorSummary> {
+    const entity = this.contractorRepo.create({ ...data, record_type: 'FACT' });
+    const saved = await this.contractorRepo.save(entity);
+    return {
+      ...toContractorFields(saved),
+      verification_status: await this.trustSvc.deriveVerificationStatus('CONTRACTOR', saved.id),
+    };
+  }
+
+  // CONTRACTOR DIRECTORY Chunk 3 — also backs the public GET
+  // /property-intelligence/contractors/:id profile route; the admin addClaim
+  // existence check just discards the extra verification_status field.
+  async findContractorById(id: string): Promise<ContractorSummary | null> {
+    const entity = await this.contractorRepo.findOneBy({ id });
+    if (!entity) return null;
+    return {
+      ...toContractorFields(entity),
+      verification_status: await this.trustSvc.deriveVerificationStatus('CONTRACTOR', entity.id),
+    };
+  }
+
+  // Paginated the same way listSocieties (Browse Societies) is: page/limit
+  // default and clamp the same way, order alphabetically, getManyAndCount.
+  // CONTRACTOR DIRECTORY Chunk 3 — also backs the public GET
+  // /property-intelligence/contractors route (same delegation as GET /admin/contractors).
+  async searchContractors(params: {
+    trade_category?: string;
+    city?: string;
+    page?: number;
+    limit?: number;
+  }): Promise<ContractorListResponse> {
+    const page = params.page && params.page > 0 ? params.page : 1;
+    const limit = params.limit && params.limit > 0 ? params.limit : DEFAULT_CONTRACTOR_PAGE_SIZE;
+
+    const qb = this.contractorRepo.createQueryBuilder('c');
+    if (params.trade_category) {
+      // Same array-containment pattern as findMatchingSocieties' property_type filter.
+      qb.andWhere(':category = ANY(c.trade_categories)', { category: params.trade_category });
+    }
+    if (params.city) {
+      // service_cities is multi-valued (unlike Society's single city column), so the
+      // case-insensitive match from listSocieties becomes an EXISTS/unnest membership test.
+      qb.andWhere('EXISTS (SELECT 1 FROM unnest(c.service_cities) AS sc WHERE LOWER(sc) = LOWER(:city))', {
+        city: params.city,
+      });
+    }
+
+    const [entities, total_count] = await qb
+      .orderBy('c.name', 'ASC')
+      .skip((page - 1) * limit)
+      .take(limit)
+      .getManyAndCount();
+
+    // Same per-row TrustService derivation + Promise.all shape as listSocieties above.
+    const contractors = await Promise.all(
+      entities.map(async (e) => ({
+        ...toContractorFields(e),
+        verification_status: await this.trustSvc.deriveVerificationStatus('CONTRACTOR', e.id),
+      })),
+    );
+
+    return {
+      contractors,
+      total_count,
+      page,
+      total_pages: Math.ceil(total_count / limit),
     };
   }
 

@@ -144,6 +144,17 @@ Each item: **Priority** (Low / Medium / High) · **Found in** (capability) ·
   improving, this should be a single change to apiFetch surfacing status codes,
   applied consistently across all callers at once, not a per-page fix.
 
+### 16. Evidence submission (Contribute flywheel) is SOCIETY-only, not CONTRACTOR
+- **Priority:** Medium
+- **Found in:** Contractor Directory (Chunk 3)
+- **Target:** Future capability
+- `TrustService.submitEvidence()` and the associated verification-queue flow only support
+  `subject_type: 'SOCIETY'`. Contractor profile pages correctly omit the "Help verify this"
+  CTA since the backend doesn't support it yet, rather than linking to a broken flow.
+  Generalizing `submitEvidence()` to accept `CONTRACTOR` (and by extension `DEVELOPER`) is a
+  real, bounded piece of future work — likely small given how cleanly the verification/claim
+  system already generalized across all three subject types in this same feature.
+
 ---
 
 ## Resolved Items

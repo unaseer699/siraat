@@ -1,5 +1,6 @@
 import { Body, Controller, Get, HttpCode, Param, Post, Query, UseGuards } from '@nestjs/common';
 import { z } from 'zod';
+import { TradeCategorySchema } from '@siraat/shared-types';
 import { BearerGuard } from '../auth/bearer.guard';
 import { ZodValidationPipe } from '../common/zod-validation.pipe';
 import { AdminService } from './admin.service';
@@ -86,6 +87,18 @@ const CreateMaterialRateBodySchema = z.object({
 });
 type CreateMaterialRateBody = z.infer<typeof CreateMaterialRateBodySchema>;
 
+// --- POST /v1/admin/contractors (CONTRACTOR DIRECTORY Chunk 2) ---
+
+const CreateContractorBodySchema = z.object({
+  name: z.string().min(1),
+  trade_categories: z.array(TradeCategorySchema).min(1),
+  service_cities: z.array(z.string().min(1)).min(1),
+  contact_phone: z.string().min(1),
+  contact_whatsapp: z.string().nullable().default(null),
+  is_siraat_affiliated: z.boolean().default(false),
+});
+type CreateContractorBody = z.infer<typeof CreateContractorBodySchema>;
+
 // --- Controller ---
 
 @Controller('v1/admin')
@@ -108,11 +121,23 @@ export class AdminController {
 
   @Post('societies/:id/claims')
   @HttpCode(201)
-  addClaim(
+  addClaimToSociety(
     @Param('id') id: string,
     @Body(new ZodValidationPipe(AddClaimBodySchema)) body: AddClaimBody,
   ) {
-    return this.adminSvc.addClaimToSociety({ ...body, society_id: id });
+    return this.adminSvc.addClaim({ ...body, subject_type: 'SOCIETY', subject_id: id });
+  }
+
+  // CONTRACTOR DIRECTORY Chunk 2 — same claim-adding flow as Society, just a
+  // different subject_type; both routes call the same generalized
+  // AdminService.addClaim().
+  @Post('contractors/:id/claims')
+  @HttpCode(201)
+  addClaimToContractor(
+    @Param('id') id: string,
+    @Body(new ZodValidationPipe(AddClaimBodySchema)) body: AddClaimBody,
+  ) {
+    return this.adminSvc.addClaim({ ...body, subject_type: 'CONTRACTOR', subject_id: id });
   }
 
   @Post('evidence')
@@ -141,5 +166,30 @@ export class AdminController {
   @Get('developers')
   searchDevelopers(@Query('search') search?: string) {
     return this.adminSvc.searchDevelopers(search ?? '');
+  }
+
+  // CONTRACTOR DIRECTORY Chunk 2 — admin entry, same shape as POST /societies.
+  @Post('contractors')
+  @HttpCode(201)
+  createContractor(
+    @Body(new ZodValidationPipe(CreateContractorBodySchema)) body: CreateContractorBody,
+  ) {
+    return this.adminSvc.createContractor(body);
+  }
+
+  // CONTRACTOR DIRECTORY Chunk 2 — admin list view, same pattern as GET /material-rates.
+  @Get('contractors')
+  searchContractors(
+    @Query('trade_category') trade_category?: string,
+    @Query('city') city?: string,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+  ) {
+    return this.adminSvc.searchContractors({
+      trade_category,
+      city,
+      page: page !== undefined ? Number(page) : undefined,
+      limit: limit !== undefined ? Number(limit) : undefined,
+    });
   }
 }
