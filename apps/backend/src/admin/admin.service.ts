@@ -21,6 +21,13 @@ import {
 export type { ClaimType };
 export type { CreateMaterialRateInput, MaterialRateResult };
 
+// GET /v1/admin/material-rates response shape — MaterialRateResult plus the
+// linked supplier's resolved name (see listMaterialRates below). Admin-only;
+// not in shared-types since no other consumer needs supplier_name.
+export interface MaterialRateListItem extends MaterialRateResult {
+  supplier_name: string | null;
+}
+
 export interface EvidenceInput {
   type: 'document' | 'photo' | 'receipt' | 'inspection_report';
   file_ref: string;
@@ -226,8 +233,24 @@ export class AdminService {
     return this.ciSvc.createMaterialRate(data);
   }
 
-  async listMaterialRates(filters: { city?: string; material?: string }): Promise<MaterialRateResult[]> {
-    return this.ciSvc.listMaterialRates(filters);
+  // Enriches each rate with the linked supplier's name — MaterialRateEntity
+  // (construction_intelligence) only carries a bare supplier_id UUID (Law 1:
+  // no cross-context FK), so the admin table was rendering a truncated ID
+  // instead of a name. Resolved here rather than in ConstructionIntelligenceService
+  // itself, since that service must not reach into property_intelligence
+  // (Law 9) — AdminService already holds both piSvc and ciSvc, same
+  // composition-at-the-orchestrator pattern as createSocietyWithFirstClaim.
+  async listMaterialRates(filters: { city?: string; material?: string }): Promise<MaterialRateListItem[]> {
+    const rates = await this.ciSvc.listMaterialRates(filters);
+
+    const supplierIds = [...new Set(rates.map((r) => r.supplier_id).filter((id): id is string => !!id))];
+    const suppliers = supplierIds.length > 0 ? await this.piSvc.findSuppliersByIds(supplierIds) : [];
+    const nameById = new Map(suppliers.map((s) => [s.id, s.name]));
+
+    return rates.map((r) => ({
+      ...r,
+      supplier_name: r.supplier_id ? (nameById.get(r.supplier_id) ?? null) : null,
+    }));
   }
 
   // DEVELOPER-SOCIETY LINK Chunk 3 — GET /v1/admin/developers?search=

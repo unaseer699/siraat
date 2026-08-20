@@ -63,6 +63,7 @@ const MATERIAL_RATE_RESULT = {
   source_tier: 'SUPPLIER_VERIFIED' as const,
   source_name: 'Al-Rehman Traders',
   source_contact: '+92 300 1234567',
+  supplier_id: 'sup-uuid-0001',
   recorded_date: '2026-08-10',
   record_type: 'FACT' as const,
   is_stale: false,
@@ -132,6 +133,7 @@ describe('AdminService', () => {
   let createSupplierMock: jest.Mock;
   let searchSuppliersMock: jest.Mock;
   let searchSuppliersByNameMock: jest.Mock;
+  let findSuppliersByIdsMock: jest.Mock;
 
   // TrustService mocks
   let createVerificationMock: jest.Mock;
@@ -160,6 +162,7 @@ describe('AdminService', () => {
     createSupplierMock        = jest.fn().mockResolvedValue(SUPPLIER_RESULT);
     searchSuppliersMock       = jest.fn().mockResolvedValue({ suppliers: [], total_count: 0, page: 1, total_pages: 0 });
     searchSuppliersByNameMock = jest.fn().mockResolvedValue([]);
+    findSuppliersByIdsMock    = jest.fn().mockResolvedValue([]);
     createVerificationMock     = jest.fn().mockResolvedValue(VERIFICATION_ENTITY);
     createAndLinkEvidenceMock  = jest.fn().mockResolvedValue(EVIDENCE_ENTITY);
     promoteVerificationToVerifiedMock = jest.fn().mockResolvedValue(VERIFIED_ENTITY);
@@ -187,6 +190,7 @@ describe('AdminService', () => {
             createSupplier:     createSupplierMock,
             searchSuppliers:    searchSuppliersMock,
             searchSuppliersByName: searchSuppliersByNameMock,
+            findSuppliersByIds: findSuppliersByIdsMock,
           },
         },
         {
@@ -539,10 +543,48 @@ describe('AdminService', () => {
     expect(result).toBe(MATERIAL_RATE_RESULT);
   });
 
-  it('listMaterialRates delegates to ConstructionIntelligenceService.listMaterialRates', async () => {
+  // ─── listMaterialRates — supplier_name enrichment (FIX: admin table was
+  // showing "Supplier #<id fragment>" instead of the linked supplier's name) ──
+
+  it('listMaterialRates delegates to ConstructionIntelligenceService.listMaterialRates and resolves supplier_name', async () => {
+    findSuppliersByIdsMock.mockResolvedValue([{ id: 'sup-uuid-0001', name: 'Hamza Traders' }]);
+
     const result = await svc.listMaterialRates({ city: 'Islamabad', material: 'Cement' });
+
     expect(listMaterialRatesMock).toHaveBeenCalledWith({ city: 'Islamabad', material: 'Cement' });
-    expect(result).toEqual([MATERIAL_RATE_RESULT]);
+    expect(findSuppliersByIdsMock).toHaveBeenCalledWith(['sup-uuid-0001']);
+    expect(result).toEqual([{ ...MATERIAL_RATE_RESULT, supplier_name: 'Hamza Traders' }]);
+  });
+
+  it('listMaterialRates sets supplier_name null and skips the lookup when no rate has a supplier_id', async () => {
+    listMaterialRatesMock.mockResolvedValue([{ ...MATERIAL_RATE_RESULT, supplier_id: null }]);
+
+    const result = await svc.listMaterialRates({});
+
+    expect(findSuppliersByIdsMock).not.toHaveBeenCalled();
+    expect(result[0].supplier_name).toBeNull();
+  });
+
+  it('listMaterialRates sets supplier_name null when the linked supplier is not found (e.g. since deleted)', async () => {
+    findSuppliersByIdsMock.mockResolvedValue([]);
+
+    const result = await svc.listMaterialRates({});
+
+    expect(result[0].supplier_name).toBeNull();
+  });
+
+  it('listMaterialRates de-duplicates repeated supplier_ids into a single findSuppliersByIds call', async () => {
+    listMaterialRatesMock.mockResolvedValue([
+      { ...MATERIAL_RATE_RESULT, id: 'rate-1', supplier_id: 'sup-uuid-0001' },
+      { ...MATERIAL_RATE_RESULT, id: 'rate-2', supplier_id: 'sup-uuid-0001' },
+    ]);
+    findSuppliersByIdsMock.mockResolvedValue([{ id: 'sup-uuid-0001', name: 'Hamza Traders' }]);
+
+    const result = await svc.listMaterialRates({});
+
+    expect(findSuppliersByIdsMock).toHaveBeenCalledTimes(1);
+    expect(findSuppliersByIdsMock).toHaveBeenCalledWith(['sup-uuid-0001']);
+    expect(result.every((r) => r.supplier_name === 'Hamza Traders')).toBe(true);
   });
 
   // ─── DEVELOPER-SOCIETY LINK Chunk 3 ────────────────────────────────────────

@@ -6,7 +6,7 @@ import {
   createMaterialRate,
   fetchMaterialRates,
   searchSuppliers,
-  type MaterialRateItem,
+  type MaterialRateListItem,
   type SupplierSearchResult,
 } from '@/lib/api';
 import { fieldGroupStyle, inputStyle, labelStyle } from '../constants';
@@ -215,7 +215,7 @@ export default function MaterialRatesPage() {
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
 
-  const [rates, setRates] = useState<MaterialRateItem[]>([]);
+  const [rates, setRates] = useState<MaterialRateListItem[]>([]);
   const [listLoading, setListLoading] = useState(true);
   const [listError, setListError] = useState<string | null>(null);
 
@@ -551,11 +551,15 @@ export default function MaterialRatesPage() {
                       <td style={tdStyle}>
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', alignItems: 'flex-start' }}>
                           <SourceTierBadge tier={r.source_tier} />
-                          {/* SUPPLIER DIRECTORY Chunk 2b — source_name can now be null for a
-                              SUPPLIER_VERIFIED rate; fall back to the supplier link so the
-                              cell never renders blank. */}
+                          {/* FIX: was showing "Supplier #<id fragment>" — the backend now
+                              resolves and returns supplier_name (AdminService.listMaterialRates),
+                              so prefer that over the raw id. source_name (a manual override,
+                              optional since Chunk 2c) still wins when an operator set one;
+                              the id fragment is now only a last-resort fallback for a
+                              supplier_id whose linked Supplier record can't be resolved
+                              (e.g. deleted). */}
                           <span style={{ fontSize: '12px', color: 'var(--muted)' }}>
-                            {r.source_name ?? (r.supplier_id ? `Supplier #${r.supplier_id.slice(0, 8)}` : '—')}
+                            {r.source_name ?? r.supplier_name ?? (r.supplier_id ? `Supplier #${r.supplier_id.slice(0, 8)}` : '—')}
                           </span>
                         </div>
                       </td>

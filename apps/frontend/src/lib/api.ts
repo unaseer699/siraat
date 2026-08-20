@@ -324,10 +324,20 @@ export async function addClaimToSociety(
 // to prevent. Re-exported above for existing callers that import these types
 // from '@/lib/api'.
 
+// FIX: admin material-rates table was rendering "Supplier #<id fragment>"
+// instead of the linked supplier's name — GET /v1/admin/material-rates now
+// resolves and returns it (AdminService.listMaterialRates), so this response
+// shape needs supplier_name on top of the plain MaterialRateItem fields.
+// Admin-only, mirrors backend's MaterialRateListItem — not in shared-types
+// since no other consumer needs supplier_name.
+export interface MaterialRateListItem extends MaterialRateItem {
+  supplier_name: string | null;
+}
+
 export async function fetchMaterialRates(filters?: {
   city?: string;
   material?: string;
-}): Promise<MaterialRateItem[]> {
+}): Promise<MaterialRateListItem[]> {
   const qs = new URLSearchParams();
   if (filters?.city) qs.set('city', filters.city);
   if (filters?.material) qs.set('material', filters.material);

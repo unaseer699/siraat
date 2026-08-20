@@ -560,6 +560,22 @@ export class PropertyIntelligenceService {
     return results.map((s) => ({ id: s.id, name: s.name }));
   }
 
+  // Batched name lookup for a known set of supplier IDs — powers
+  // AdminService.listMaterialRates()'s supplier_name enrichment (GET
+  // /v1/admin/material-rates): construction_intelligence's MaterialRateEntity
+  // only carries a bare supplier_id UUID (Law 1: no cross-context FK), so the
+  // name has to be resolved back here rather than joined at the DB level.
+  // One query for the whole page of rates rather than one findSupplierById()
+  // per row.
+  async findSuppliersByIds(ids: string[]): Promise<{ id: string; name: string }[]> {
+    if (ids.length === 0) return [];
+    const results = await this.supplierRepo.find({
+      where: { id: In(ids) },
+      select: ['id', 'name'],
+    });
+    return results.map((s) => ({ id: s.id, name: s.name }));
+  }
+
   // Cross-module read (Law 9: public API call via the injected
   // ConstructionIntelligenceService, not a reach into construction_intelligence's
   // schema — same pattern as this service's TrustService calls elsewhere).
