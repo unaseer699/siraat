@@ -155,6 +155,17 @@ Each item: **Priority** (Low / Medium / High) · **Found in** (capability) ·
   real, bounded piece of future work — likely small given how cleanly the verification/claim
   system already generalized across all three subject types in this same feature.
 
+### 18. Contractor and Supplier public controller routes have no dedicated controller-level tests
+- **Priority:** Low
+- **Found in:** Supplier Directory Chunk 3
+- **Target:** General cleanup
+- Neither `property-intelligence.controller.spec.ts` nor `trust.controller.spec.ts`
+  currently cover the Contractor or Supplier public routes (`GET /suppliers`,
+  `GET /suppliers/:id`, `GET /trust/suppliers/:id/verification`, and their Contractor
+  equivalents) — only the underlying service methods are tested. Society's equivalent
+  public routes ARE covered at the controller level. Worth closing this gap for both
+  directories together in one pass, matching Society's existing coverage standard.
+
 ---
 
 ## Resolved Items
