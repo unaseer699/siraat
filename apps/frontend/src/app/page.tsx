@@ -3,7 +3,16 @@
 import { Suspense, useEffect, useRef, useState, type ComponentType } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { Scale, Building2, ShieldCheck, Wrench, type LucideProps } from 'lucide-react';
+import {
+  Scale,
+  Building2,
+  ShieldCheck,
+  Wrench,
+  Check,
+  FileCheck,
+  MapPin,
+  type LucideProps,
+} from 'lucide-react';
 import type {
   RecommendationResponse,
   RecommendationItem,
@@ -12,75 +21,267 @@ import type {
 import { fetchRecommendations, fetchPlatformStats } from '@/lib/api';
 import { SearchBar } from '@/components/SearchBar';
 import { ResultsPanel } from '@/components/ResultsPanel';
-import { NEUTRAL_GRAY, RADIUS } from '@/styles/tokens';
+import {
+  TRUST_GREEN,
+  WARNING_AMBER,
+  ACCENT_BLUE,
+  TRUST_GREEN_BG,
+  TRUST_GREEN_BORDER,
+  TRUST_GREEN_TEXT,
+  RADIUS,
+} from '@/styles/tokens';
+
+// Static, always-true methodology claims — describe HOW Siraat works, not
+// current data volume, so these are never wired to a live count.
+const TRUST_STRIP_ITEMS = [
+  'Verified against CDA and RDA records',
+  'Human-reviewed evidence',
+  'No fabricated data',
+];
 
 // A count of 0 (fresh install / no data yet) is shown as an honest "Just
 // getting started" rather than a bare "0" that could read as a broken/errored
 // metric — same honesty principle the platform applies to its own coverage
-// data (see NOT_COVERED state elsewhere). Unchanged from the previous
-// StatCard-based layout, just no longer paired with a success/neutral tone
-// since the plain inline row below doesn't color-code numbers.
+// data (see NOT_COVERED state elsewhere). Carried over unchanged from the
+// prior pass; only the card presentation below has changed.
 function statValue(count: number): string {
   return count === 0 ? 'Just getting started' : count.toLocaleString();
 }
 
-// Plain inline row with thin dividers, replacing the bordered StatCard grid —
-// numbers still come straight from the live fetchPlatformStats() call, only
-// the container is restyled.
-function StatsRow({ stats }: { stats: PlatformStatsResponse | null }) {
+// Trust-style hero band: flat tinted container (TRUST_GREEN_BG/BORDER/TEXT,
+// imported from tokens.ts) with a
+// small evidence-badge pill, title, tagline, a distinct white bordered search
+// card, and the trust strip attached directly beneath. Single rounded shell
+// (border-radius + overflow:hidden on the outer wrapper) rather than juggling
+// single-sided border-radius on two separate stacked elements — the hero
+// zone and trust-strip zone inside it have no radius of their own at all.
+function HeroBand({
+  onSearch,
+  loading,
+  initialValue,
+  showHint,
+}: {
+  onSearch: (query: string, opts?: { skipUrlUpdate?: boolean }) => void;
+  loading: boolean;
+  initialValue: string;
+  showHint: boolean;
+}) {
+  return (
+    <div
+      style={{
+        width: '100%',
+        maxWidth: '720px',
+        borderRadius: '16px',
+        overflow: 'hidden',
+        border: `1px solid ${TRUST_GREEN_BORDER}`,
+      }}
+    >
+      <div
+        style={{
+          background: TRUST_GREEN_BG,
+          padding: '40px 24px 32px',
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          gap: '20px',
+        }}
+      >
+        <span
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '6px',
+            background: '#fff',
+            border: `1px solid ${TRUST_GREEN_BORDER}`,
+            borderRadius: '99px',
+            padding: '6px 14px',
+            fontSize: '12px',
+            fontWeight: 600,
+            color: TRUST_GREEN_TEXT,
+          }}
+        >
+          <ShieldCheck size={14} color={TRUST_GREEN} aria-hidden="true" />
+          Evidence-backed real estate intelligence
+        </span>
+
+        <header style={{ textAlign: 'center', maxWidth: '640px' }}>
+          <h1 style={{ fontSize: '52px', fontWeight: 800, letterSpacing: '-1.5px', lineHeight: 1.1 }}>
+            Siraat
+          </h1>
+          <p style={{ fontSize: '18px', color: 'var(--muted)', marginTop: '14px' }}>
+            Buy with proof, not promises.
+          </p>
+        </header>
+
+        <div
+          style={{
+            width: '100%',
+            maxWidth: '640px',
+            background: '#fff',
+            border: '1px solid var(--border)',
+            borderRadius: RADIUS.lg,
+            padding: '20px',
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            gap: '12px',
+            boxShadow: '0 1px 3px rgba(0,0,0,0.08)',
+          }}
+        >
+          <SearchBar onSearch={onSearch} loading={loading} initialValue={initialValue} />
+
+          {showHint && (
+            <p style={{ color: 'var(--muted)', fontSize: '13px', textAlign: 'center' }}>
+              Search in: Islamabad, Rawalpindi
+              <br />
+              e.g. &ldquo;10 Marla plot in Islamabad under 2.5 Crore&rdquo;
+            </p>
+          )}
+        </div>
+      </div>
+
+      <div
+        style={{
+          background: '#fff',
+          borderTop: `1px solid ${TRUST_GREEN_BORDER}`,
+          padding: '14px 20px',
+          display: 'flex',
+          justifyContent: 'center',
+          flexWrap: 'wrap',
+          gap: '20px',
+        }}
+      >
+        {TRUST_STRIP_ITEMS.map((label) => (
+          <span
+            key={label}
+            style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', fontSize: '12px', color: 'var(--muted)' }}
+          >
+            <Check size={14} color={TRUST_GREEN} aria-hidden="true" />
+            {label}
+          </span>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// Icon-square + number + label, side by side (not stacked) — replaces the
+// prior plain-inline-row stat presentation. Numbers are unchanged: still
+// straight off the live fetchPlatformStats() call passed in from HomeView,
+// with the same statValue() zero-state fallback, just presented as cards.
+function StatCardsRow({ stats }: { stats: PlatformStatsResponse | null }) {
   if (!stats) return null;
 
-  const items: { value: string; label: string; href?: string; aria: string }[] = [
+  const items: {
+    icon: ComponentType<LucideProps>;
+    color: string;
+    value: string;
+    label: string;
+    href?: string;
+    aria: string;
+  }[] = [
     {
+      icon: Building2,
+      color: ACCENT_BLUE,
       value: statValue(stats.verified_societies_count),
       label: 'Societies',
       href: '/browse',
       aria: 'Browse verified societies',
     },
-    { value: statValue(stats.total_evidence_count), label: 'Evidence', aria: 'Evidence items on record' },
-    { value: statValue(stats.cities_covered.length), label: 'Cities', aria: 'Cities covered' },
+    {
+      icon: FileCheck,
+      color: TRUST_GREEN,
+      value: statValue(stats.total_evidence_count),
+      label: 'Evidence',
+      aria: 'Evidence items on record',
+    },
+    {
+      icon: MapPin,
+      color: WARNING_AMBER,
+      value: statValue(stats.cities_covered.length),
+      label: 'Cities',
+      aria: 'Cities covered',
+    },
   ];
 
   return (
-    <div style={{ display: 'flex', justifyContent: 'center', flexWrap: 'wrap' }}>
-      {items.map((item, i) => {
-        const inner = (
-          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '2px', padding: '0 28px' }}>
-            <span style={{ fontSize: '20px', fontWeight: 700, color: 'var(--text)' }}>{item.value}</span>
-            <span style={{ fontSize: '12px', color: 'var(--muted)', fontWeight: 600 }}>{item.label}</span>
+    <div
+      style={{
+        width: '100%',
+        maxWidth: '720px',
+        display: 'grid',
+        gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
+        gap: '12px',
+      }}
+    >
+      {items.map((item) => {
+        const Icon = item.icon;
+        const card = (
+          <div
+            style={{
+              background: '#fff',
+              border: '1px solid var(--border)',
+              borderRadius: RADIUS.md,
+              padding: '16px',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '12px',
+            }}
+          >
+            <div
+              style={{
+                width: '40px',
+                height: '40px',
+                flexShrink: 0,
+                borderRadius: RADIUS.sm,
+                background: `${item.color}18`,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
+            >
+              <Icon size={20} color={item.color} aria-hidden="true" />
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column' }}>
+              <span style={{ fontSize: '20px', fontWeight: 700, color: 'var(--text)' }}>{item.value}</span>
+              <span style={{ fontSize: '12px', color: 'var(--muted)', fontWeight: 600 }}>{item.label}</span>
+            </div>
           </div>
         );
-        return (
-          <div
+        return item.href ? (
+          <Link
             key={item.label}
-            style={{ borderRight: i < items.length - 1 ? `0.5px solid ${NEUTRAL_GRAY}40` : 'none' }}
+            href={item.href}
+            aria-label={item.aria}
+            style={{ color: 'inherit', textDecoration: 'none' }}
           >
-            {item.href ? (
-              <Link href={item.href} aria-label={item.aria} style={{ color: 'inherit', textDecoration: 'none' }}>
-                {inner}
-              </Link>
-            ) : (
-              inner
-            )}
-          </div>
+            {card}
+          </Link>
+        ) : (
+          <div key={item.label}>{card}</div>
         );
       })}
     </div>
   );
 }
 
-// Icon-first: icon + 1-2 word title only, no body copy. `qa-card` is the
-// hover convention defined once in globals.css (border-color shift, no
-// transform — nothing else in the app uses a hover transform to reuse).
+// Icon-first: icon + 1-2 word title, plus a short (4-6 word) muted subtitle —
+// same heading + supporting-line pattern used elsewhere (e.g. society/[id]
+// and contractor/[id] profile headers: bold heading, then a smaller
+// var(--muted) line directly below), not a return to full paragraph copy.
+// `qa-card` is the hover convention defined once in globals.css (border-color
+// shift, no transform — nothing else in the app uses a hover transform to reuse).
 function QuickAccessCard({
   href,
   icon: Icon,
   title,
+  subtitle,
   ariaLabel,
 }: {
   href?: string;
   icon: ComponentType<LucideProps>;
   title: string;
+  subtitle: string;
   ariaLabel: string;
 }) {
   const content = (
@@ -102,7 +303,10 @@ function QuickAccessCard({
       }}
     >
       <Icon size={26} color="var(--brand)" aria-hidden="true" />
-      <h3 style={{ fontSize: '14px', fontWeight: 700, color: 'var(--text)' }}>{title}</h3>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
+        <h3 style={{ fontSize: '14px', fontWeight: 700, color: 'var(--text)' }}>{title}</h3>
+        <p style={{ fontSize: '12px', color: 'var(--muted)' }}>{subtitle}</p>
+      </div>
     </div>
   );
 
@@ -212,37 +416,14 @@ function HomeView() {
         </Link>
       </div>
 
-      <header style={{ textAlign: 'center', maxWidth: '640px' }}>
-        <h1 style={{ fontSize: '52px', fontWeight: 800, letterSpacing: '-1.5px', lineHeight: 1.1 }}>
-          Siraat
-        </h1>
-        <p style={{ fontSize: '18px', color: 'var(--muted)', marginTop: '14px' }}>
-          Real estate you can verify.
-        </p>
-      </header>
+      <HeroBand
+        onSearch={handleSearch}
+        loading={loading}
+        initialValue={searchParams.get('q') ?? ''}
+        showHint={!result && !loading && !error}
+      />
 
-      <StatsRow stats={stats} />
-
-      <div
-        style={{
-          width: '100%',
-          maxWidth: '680px',
-          display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'center',
-          gap: '16px',
-        }}
-      >
-        <SearchBar onSearch={handleSearch} loading={loading} initialValue={searchParams.get('q') ?? ''} />
-
-        {!result && !loading && !error && (
-          <p style={{ color: 'var(--muted)', fontSize: '14px', textAlign: 'center' }}>
-            Search in: Islamabad, Rawalpindi
-            <br />
-            e.g. &ldquo;10 Marla plot in Islamabad under 2.5 Crore&rdquo;
-          </p>
-        )}
-      </div>
+      <StatCardsRow stats={stats} />
 
       <div
         style={{
@@ -257,23 +438,27 @@ function HomeView() {
           href={compareHref}
           icon={Scale}
           title="Compare"
+          subtitle="See societies side by side"
           ariaLabel="Compare societies"
         />
         <QuickAccessCard
           href="/construction-estimate"
           icon={Building2}
           title="Cost Estimate"
+          subtitle="Real material cost breakdown"
           ariaLabel="Construction cost estimate"
         />
         <QuickAccessCard
           icon={ShieldCheck}
           title="How We Verify"
+          subtitle="Evidence behind every score"
           ariaLabel="How Siraat verifies societies"
         />
         <QuickAccessCard
           href="/contractors"
           icon={Wrench}
           title="Contractors"
+          subtitle="Find verified trades near you"
           ariaLabel="Find contractors"
         />
       </div>
