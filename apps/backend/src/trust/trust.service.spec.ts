@@ -855,5 +855,79 @@ describe('TrustService', () => {
       expect(results[0].verification.status).toBe('VERIFIED');
       expect(results[0].evidence).toEqual([EVIDENCE_1]);
     });
+
+    // ─── SUPPLIER DIRECTORY Chunk 1 ────────────────────────────────────────
+    // 4th proof that the subject-type-agnostic design is actually generic —
+    // same fixtures, same precedence rules as SOCIETY/DEVELOPER/CONTRACTOR
+    // above, just a different subject_type string. Zero logic changes were
+    // made to deriveVerificationStatus/getVerifications to support this;
+    // only the VerificationSubjectType union was widened again.
+
+    const SUPPLIER_ID = 'd1b2c3d4-0001-0001-0001-000000000001';
+
+    const VERIFICATION_SUPPLIER_VERIFIED: VerificationEntity = {
+      id: 'c4b2c3d4-0001-0001-0001-000000000001',
+      subject_type: 'SUPPLIER',
+      subject_id: SUPPLIER_ID,
+      claim: 'PEC Registered Steel Supplier',
+      claim_type: 'OTHER',
+      status: 'VERIFIED',
+      evidence_refs: [EVIDENCE_1.id],
+      verified_at: new Date('2026-03-01'),
+    };
+
+    const VERIFICATION_SUPPLIER_DISPUTED: VerificationEntity = {
+      id: 'c4b2c3d4-0002-0002-0002-000000000002',
+      subject_type: 'SUPPLIER',
+      subject_id: SUPPLIER_ID,
+      claim: 'Show cause notice — substandard material supplied',
+      // Must be an ADVERSE_CLAIM_TYPES member (trust.service.ts) for the
+      // DISPUTED-wins-over-VERIFIED precedence to actually trigger — same
+      // claim_type the SOCIETY/CONTRACTOR fixtures above use for this.
+      claim_type: 'SHOW_CAUSE_NOTICE',
+      status: 'DISPUTED',
+      evidence_refs: [EVIDENCE_2.id],
+      verified_at: null,
+    };
+
+    it('deriveVerificationStatus works identically for SUPPLIER: PENDING with no claims', async () => {
+      verFindMock.mockResolvedValue([]);
+
+      const result = await svc.deriveVerificationStatus('SUPPLIER', 'non-existent-uuid');
+
+      expect(result).toBe('PENDING');
+    });
+
+    it('deriveVerificationStatus works identically for SUPPLIER: VERIFIED with a verified primary claim', async () => {
+      verFindMock.mockResolvedValue([VERIFICATION_SUPPLIER_VERIFIED]);
+      eviFindByMock.mockResolvedValue([EVIDENCE_1]);
+
+      const result = await svc.deriveVerificationStatus('SUPPLIER', SUPPLIER_ID);
+
+      expect(result).toBe('VERIFIED');
+    });
+
+    it('deriveVerificationStatus works identically for SUPPLIER: DISPUTED wins over a VERIFIED primary claim, same precedence as SOCIETY/DEVELOPER/CONTRACTOR', async () => {
+      verFindMock.mockResolvedValue([VERIFICATION_SUPPLIER_VERIFIED, VERIFICATION_SUPPLIER_DISPUTED]);
+      eviFindByMock.mockResolvedValue([EVIDENCE_1]);
+
+      const result = await svc.deriveVerificationStatus('SUPPLIER', SUPPLIER_ID);
+
+      expect(result).toBe('DISPUTED');
+    });
+
+    it('getVerifications works identically for SUPPLIER — same application-level evidence join', async () => {
+      verFindMock.mockResolvedValue([VERIFICATION_SUPPLIER_VERIFIED]);
+      eviFindByMock.mockResolvedValue([EVIDENCE_1]);
+
+      const results = await svc.getVerifications('SUPPLIER', SUPPLIER_ID);
+
+      expect(verFindMock).toHaveBeenCalledWith({
+        where: { subject_type: 'SUPPLIER', subject_id: SUPPLIER_ID },
+      });
+      expect(results).toHaveLength(1);
+      expect(results[0].verification.status).toBe('VERIFIED');
+      expect(results[0].evidence).toEqual([EVIDENCE_1]);
+    });
   });
 });

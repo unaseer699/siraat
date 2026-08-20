@@ -14,6 +14,12 @@ export interface CreateMaterialRateInput {
   source_name: string;
   source_contact: string | null;
   recorded_date: string;
+  // SUPPLIER DIRECTORY Chunk 1 — optional at the type level (rather than
+  // required) so existing callers that don't yet know about suppliers (e.g.
+  // AdminService.createMaterialRate's current CreateMaterialRateBody, wired
+  // up in a later chunk) still compile unchanged. Required at runtime for
+  // SUPPLIER_VERIFIED — see createMaterialRate below.
+  supplier_id?: string | null;
 }
 
 export interface MaterialRateResult {
@@ -25,6 +31,7 @@ export interface MaterialRateResult {
   source_tier: MaterialRateSourceTier;
   source_name: string;
   source_contact: string | null;
+  supplier_id: string | null;
   recorded_date: string;
   record_type: 'FACT';
   is_stale: boolean;
@@ -41,6 +48,7 @@ function toResult(e: MaterialRateEntity): MaterialRateResult {
     source_tier: e.source_tier,
     source_name: e.source_name,
     source_contact: e.source_contact,
+    supplier_id: e.supplier_id,
     recorded_date: e.recorded_date,
     record_type: e.record_type,
     is_stale: e.is_stale,
@@ -81,9 +89,15 @@ export class ConstructionIntelligenceService {
   }
 
   async createMaterialRate(data: CreateMaterialRateInput): Promise<MaterialRateResult> {
-    if (data.source_tier === 'SUPPLIER_VERIFIED' && !data.source_contact) {
+    // SUPPLIER DIRECTORY Chunk 1 — supplier_id is now the required link for
+    // SUPPLIER_VERIFIED rates (replaces the old source_contact requirement:
+    // source_name/source_contact are optional fallback fields for this tier
+    // now that a real supplier link exists). MARKET_REFERENCE is unchanged —
+    // supplier_id stays optional/null, source_name/source_contact remain the
+    // primary fields for that tier.
+    if (data.source_tier === 'SUPPLIER_VERIFIED' && !data.supplier_id) {
       throw new BadRequestException(
-        'source_contact is required when source_tier is SUPPLIER_VERIFIED',
+        'supplier_id is required when source_tier is SUPPLIER_VERIFIED',
       );
     }
 
@@ -98,6 +112,7 @@ export class ConstructionIntelligenceService {
 
     const entity = this.rateRepo.create({
       ...data,
+      supplier_id: data.supplier_id ?? null,
       record_type: 'FACT',
       is_stale: computeMaterialRateIsStale(data.recorded_date, data.source_tier),
     });
@@ -138,6 +153,19 @@ export class ConstructionIntelligenceService {
       .createQueryBuilder('r')
       .where('LOWER(r.city) = LOWER(:city)', { city })
       .getMany();
+  }
+
+  // SUPPLIER DIRECTORY Chunk 1 — powers PropertyIntelligenceService's
+  // findMaterialRatesBySupplierId (cross-module public-API call, Law 9: no
+  // reach into this schema from property_intelligence — same pattern as
+  // PropertyIntelligenceService already using TrustService's public methods).
+  // Feeds the supplier profile page's "active material rate submissions" list.
+  async findRatesBySupplierId(supplierId: string): Promise<MaterialRateResult[]> {
+    const entities = await this.rateRepo.find({
+      where: { supplier_id: supplierId },
+      order: { recorded_date: 'DESC' },
+    });
+    return entities.map(toResult);
   }
 
   // Platform stats (Home page) — distinct material_name values logged so far.

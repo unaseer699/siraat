@@ -2,14 +2,16 @@ import { Test } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import { ILike, In, MoreThan } from 'typeorm';
 import { BadRequestException } from '@nestjs/common';
-import type { TradeCategory } from '@siraat/shared-types';
+import type { TradeCategory, MaterialCategory } from '@siraat/shared-types';
 import { PropertyIntelligenceService } from './property-intelligence.service';
 import { SocietyEntity } from './entities/society.entity';
 import { PropertyEntity } from './entities/property.entity';
 import { DeveloperEntity } from './entities/developer.entity';
 import { ContractorEntity } from './entities/contractor.entity';
+import { SupplierEntity } from './entities/supplier.entity';
 import { ObservationEntity } from './entities/observation.entity';
 import { TrustService } from '../trust/trust.service';
+import { ConstructionIntelligenceService } from '../construction-intelligence/construction-intelligence.service';
 
 describe('PropertyIntelligenceService', () => {
   let service: PropertyIntelligenceService;
@@ -23,6 +25,13 @@ describe('PropertyIntelligenceService', () => {
     getManyAndCount: jest.Mock;
   };
   let contractorQbMocks: {
+    andWhere: jest.Mock;
+    orderBy: jest.Mock;
+    skip: jest.Mock;
+    take: jest.Mock;
+    getManyAndCount: jest.Mock;
+  };
+  let supplierQbMocks: {
     andWhere: jest.Mock;
     orderBy: jest.Mock;
     skip: jest.Mock;
@@ -44,6 +53,10 @@ describe('PropertyIntelligenceService', () => {
   let contractorCreateMock: jest.Mock;
   let contractorSaveMock: jest.Mock;
   let contractorFindOneByMock: jest.Mock;
+  let supplierCreateMock: jest.Mock;
+  let supplierSaveMock: jest.Mock;
+  let supplierFindOneByMock: jest.Mock;
+  let ciFindRatesBySupplierIdMock: jest.Mock;
 
   beforeEach(async () => {
     qbMocks = {
@@ -73,6 +86,18 @@ describe('PropertyIntelligenceService', () => {
     contractorQbMocks.skip.mockReturnValue(contractorQbMocks);
     contractorQbMocks.take.mockReturnValue(contractorQbMocks);
 
+    supplierQbMocks = {
+      andWhere: jest.fn(),
+      orderBy: jest.fn(),
+      skip: jest.fn(),
+      take: jest.fn(),
+      getManyAndCount: jest.fn().mockResolvedValue([[], 0]),
+    };
+    supplierQbMocks.andWhere.mockReturnValue(supplierQbMocks);
+    supplierQbMocks.orderBy.mockReturnValue(supplierQbMocks);
+    supplierQbMocks.skip.mockReturnValue(supplierQbMocks);
+    supplierQbMocks.take.mockReturnValue(supplierQbMocks);
+
     deriveVerificationStatusMock = jest.fn().mockResolvedValue('PENDING');
     trustGetVerificationsMock = jest.fn().mockResolvedValue([]);
     trustGetObservationsSinceMock = jest.fn().mockResolvedValue([]);
@@ -88,6 +113,10 @@ describe('PropertyIntelligenceService', () => {
     contractorCreateMock = jest.fn((data) => data);
     contractorSaveMock = jest.fn((entity) => Promise.resolve({ id: 'con-new-uuid', ...entity }));
     contractorFindOneByMock = jest.fn().mockResolvedValue(null);
+    supplierCreateMock = jest.fn((data) => data);
+    supplierSaveMock = jest.fn((entity) => Promise.resolve({ id: 'sup-new-uuid', ...entity }));
+    supplierFindOneByMock = jest.fn().mockResolvedValue(null);
+    ciFindRatesBySupplierIdMock = jest.fn().mockResolvedValue([]);
 
     const module = await Test.createTestingModule({
       providers: [
@@ -117,6 +146,15 @@ describe('PropertyIntelligenceService', () => {
           },
         },
         {
+          provide: getRepositoryToken(SupplierEntity),
+          useValue: {
+            createQueryBuilder: jest.fn(() => supplierQbMocks),
+            findOneBy: supplierFindOneByMock,
+            create: supplierCreateMock,
+            save: supplierSaveMock,
+          },
+        },
+        {
           provide: getRepositoryToken(ObservationEntity),
           useValue: { create: obsCreateMock, save: obsSaveMock, find: obsFindMock },
         },
@@ -127,6 +165,10 @@ describe('PropertyIntelligenceService', () => {
             getVerifications: trustGetVerificationsMock,
             getObservationsSince: trustGetObservationsSinceMock,
           },
+        },
+        {
+          provide: ConstructionIntelligenceService,
+          useValue: { findRatesBySupplierId: ciFindRatesBySupplierIdMock },
         },
       ],
     }).compile();
@@ -622,6 +664,176 @@ describe('PropertyIntelligenceService', () => {
       expect(contractorQbMocks.skip).toHaveBeenCalledWith(0);
       expect(contractorQbMocks.take).toHaveBeenCalledWith(20);
       expect(result.page).toBe(1);
+    });
+  });
+
+  // ─── SUPPLIER DIRECTORY Chunk 1 ──────────────────────────────────────────────
+  // Same fixtures/assertions shape as CONTRACTOR DIRECTORY Chunk 1 above —
+  // proves createSupplier/findSupplierById/searchSuppliers work the same way,
+  // just a different entity/subject.
+
+  function buildSupplierInput(overrides: object = {}) {
+    return {
+      name: 'Al-Rehman Steel Traders',
+      material_categories: ['STEEL'] as MaterialCategory[],
+      service_cities: ['Islamabad'],
+      contact_phone: '+92 300 1112222',
+      contact_whatsapp: null,
+      is_siraat_affiliated: false,
+      ...overrides,
+    };
+  }
+
+  describe('createSupplier', () => {
+    it('creates a supplier with multiple material_categories', async () => {
+      const input = buildSupplierInput({ material_categories: ['STEEL', 'CEMENT'] });
+
+      const result = await service.createSupplier(input);
+
+      expect(supplierCreateMock).toHaveBeenCalledWith(
+        expect.objectContaining({ material_categories: ['STEEL', 'CEMENT'], record_type: 'FACT' }),
+      );
+      expect(result.material_categories).toEqual(['STEEL', 'CEMENT']);
+      expect(result.record_type).toBe('FACT');
+    });
+
+    it('creates a supplier with a single material category', async () => {
+      const result = await service.createSupplier(buildSupplierInput());
+
+      expect(result.material_categories).toEqual(['STEEL']);
+      expect(result.name).toBe('Al-Rehman Steel Traders');
+      expect(result.contact_whatsapp).toBeNull();
+      expect(result.is_siraat_affiliated).toBe(false);
+    });
+  });
+
+  describe('findSupplierById', () => {
+    it('returns the supplier when found', async () => {
+      supplierFindOneByMock.mockResolvedValue({
+        id: 'sup-a-uuid',
+        name: 'Al-Rehman Steel Traders',
+        material_categories: ['STEEL'],
+        service_cities: ['Islamabad'],
+        contact_phone: '+92 300 1112222',
+        contact_whatsapp: null,
+        is_siraat_affiliated: false,
+        record_type: 'FACT',
+      });
+
+      const result = await service.findSupplierById('sup-a-uuid');
+
+      expect(result).not.toBeNull();
+      expect(result!.name).toBe('Al-Rehman Steel Traders');
+    });
+
+    it('returns null when no supplier matches the id', async () => {
+      supplierFindOneByMock.mockResolvedValue(null);
+
+      const result = await service.findSupplierById('non-existent-uuid');
+
+      expect(result).toBeNull();
+    });
+  });
+
+  describe('searchSuppliers', () => {
+    const SUPPLIER_ROW = {
+      id: 'sup-a-uuid',
+      name: 'Al-Rehman Steel Traders',
+      material_categories: ['STEEL'],
+      service_cities: ['Islamabad', 'Rawalpindi'],
+      contact_phone: '+92 300 1112222',
+      contact_whatsapp: '+92 300 1112222',
+      is_siraat_affiliated: false,
+      record_type: 'FACT',
+    };
+
+    it('filters by material_category using the same array-containment pattern as trade_category', async () => {
+      supplierQbMocks.getManyAndCount.mockResolvedValue([[SUPPLIER_ROW], 1]);
+
+      const result = await service.searchSuppliers({ material_category: 'STEEL' });
+
+      expect(supplierQbMocks.andWhere).toHaveBeenCalledWith(
+        ':category = ANY(s.material_categories)',
+        { category: 'STEEL' },
+      );
+      expect(result.suppliers).toHaveLength(1);
+      expect(result.suppliers[0].id).toBe('sup-a-uuid');
+    });
+
+    it('filters by city case-insensitively across the service_cities array', async () => {
+      supplierQbMocks.getManyAndCount.mockResolvedValue([[SUPPLIER_ROW], 1]);
+
+      await service.searchSuppliers({ city: 'islamabad' });
+
+      expect(supplierQbMocks.andWhere).toHaveBeenCalledWith(
+        expect.stringContaining('unnest(s.service_cities)'),
+        { city: 'islamabad' },
+      );
+    });
+
+    it('combines material_category and city filters together', async () => {
+      supplierQbMocks.getManyAndCount.mockResolvedValue([[SUPPLIER_ROW], 1]);
+
+      await service.searchSuppliers({ material_category: 'STEEL', city: 'Islamabad' });
+
+      expect(supplierQbMocks.andWhere).toHaveBeenCalledTimes(2);
+    });
+
+    it('returns [] with total_count 0 when no suppliers match', async () => {
+      supplierQbMocks.getManyAndCount.mockResolvedValue([[], 0]);
+
+      const result = await service.searchSuppliers({ material_category: 'TILES' });
+
+      expect(result.suppliers).toEqual([]);
+      expect(result.total_count).toBe(0);
+      expect(result.total_pages).toBe(0);
+    });
+
+    // ─── Pagination — matches the Browse Societies (listSocieties) pattern ───
+
+    it('defaults to page 1, limit 20 — same defaults as listSocieties', async () => {
+      supplierQbMocks.getManyAndCount.mockResolvedValue([[SUPPLIER_ROW], 1]);
+
+      const result = await service.searchSuppliers({});
+
+      expect(supplierQbMocks.skip).toHaveBeenCalledWith(0);
+      expect(supplierQbMocks.take).toHaveBeenCalledWith(20);
+      expect(result.page).toBe(1);
+    });
+
+    it('applies page/limit and computes total_pages via skip/take/getManyAndCount, same as listSocieties', async () => {
+      supplierQbMocks.getManyAndCount.mockResolvedValue([[SUPPLIER_ROW], 45]);
+
+      const result = await service.searchSuppliers({ page: 2, limit: 10 });
+
+      expect(supplierQbMocks.skip).toHaveBeenCalledWith(10);
+      expect(supplierQbMocks.take).toHaveBeenCalledWith(10);
+      expect(supplierQbMocks.orderBy).toHaveBeenCalledWith('s.name', 'ASC');
+      expect(result.page).toBe(2);
+      expect(result.total_count).toBe(45);
+      expect(result.total_pages).toBe(5);
+    });
+
+    it('falls back to defaults for a non-positive page/limit, same guard as listSocieties', async () => {
+      supplierQbMocks.getManyAndCount.mockResolvedValue([[], 0]);
+
+      const result = await service.searchSuppliers({ page: 0, limit: -5 });
+
+      expect(supplierQbMocks.skip).toHaveBeenCalledWith(0);
+      expect(supplierQbMocks.take).toHaveBeenCalledWith(20);
+      expect(result.page).toBe(1);
+    });
+  });
+
+  describe('findMaterialRatesBySupplierId', () => {
+    it('delegates to ConstructionIntelligenceService.findRatesBySupplierId (cross-module public-API call, Law 9)', async () => {
+      const rates = [{ id: 'rate-uuid-001', material_name: 'Steel Rebar Grade 60' }];
+      ciFindRatesBySupplierIdMock.mockResolvedValue(rates);
+
+      const result = await service.findMaterialRatesBySupplierId('sup-a-uuid');
+
+      expect(ciFindRatesBySupplierIdMock).toHaveBeenCalledWith('sup-a-uuid');
+      expect(result).toBe(rates);
     });
   });
 

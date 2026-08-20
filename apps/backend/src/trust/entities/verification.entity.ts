@@ -4,7 +4,7 @@ import { Entity, Column, PrimaryGeneratedColumn, Index } from 'typeorm';
 // column being a plain string (no SQL FK, Law 1) is that Trust's Verification/
 // Evidence pattern is subject-type-agnostic; widening this union is the only
 // change needed to reuse it for a new subject type.
-export type VerificationSubjectType = 'SOCIETY' | 'DEVELOPER' | 'CONTRACTOR';
+export type VerificationSubjectType = 'SOCIETY' | 'DEVELOPER' | 'CONTRACTOR' | 'SUPPLIER';
 
 @Index(['subject_type', 'subject_id'])
 @Entity({ name: 'verifications', schema: 'trust' })

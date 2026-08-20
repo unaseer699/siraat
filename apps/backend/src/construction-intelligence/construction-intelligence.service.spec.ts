@@ -20,6 +20,10 @@ function buildInput(overrides: Partial<Record<string, unknown>> = {}) {
     source_tier: 'SUPPLIER_VERIFIED' as const,
     source_name: 'Al-Rehman Traders',
     source_contact: '+92 300 1234567',
+    // SUPPLIER DIRECTORY Chunk 1 — required for SUPPLIER_VERIFIED as of this
+    // chunk; defaulted here so every existing SUPPLIER_VERIFIED fixture in
+    // this file keeps passing without having to thread it through everywhere.
+    supplier_id: 'sup-uuid-001',
     recorded_date: isoDaysAgo(0),
     ...overrides,
   };
@@ -40,12 +44,14 @@ describe('ConstructionIntelligenceService', () => {
   };
   let obsCreateMock: jest.Mock;
   let obsSaveMock: jest.Mock;
+  let findMock: jest.Mock;
 
   beforeEach(async () => {
     createMock = jest.fn((data) => data);
     saveMock = jest.fn((entity) =>
       Promise.resolve({ id: 'rate-uuid-001', created_at: new Date(), ...entity }),
     );
+    findMock = jest.fn().mockResolvedValue([]);
     qbMocks = {
       select: jest.fn(),
       where: jest.fn(),
@@ -70,6 +76,7 @@ describe('ConstructionIntelligenceService', () => {
           useValue: {
             create: createMock,
             save: saveMock,
+            find: findMock,
             createQueryBuilder: jest.fn(() => qbMocks),
           },
         },
@@ -84,22 +91,35 @@ describe('ConstructionIntelligenceService', () => {
   });
 
   describe('createMaterialRate', () => {
-    it('rejects a SUPPLIER_VERIFIED rate with no source_contact', async () => {
+    // SUPPLIER DIRECTORY Chunk 1 — supplier_id replaces source_contact as the
+    // required field for SUPPLIER_VERIFIED; source_name/source_contact are now
+    // optional fallback fields for this tier (see the two tests below).
+    it('rejects a SUPPLIER_VERIFIED rate with no supplier_id', async () => {
       await expect(
-        service.createMaterialRate(buildInput({ source_contact: null })),
+        service.createMaterialRate(buildInput({ supplier_id: null })),
       ).rejects.toBeInstanceOf(BadRequestException);
       expect(saveMock).not.toHaveBeenCalled();
     });
 
-    it('accepts a MARKET_REFERENCE rate with no source_contact', async () => {
+    it('accepts a SUPPLIER_VERIFIED rate with no source_contact, now that supplier_id links it', async () => {
+      const result = await service.createMaterialRate(buildInput({ source_contact: null }));
+
+      expect(result.source_contact).toBeNull();
+      expect(result.supplier_id).toBe('sup-uuid-001');
+      expect(saveMock).toHaveBeenCalled();
+    });
+
+    it('accepts a MARKET_REFERENCE rate with no source_contact and no supplier_id (unchanged Tier 2 behavior)', async () => {
       const result = await service.createMaterialRate(
         buildInput({
           source_tier: 'MARKET_REFERENCE',
           source_name: 'civilconstructionguide.com',
           source_contact: null,
+          supplier_id: null,
         }),
       );
       expect(result.source_contact).toBeNull();
+      expect(result.supplier_id).toBeNull();
       expect(saveMock).toHaveBeenCalled();
     });
 
@@ -170,6 +190,32 @@ describe('ConstructionIntelligenceService', () => {
       await expect(service.createMaterialRate(buildInput({ price: 1550 }))).resolves.toMatchObject({
         price: 1550,
       });
+    });
+  });
+
+  // ─── SUPPLIER DIRECTORY Chunk 1 ────────────────────────────────────────────
+
+  describe('findRatesBySupplierId', () => {
+    it('returns rates filtered by supplier_id, most recent first', async () => {
+      const rows = [{ id: 'rate-uuid-001', material_name: 'Steel Rebar Grade 60' }];
+      findMock.mockResolvedValue(rows);
+
+      const result = await service.findRatesBySupplierId('sup-uuid-001');
+
+      expect(findMock).toHaveBeenCalledWith({
+        where: { supplier_id: 'sup-uuid-001' },
+        order: { recorded_date: 'DESC' },
+      });
+      expect(result).toHaveLength(1);
+      expect(result[0].id).toBe('rate-uuid-001');
+    });
+
+    it('returns [] for a supplier with no rate submissions', async () => {
+      findMock.mockResolvedValue([]);
+
+      const result = await service.findRatesBySupplierId('sup-with-no-rates');
+
+      expect(result).toEqual([]);
     });
   });
 

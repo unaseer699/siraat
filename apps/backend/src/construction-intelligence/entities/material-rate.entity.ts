@@ -26,9 +26,19 @@ export class MaterialRateEntity {
   @Column({ length: 255 })
   source_name: string;
 
-  // Required for SUPPLIER_VERIFIED (traceability back to the supplier); optional for MARKET_REFERENCE
+  // No longer required for SUPPLIER_VERIFIED now that supplier_id below gives
+  // a real link back to the supplier — kept as an optional fallback/override
+  // display value. Still optional for MARKET_REFERENCE (unchanged).
   @Column({ type: 'text', nullable: true })
   source_contact: string | null;
+
+  // SUPPLIER DIRECTORY Chunk 1 — UUID string, no SQL FK per Law 2 (references
+  // SupplierEntity.id, which lives in a different schema: property_intelligence).
+  // Required when source_tier is SUPPLIER_VERIFIED (enforced in
+  // ConstructionIntelligenceService.createMaterialRate, not at the DB level —
+  // same pattern as source_contact above); stays null for MARKET_REFERENCE.
+  @Column({ type: 'uuid', nullable: true })
+  supplier_id: string | null;
 
   // Settable independently of insert time — operator may enter a rate a day or two after receiving it
   @Column({ type: 'date' })
