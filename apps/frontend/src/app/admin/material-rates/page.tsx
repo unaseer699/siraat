@@ -221,7 +221,11 @@ export default function MaterialRatesPage() {
 
   const priceNum = Number(price);
   const priceValid = price.trim().length > 0 && Number.isFinite(priceNum) && priceNum > 0;
-  const contactOk = sourceTier !== 'SUPPLIER_VERIFIED' || sourceContact.trim().length > 0;
+  // SUPPLIER DIRECTORY Chunk 2c — source_contact is no longer required for
+  // SUPPLIER_VERIFIED either: the linked Supplier (via the picker above) now
+  // carries the real contact_phone/contact_whatsapp, so retyping it here
+  // would just be a redundant, driftable copy. Kept as a free-text optional
+  // override field (e.g. a specific salesperson's number for this rate).
   // SUPPLIER DIRECTORY Chunk 2b — source_name is only required for
   // MARKET_REFERENCE now (that tier has no supplier link at all); a
   // SUPPLIER_VERIFIED rate identifies via the supplier picker instead.
@@ -234,8 +238,7 @@ export default function MaterialRatesPage() {
     city.trim() &&
     sourceNameOk &&
     supplierOk &&
-    recordedDate &&
-    contactOk;
+    recordedDate;
 
   function handleSupplierSelect(r: SupplierSearchResult) {
     setSupplierId(r.id);
@@ -445,25 +448,21 @@ export default function MaterialRatesPage() {
               )}
             </div>
 
-            {/* Only SUPPLIER_VERIFIED rates need contact traceability back to the
-                supplier — MARKET_REFERENCE rates are published site figures with
-                no individual to contact. */}
+            {/* SUPPLIER DIRECTORY Chunk 2c — optional for SUPPLIER_VERIFIED too now:
+                the linked Supplier (picker above) already carries contact_phone/
+                contact_whatsapp. Kept as a free-text override, e.g. for a specific
+                salesperson's number on this particular rate. MARKET_REFERENCE rates
+                are published site figures with no individual to contact at all. */}
             {sourceTier === 'SUPPLIER_VERIFIED' && (
               <div style={{ ...fieldGroupStyle, flex: 1 }}>
-                <label style={labelStyle}>Source contact</label>
+                <label style={labelStyle}>Source contact (optional override)</label>
                 <input
                   type="text"
                   value={sourceContact}
                   onChange={(e) => setSourceContact(e.target.value)}
                   placeholder="Phone / WhatsApp number"
-                  required
                   style={inputStyle}
                 />
-                {!contactOk && (
-                  <p style={{ fontSize: '12px', color: 'var(--error)' }}>
-                    Required when source tier is Supplier Verified.
-                  </p>
-                )}
               </div>
             )}
           </div>
