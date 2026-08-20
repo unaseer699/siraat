@@ -42,6 +42,10 @@ const DEFAULT_CONTRACTOR_PAGE_SIZE = 20;
 // SUPPLIER DIRECTORY Chunk 1 — same convention as DEFAULT_CONTRACTOR_PAGE_SIZE.
 const DEFAULT_SUPPLIER_PAGE_SIZE = 20;
 
+// SUPPLIER DIRECTORY Chunk 2b — same cap/rationale as DEVELOPER_SEARCH_LIMIT
+// above, for the supplier name search-as-you-type field.
+const SUPPLIER_SEARCH_LIMIT = 10;
+
 export interface SocietyResult {
   id: string;
   name: string;
@@ -533,6 +537,21 @@ export class PropertyIntelligenceService {
       page,
       total_pages: Math.ceil(total_count / limit),
     };
+  }
+
+  // SUPPLIER DIRECTORY Chunk 2b — search-as-you-type by name, same shape and
+  // ILike pattern as searchDevelopers above; powers the supplier picker on
+  // the admin material-rate form (GET /v1/admin/suppliers/search?q=).
+  async searchSuppliersByName(query: string): Promise<{ id: string; name: string }[]> {
+    const trimmed = query.trim();
+    if (!trimmed) return [];
+
+    const results = await this.supplierRepo.find({
+      where: { name: ILike(`%${trimmed}%`) },
+      order: { name: 'ASC' },
+      take: SUPPLIER_SEARCH_LIMIT,
+    });
+    return results.map((s) => ({ id: s.id, name: s.name }));
   }
 
   // Cross-module read (Law 9: public API call via the injected

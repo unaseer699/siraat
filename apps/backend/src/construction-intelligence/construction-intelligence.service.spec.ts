@@ -123,6 +123,25 @@ describe('ConstructionIntelligenceService', () => {
       expect(saveMock).toHaveBeenCalled();
     });
 
+    // SUPPLIER DIRECTORY Chunk 2 — source_name is now nullable; required only
+    // for MARKET_REFERENCE (that tier has no supplier link at all).
+    it('accepts a SUPPLIER_VERIFIED rate with no source_name, now that supplier_id links it', async () => {
+      const result = await service.createMaterialRate(buildInput({ source_name: null }));
+
+      expect(result.source_name).toBeNull();
+      expect(result.supplier_id).toBe('sup-uuid-001');
+      expect(saveMock).toHaveBeenCalled();
+    });
+
+    it('rejects a MARKET_REFERENCE rate with no source_name (unchanged Tier 2 requirement)', async () => {
+      await expect(
+        service.createMaterialRate(
+          buildInput({ source_tier: 'MARKET_REFERENCE', source_name: null, supplier_id: null }),
+        ),
+      ).rejects.toBeInstanceOf(BadRequestException);
+      expect(saveMock).not.toHaveBeenCalled();
+    });
+
     it('sets record_type to FACT', async () => {
       const result = await service.createMaterialRate(buildInput());
       expect(result.record_type).toBe('FACT');

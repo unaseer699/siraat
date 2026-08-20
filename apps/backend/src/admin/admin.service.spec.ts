@@ -1,7 +1,7 @@
 import { Test } from '@nestjs/testing';
 import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { getRepositoryToken } from '@nestjs/typeorm';
-import { AdminService, type CreateContractorInput } from './admin.service';
+import { AdminService, type CreateContractorInput, type CreateSupplierInput } from './admin.service';
 import { PropertyIntelligenceService } from '../property-intelligence/property-intelligence.service';
 import { TrustService } from '../trust/trust.service';
 import { ConstructionIntelligenceService } from '../construction-intelligence/construction-intelligence.service';
@@ -80,6 +80,17 @@ const CONTRACTOR_RESULT = {
   record_type: 'FACT' as const,
 };
 
+const SUPPLIER_RESULT = {
+  id: 'sup-uuid-0001',
+  name: 'Al-Rehman Steel Traders',
+  material_categories: ['STEEL'] as const,
+  service_cities: ['Islamabad'],
+  contact_phone: '+92 300 1112222',
+  contact_whatsapp: null,
+  is_siraat_affiliated: false,
+  record_type: 'FACT' as const,
+};
+
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function buildSocietyInput(overrides: object = {}) {
@@ -117,6 +128,10 @@ describe('AdminService', () => {
   let findContractorByIdMock: jest.Mock;
   let createContractorMock: jest.Mock;
   let searchContractorsMock: jest.Mock;
+  let findSupplierByIdMock: jest.Mock;
+  let createSupplierMock: jest.Mock;
+  let searchSuppliersMock: jest.Mock;
+  let searchSuppliersByNameMock: jest.Mock;
 
   // TrustService mocks
   let createVerificationMock: jest.Mock;
@@ -141,6 +156,10 @@ describe('AdminService', () => {
     findContractorByIdMock    = jest.fn().mockResolvedValue(null);
     createContractorMock      = jest.fn().mockResolvedValue(CONTRACTOR_RESULT);
     searchContractorsMock     = jest.fn().mockResolvedValue({ contractors: [], total_count: 0, page: 1, total_pages: 0 });
+    findSupplierByIdMock      = jest.fn().mockResolvedValue(null);
+    createSupplierMock        = jest.fn().mockResolvedValue(SUPPLIER_RESULT);
+    searchSuppliersMock       = jest.fn().mockResolvedValue({ suppliers: [], total_count: 0, page: 1, total_pages: 0 });
+    searchSuppliersByNameMock = jest.fn().mockResolvedValue([]);
     createVerificationMock     = jest.fn().mockResolvedValue(VERIFICATION_ENTITY);
     createAndLinkEvidenceMock  = jest.fn().mockResolvedValue(EVIDENCE_ENTITY);
     promoteVerificationToVerifiedMock = jest.fn().mockResolvedValue(VERIFIED_ENTITY);
@@ -164,6 +183,10 @@ describe('AdminService', () => {
             findContractorById: findContractorByIdMock,
             createContractor:   createContractorMock,
             searchContractors:  searchContractorsMock,
+            findSupplierById:   findSupplierByIdMock,
+            createSupplier:     createSupplierMock,
+            searchSuppliers:    searchSuppliersMock,
+            searchSuppliersByName: searchSuppliersByNameMock,
           },
         },
         {
@@ -442,6 +465,53 @@ describe('AdminService', () => {
     expect(result.verification_id).toBe(VER_ID);
   });
 
+  // ─── SUPPLIER DIRECTORY Chunk 2 — addClaim for subject_type: 'SUPPLIER' ────
+  // Same shape as the CONTRACTOR block above — proves the generalized flow
+  // works for Supplier too, one more subject_type branch in the dispatch.
+
+  it('addClaim works for subject_type SUPPLIER: 404 when the supplier does not exist', async () => {
+    findSupplierByIdMock.mockResolvedValue(null);
+
+    await expect(
+      svc.addClaim({
+        subject_type: 'SUPPLIER',
+        subject_id: 'nonexistent-uuid',
+        claim: 'PEC Registered Steel Supplier',
+        claim_type: 'OTHER',
+        target_status: 'PENDING',
+        evidence: [],
+      }),
+    ).rejects.toThrow(NotFoundException);
+    expect(findSocietyByIdMock).not.toHaveBeenCalled();
+    expect(findContractorByIdMock).not.toHaveBeenCalled();
+  });
+
+  it('addClaim works for subject_type SUPPLIER: creates verification with evidence IDs (VERIFIED flow)', async () => {
+    const SUPPLIER_ID = 'sup-a-uuid';
+    findSupplierByIdMock.mockResolvedValue({ id: SUPPLIER_ID, name: 'Al-Rehman Steel Traders' });
+
+    const result = await svc.addClaim({
+      subject_type: 'SUPPLIER',
+      subject_id: SUPPLIER_ID,
+      claim: 'PEC Registered Steel Supplier',
+      claim_type: 'OTHER',
+      target_status: 'VERIFIED',
+      evidence: [EVIDENCE_ITEM],
+    });
+
+    expect(findSupplierByIdMock).toHaveBeenCalledWith(SUPPLIER_ID);
+    expect(createEvidenceRecordMock).toHaveBeenCalledWith(EVIDENCE_ITEM);
+    expect(createVerificationMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        subject_type: 'SUPPLIER',
+        subject_id: SUPPLIER_ID,
+        status: 'VERIFIED',
+        evidence_refs: [EVI_ID],
+      }),
+    );
+    expect(result.verification_id).toBe(VER_ID);
+  });
+
   // ─── createEvidence ───────────────────────────────────────────────────────
 
   it('createEvidence delegates to TrustService.createEvidenceRecord', async () => {
@@ -516,6 +586,49 @@ describe('AdminService', () => {
 
     expect(searchContractorsMock).toHaveBeenCalledWith({ trade_category: 'ELECTRICIAN', city: 'Islamabad' });
     expect(result.contractors).toEqual([CONTRACTOR_RESULT]);
+  });
+
+  // ─── SUPPLIER DIRECTORY Chunk 2 ────────────────────────────────────────────
+
+  it('createSupplier delegates to PropertyIntelligenceService.createSupplier', async () => {
+    const input: CreateSupplierInput = {
+      name: 'Al-Rehman Steel Traders',
+      material_categories: ['STEEL'],
+      service_cities: ['Islamabad'],
+      contact_phone: '+92 300 1112222',
+      contact_whatsapp: null,
+      is_siraat_affiliated: false,
+    };
+
+    const result = await svc.createSupplier(input);
+
+    expect(createSupplierMock).toHaveBeenCalledWith(input);
+    expect(result).toBe(SUPPLIER_RESULT);
+  });
+
+  it('searchSuppliers delegates to PropertyIntelligenceService.searchSuppliers with the given filters', async () => {
+    searchSuppliersMock.mockResolvedValue({
+      suppliers: [SUPPLIER_RESULT],
+      total_count: 1,
+      page: 1,
+      total_pages: 1,
+    });
+
+    const result = await svc.searchSuppliers({ material_category: 'STEEL', city: 'Islamabad' });
+
+    expect(searchSuppliersMock).toHaveBeenCalledWith({ material_category: 'STEEL', city: 'Islamabad' });
+    expect(result.suppliers).toEqual([SUPPLIER_RESULT]);
+  });
+
+  // ─── SUPPLIER DIRECTORY Chunk 2b ───────────────────────────────────────────
+
+  it('searchSuppliersByName delegates to PropertyIntelligenceService.searchSuppliersByName', async () => {
+    searchSuppliersByNameMock.mockResolvedValue([{ id: 'sup-a-uuid', name: 'Al-Rehman Steel Traders' }]);
+
+    const result = await svc.searchSuppliersByName('al-rehman');
+
+    expect(searchSuppliersByNameMock).toHaveBeenCalledWith('al-rehman');
+    expect(result).toEqual([{ id: 'sup-a-uuid', name: 'Al-Rehman Steel Traders' }]);
   });
 
   // ─── Auth guard (controller-level wiring check) ───────────────────────────

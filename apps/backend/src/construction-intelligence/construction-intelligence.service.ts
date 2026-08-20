@@ -11,7 +11,10 @@ export interface CreateMaterialRateInput {
   price: number;
   city: string;
   source_tier: MaterialRateSourceTier;
-  source_name: string;
+  // SUPPLIER DIRECTORY Chunk 2 — nullable as of this chunk: required only for
+  // MARKET_REFERENCE (see createMaterialRate below), optional for
+  // SUPPLIER_VERIFIED now that supplier_id carries the real identity.
+  source_name: string | null;
   source_contact: string | null;
   recorded_date: string;
   // SUPPLIER DIRECTORY Chunk 1 — optional at the type level (rather than
@@ -29,7 +32,7 @@ export interface MaterialRateResult {
   price: number;
   city: string;
   source_tier: MaterialRateSourceTier;
-  source_name: string;
+  source_name: string | null;
   source_contact: string | null;
   supplier_id: string | null;
   recorded_date: string;
@@ -100,6 +103,15 @@ export class ConstructionIntelligenceService {
         'supplier_id is required when source_tier is SUPPLIER_VERIFIED',
       );
     }
+    // SUPPLIER DIRECTORY Chunk 2 — source_name is now optional for
+    // SUPPLIER_VERIFIED (supplier_id above is the real identity), but remains
+    // required for MARKET_REFERENCE — that tier has no supplier link at all,
+    // so source_name is still its only identifying field.
+    if (data.source_tier === 'MARKET_REFERENCE' && !data.source_name) {
+      throw new BadRequestException(
+        'source_name is required when source_tier is MARKET_REFERENCE',
+      );
+    }
 
     // Most recent prior rate for this exact material/city combo, looked up before
     // inserting the new row — the baseline for Observation logging below.
@@ -126,7 +138,11 @@ export class ConstructionIntelligenceService {
         metric: 'material_price',
         old_value: String(priorRate.price),
         new_value: String(data.price),
-        source_ref: data.source_name,
+        // SUPPLIER DIRECTORY Chunk 2 — source_name can now be null
+        // (SUPPLIER_VERIFIED rates identify via supplier_id instead); fall
+        // back to that, then a generic label, so source_ref (always a
+        // string) still has something meaningful to show.
+        source_ref: data.source_name ?? data.supplier_id ?? 'Unknown source',
       });
     }
 

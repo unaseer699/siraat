@@ -23,8 +23,15 @@ export class MaterialRateEntity {
   @Column({ type: 'varchar', length: 20 })
   source_tier: MaterialRateSourceTier;
 
-  @Column({ length: 255 })
-  source_name: string;
+  // SUPPLIER DIRECTORY Chunk 2 — nullable as of this chunk: required only for
+  // MARKET_REFERENCE (enforced in ConstructionIntelligenceService.createMaterialRate,
+  // not at the DB level), optional for SUPPLIER_VERIFIED now that supplier_id
+  // carries the real identity. Explicit `type: 'varchar'` is required here —
+  // a `string | null` union has no usable design:type reflect-metadata
+  // (TypeScript emits `Object` for it), the same DataTypeNotSupportedError
+  // class of bug ContractorEntity.contact_whatsapp hit earlier.
+  @Column({ type: 'varchar', length: 255, nullable: true })
+  source_name: string | null;
 
   // No longer required for SUPPLIER_VERIFIED now that supplier_id below gives
   // a real link back to the supplier — kept as an optional fallback/override
