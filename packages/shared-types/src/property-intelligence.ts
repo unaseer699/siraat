@@ -126,6 +126,22 @@ export const TradeCategorySchema = z.enum([
 export type TradeCategory = z.infer<typeof TradeCategorySchema>;
 export const TRADE_CATEGORIES = TradeCategorySchema.options;
 
+// ─── SUPPLIER DIRECTORY Chunk 1 ──────────────────────────────────────────────
+// Same organization as TradeCategory above — a Supplier is the material-supply
+// counterpart to Contractor (trades), living in the same property_intelligence
+// context.
+
+export const MaterialCategorySchema = z.enum([
+  'STEEL',
+  'CEMENT',
+  'AGGREGATE',
+  'TILES',
+  'ELECTRICAL_SUPPLIES',
+  'PLUMBING_SUPPLIES',
+]);
+export type MaterialCategory = z.infer<typeof MaterialCategorySchema>;
+export const MATERIAL_CATEGORIES = MaterialCategorySchema.options;
+
 // CONTRACTOR DIRECTORY Chunk 3 — public directory + profile shapes. Same
 // verification_status derivation as SocietyBrowseSummary (via TrustService,
 // reused not re-implemented) — see PropertyIntelligenceService.searchContractors

@@ -1,7 +1,7 @@
 import { BadRequestException, Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { ILike, In, MoreThan, Repository } from 'typeorm';
-import type { ParsedIntent, TradeCategory } from '@siraat/shared-types';
+import type { ParsedIntent, TradeCategory, MaterialCategory } from '@siraat/shared-types';
 import type {
   PropertyDetail,
   DeveloperProfile,
@@ -14,10 +14,15 @@ import type {
   ContractorListResponse,
 } from '@siraat/shared-types';
 import { TrustService } from '../trust/trust.service';
+import {
+  ConstructionIntelligenceService,
+  type MaterialRateResult,
+} from '../construction-intelligence/construction-intelligence.service';
 import { SocietyEntity } from './entities/society.entity';
 import { PropertyEntity } from './entities/property.entity';
 import { DeveloperEntity } from './entities/developer.entity';
 import { ContractorEntity } from './entities/contractor.entity';
+import { SupplierEntity } from './entities/supplier.entity';
 import { ObservationEntity } from './entities/observation.entity';
 
 // Watchlist Chunk 1: caps how many societies /societies/changes will check in one
@@ -33,6 +38,9 @@ const DEVELOPER_SEARCH_LIMIT = 10;
 // (listSocieties below), kept as a named constant since searchContractors
 // references it in more than one place.
 const DEFAULT_CONTRACTOR_PAGE_SIZE = 20;
+
+// SUPPLIER DIRECTORY Chunk 1 — same convention as DEFAULT_CONTRACTOR_PAGE_SIZE.
+const DEFAULT_SUPPLIER_PAGE_SIZE = 20;
 
 export interface SocietyResult {
   id: string;
@@ -96,6 +104,43 @@ function toContractorFields(e: ContractorEntity) {
   };
 }
 
+// ─── SUPPLIER DIRECTORY Chunk 1 ──────────────────────────────────────────────
+// Same shape/organization as ContractorResult/ContractorSearchResult's
+// original (Chunk 1) form — plain entity fields only, local to this service
+// rather than shared-types, since there's no public API route exposing these
+// yet (that comes in a later chunk, same as Contractor's did).
+
+export interface SupplierResult {
+  id: string;
+  name: string;
+  material_categories: MaterialCategory[];
+  service_cities: string[];
+  contact_phone: string;
+  contact_whatsapp: string | null;
+  is_siraat_affiliated: boolean;
+  record_type: 'FACT';
+}
+
+function toSupplierResult(e: SupplierEntity): SupplierResult {
+  return {
+    id: e.id,
+    name: e.name,
+    material_categories: e.material_categories,
+    service_cities: e.service_cities,
+    contact_phone: e.contact_phone,
+    contact_whatsapp: e.contact_whatsapp,
+    is_siraat_affiliated: e.is_siraat_affiliated,
+    record_type: e.record_type,
+  };
+}
+
+export interface SupplierSearchResult {
+  suppliers: SupplierResult[];
+  total_count: number;
+  page: number;
+  total_pages: number;
+}
+
 @Injectable()
 export class PropertyIntelligenceService {
   private readonly logger = new Logger(PropertyIntelligenceService.name);
@@ -109,9 +154,12 @@ export class PropertyIntelligenceService {
     private readonly developerRepo: Repository<DeveloperEntity>,
     @InjectRepository(ContractorEntity)
     private readonly contractorRepo: Repository<ContractorEntity>,
+    @InjectRepository(SupplierEntity)
+    private readonly supplierRepo: Repository<SupplierEntity>,
     @InjectRepository(ObservationEntity)
     private readonly observationRepo: Repository<ObservationEntity>,
     private readonly trustSvc: TrustService,
+    private readonly ciSvc: ConstructionIntelligenceService,
   ) {}
 
   // Fire-and-forget, append-only state-change ledger (Law 3: FACT, immutable).
@@ -423,6 +471,76 @@ export class PropertyIntelligenceService {
       page,
       total_pages: Math.ceil(total_count / limit),
     };
+  }
+
+  // ─── SUPPLIER DIRECTORY Chunk 1 — Schema & Core Service ────────────────────
+  // Standalone entity, organized the same way Developer/Contractor are
+  // (methods live directly on this service — no dedicated SupplierService).
+  // A directory (find + verify) only; no booking/payment/in-app-transaction
+  // fields.
+
+  async createSupplier(data: {
+    name: string;
+    material_categories: MaterialCategory[];
+    service_cities: string[];
+    contact_phone: string;
+    contact_whatsapp: string | null;
+    is_siraat_affiliated: boolean;
+  }): Promise<SupplierResult> {
+    const entity = this.supplierRepo.create({ ...data, record_type: 'FACT' });
+    const saved = await this.supplierRepo.save(entity);
+    return toSupplierResult(saved);
+  }
+
+  async findSupplierById(id: string): Promise<SupplierResult | null> {
+    const entity = await this.supplierRepo.findOneBy({ id });
+    return entity ? toSupplierResult(entity) : null;
+  }
+
+  // Paginated the same way searchContractors is: page/limit default and
+  // clamp the same way, order alphabetically, getManyAndCount.
+  async searchSuppliers(params: {
+    material_category?: string;
+    city?: string;
+    page?: number;
+    limit?: number;
+  }): Promise<SupplierSearchResult> {
+    const page = params.page && params.page > 0 ? params.page : 1;
+    const limit = params.limit && params.limit > 0 ? params.limit : DEFAULT_SUPPLIER_PAGE_SIZE;
+
+    const qb = this.supplierRepo.createQueryBuilder('s');
+    if (params.material_category) {
+      // Same array-containment pattern as searchContractors' trade_category filter.
+      qb.andWhere(':category = ANY(s.material_categories)', { category: params.material_category });
+    }
+    if (params.city) {
+      // service_cities is multi-valued, same EXISTS/unnest membership test as
+      // searchContractors' city filter.
+      qb.andWhere('EXISTS (SELECT 1 FROM unnest(s.service_cities) AS sc WHERE LOWER(sc) = LOWER(:city))', {
+        city: params.city,
+      });
+    }
+
+    const [entities, total_count] = await qb
+      .orderBy('s.name', 'ASC')
+      .skip((page - 1) * limit)
+      .take(limit)
+      .getManyAndCount();
+
+    return {
+      suppliers: entities.map(toSupplierResult),
+      total_count,
+      page,
+      total_pages: Math.ceil(total_count / limit),
+    };
+  }
+
+  // Cross-module read (Law 9: public API call via the injected
+  // ConstructionIntelligenceService, not a reach into construction_intelligence's
+  // schema — same pattern as this service's TrustService calls elsewhere).
+  // Powers the supplier profile page's "active material rate submissions" list.
+  async findMaterialRatesBySupplierId(supplierId: string): Promise<MaterialRateResult[]> {
+    return this.ciSvc.findRatesBySupplierId(supplierId);
   }
 
   // ─── WATCHLIST Chunk 1 — Society Changes ───────────────────────────────────
