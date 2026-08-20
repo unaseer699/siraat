@@ -1,6 +1,11 @@
 import { Body, Controller, Get, HttpCode, Param, Post, Query, UseGuards } from '@nestjs/common';
 import { z } from 'zod';
-import { TradeCategorySchema } from '@siraat/shared-types';
+import {
+  TradeCategorySchema,
+  MaterialCategorySchema,
+  CreateMaterialRateBodySchema,
+  type CreateMaterialRateBody,
+} from '@siraat/shared-types';
 import { BearerGuard } from '../auth/bearer.guard';
 import { ZodValidationPipe } from '../common/zod-validation.pipe';
 import { AdminService } from './admin.service';
@@ -72,20 +77,10 @@ const CreateEvidenceBodySchema = z.object({
 type CreateEvidenceBody = z.infer<typeof CreateEvidenceBodySchema>;
 
 // --- POST /v1/admin/material-rates ---
-
-const MATERIAL_RATE_SOURCE_TIERS = ['SUPPLIER_VERIFIED', 'MARKET_REFERENCE'] as const;
-
-const CreateMaterialRateBodySchema = z.object({
-  material_name: z.string().min(1),
-  unit: z.string().min(1),
-  price: z.number().positive(),
-  city: z.string().min(1),
-  source_tier: z.enum(MATERIAL_RATE_SOURCE_TIERS),
-  source_name: z.string().min(1),
-  source_contact: z.string().min(1).nullable().default(null),
-  recorded_date: z.string().min(1),
-});
-type CreateMaterialRateBody = z.infer<typeof CreateMaterialRateBodySchema>;
+// CreateMaterialRateBodySchema now lives in @siraat/shared-types (SUPPLIER
+// DIRECTORY Chunk 2) — single source of truth, previously duplicated by hand
+// here and in apps/frontend/src/lib/api.ts's MaterialRateItem/
+// CreateMaterialRateBody interfaces.
 
 // --- POST /v1/admin/contractors (CONTRACTOR DIRECTORY Chunk 2) ---
 
@@ -98,6 +93,19 @@ const CreateContractorBodySchema = z.object({
   is_siraat_affiliated: z.boolean().default(false),
 });
 type CreateContractorBody = z.infer<typeof CreateContractorBodySchema>;
+
+// --- POST /v1/admin/suppliers (SUPPLIER DIRECTORY Chunk 2) ---
+// Same shape/organization as CreateContractorBodySchema above.
+
+const CreateSupplierBodySchema = z.object({
+  name: z.string().min(1),
+  material_categories: z.array(MaterialCategorySchema).min(1),
+  service_cities: z.array(z.string().min(1)).min(1),
+  contact_phone: z.string().min(1),
+  contact_whatsapp: z.string().nullable().default(null),
+  is_siraat_affiliated: z.boolean().default(false),
+});
+type CreateSupplierBody = z.infer<typeof CreateSupplierBodySchema>;
 
 // --- Controller ---
 
@@ -138,6 +146,17 @@ export class AdminController {
     @Body(new ZodValidationPipe(AddClaimBodySchema)) body: AddClaimBody,
   ) {
     return this.adminSvc.addClaim({ ...body, subject_type: 'CONTRACTOR', subject_id: id });
+  }
+
+  // SUPPLIER DIRECTORY Chunk 2 — same generalized addClaim() flow, just a
+  // different subject_type again.
+  @Post('suppliers/:id/claims')
+  @HttpCode(201)
+  addClaimToSupplier(
+    @Param('id') id: string,
+    @Body(new ZodValidationPipe(AddClaimBodySchema)) body: AddClaimBody,
+  ) {
+    return this.adminSvc.addClaim({ ...body, subject_type: 'SUPPLIER', subject_id: id });
   }
 
   @Post('evidence')
@@ -187,6 +206,31 @@ export class AdminController {
   ) {
     return this.adminSvc.searchContractors({
       trade_category,
+      city,
+      page: page !== undefined ? Number(page) : undefined,
+      limit: limit !== undefined ? Number(limit) : undefined,
+    });
+  }
+
+  // SUPPLIER DIRECTORY Chunk 2 — admin entry, same shape as POST /contractors.
+  @Post('suppliers')
+  @HttpCode(201)
+  createSupplier(
+    @Body(new ZodValidationPipe(CreateSupplierBodySchema)) body: CreateSupplierBody,
+  ) {
+    return this.adminSvc.createSupplier(body);
+  }
+
+  // SUPPLIER DIRECTORY Chunk 2 — admin list view, same pattern as GET /contractors.
+  @Get('suppliers')
+  searchSuppliers(
+    @Query('material_category') material_category?: string,
+    @Query('city') city?: string,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+  ) {
+    return this.adminSvc.searchSuppliers({
+      material_category,
       city,
       page: page !== undefined ? Number(page) : undefined,
       limit: limit !== undefined ? Number(limit) : undefined,

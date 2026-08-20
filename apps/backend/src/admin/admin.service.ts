@@ -1,8 +1,17 @@
 import { Injectable, BadRequestException, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import type { TradeCategory, ContractorSummary, ContractorListResponse } from '@siraat/shared-types';
-import { PropertyIntelligenceService } from '../property-intelligence/property-intelligence.service';
+import type {
+  TradeCategory,
+  MaterialCategory,
+  ContractorSummary,
+  ContractorListResponse,
+} from '@siraat/shared-types';
+import {
+  PropertyIntelligenceService,
+  type SupplierResult,
+  type SupplierSearchResult,
+} from '../property-intelligence/property-intelligence.service';
 import { TrustService, ClaimType } from '../trust/trust.service';
 import { CandidateSocietyEntity } from '../property-intelligence/entities/candidate-society.entity';
 import {
@@ -40,13 +49,13 @@ export interface CreateSocietyInput {
   evidence: EvidenceInput[];
 }
 
-// CONTRACTOR DIRECTORY Chunk 2 — generalized from the old society-only
-// { society_id } shape. Restricted to 'SOCIETY' | 'CONTRACTOR' here (not the
-// full VerificationSubjectType) because those are the only two subjects with
-// an admin claim-adding entry point today; DEVELOPER claims are still seeded
-// outside this flow.
+// CONTRACTOR/SUPPLIER DIRECTORY Chunks 2 — generalized from the old
+// society-only { society_id } shape. Restricted to 'SOCIETY' | 'CONTRACTOR' |
+// 'SUPPLIER' here (not the full VerificationSubjectType) because those are
+// the only subjects with an admin claim-adding entry point today; DEVELOPER
+// claims are still seeded outside this flow.
 export interface AddClaimInput {
-  subject_type: 'SOCIETY' | 'CONTRACTOR';
+  subject_type: 'SOCIETY' | 'CONTRACTOR' | 'SUPPLIER';
   subject_id: string;
   claim: string;
   claim_type: ClaimType;
@@ -57,6 +66,15 @@ export interface AddClaimInput {
 export interface CreateContractorInput {
   name: string;
   trade_categories: TradeCategory[];
+  service_cities: string[];
+  contact_phone: string;
+  contact_whatsapp: string | null;
+  is_siraat_affiliated: boolean;
+}
+
+export interface CreateSupplierInput {
+  name: string;
+  material_categories: MaterialCategory[];
   service_cities: string[];
   contact_phone: string;
   contact_whatsapp: string | null;
@@ -161,12 +179,22 @@ export class AdminService {
       );
     }
 
+    // SUPPLIER DIRECTORY Chunk 2 — one more branch, same dispatch-on-subject_type
+    // pattern; everything below (evidence collection, createVerification) is
+    // already fully generic and needed zero changes.
     const subject =
       data.subject_type === 'SOCIETY'
         ? await this.piSvc.findSocietyById(data.subject_id)
-        : await this.piSvc.findContractorById(data.subject_id);
+        : data.subject_type === 'CONTRACTOR'
+          ? await this.piSvc.findContractorById(data.subject_id)
+          : await this.piSvc.findSupplierById(data.subject_id);
     if (!subject) {
-      const label = data.subject_type === 'SOCIETY' ? 'Society' : 'Contractor';
+      const label =
+        data.subject_type === 'SOCIETY'
+          ? 'Society'
+          : data.subject_type === 'CONTRACTOR'
+            ? 'Contractor'
+            : 'Supplier';
       throw new NotFoundException(`${label} ${data.subject_id} not found`);
     }
 
@@ -223,5 +251,22 @@ export class AdminService {
     limit?: number;
   }): Promise<ContractorListResponse> {
     return this.piSvc.searchContractors(filters);
+  }
+
+  // SUPPLIER DIRECTORY Chunk 2 — POST /v1/admin/suppliers, same delegation
+  // pattern as createContractor above.
+  async createSupplier(data: CreateSupplierInput): Promise<SupplierResult> {
+    return this.piSvc.createSupplier(data);
+  }
+
+  // SUPPLIER DIRECTORY Chunk 2 — GET /v1/admin/suppliers, same delegation
+  // pattern as searchContractors above.
+  async searchSuppliers(filters: {
+    material_category?: string;
+    city?: string;
+    page?: number;
+    limit?: number;
+  }): Promise<SupplierSearchResult> {
+    return this.piSvc.searchSuppliers(filters);
   }
 }

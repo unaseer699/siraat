@@ -21,6 +21,48 @@ export type CoreMaterialKey = z.infer<typeof CoreMaterialKeySchema>;
 export const MaterialRateSourceTierSchema = z.enum(['SUPPLIER_VERIFIED', 'MARKET_REFERENCE']);
 export type MaterialRateSourceTier = z.infer<typeof MaterialRateSourceTierSchema>;
 
+// ─── SUPPLIER DIRECTORY Chunk 2 ──────────────────────────────────────────────
+// Single source of truth for the admin material-rate creation contract and
+// its read shape — previously duplicated by hand across
+// apps/backend/src/admin/admin.controller.ts's local Zod schema and
+// apps/frontend/src/lib/api.ts's hand-mirrored interfaces (each commented
+// "Mirrors ..." the other, exactly the silent-drift risk this package exists
+// to prevent). source_name is now optional/nullable — required only for
+// MARKET_REFERENCE (enforced in ConstructionIntelligenceService.
+// createMaterialRate, not here, same pattern as supplier_id's SUPPLIER_VERIFIED
+// requirement from Chunk 1).
+
+export const CreateMaterialRateBodySchema = z.object({
+  material_name: z.string().min(1),
+  unit: z.string().min(1),
+  price: z.number().positive(),
+  city: z.string().min(1),
+  source_tier: MaterialRateSourceTierSchema,
+  source_name: z.string().min(1).nullable().default(null),
+  source_contact: z.string().min(1).nullable().default(null),
+  // UUID string, no SQL FK per Law 2 — references SupplierEntity.id.
+  supplier_id: z.string().uuid().nullable().default(null),
+  recorded_date: z.string().min(1),
+});
+export type CreateMaterialRateBody = z.infer<typeof CreateMaterialRateBodySchema>;
+
+export const MaterialRateItemSchema = z.object({
+  id: z.string().uuid(),
+  material_name: z.string(),
+  unit: z.string(),
+  price: z.number(),
+  city: z.string(),
+  source_tier: MaterialRateSourceTierSchema,
+  source_name: z.string().nullable(),
+  source_contact: z.string().nullable(),
+  supplier_id: z.string().uuid().nullable(),
+  recorded_date: z.string(),
+  record_type: z.literal('FACT'),
+  is_stale: z.boolean(),
+  staleness_threshold_days: z.number(),
+});
+export type MaterialRateItem = z.infer<typeof MaterialRateItemSchema>;
+
 // One line of the "show your work" breakdown — always present for all 5 core
 // materials, even when no rate could be found (unit_rate/subtotal null, is_stale
 // true), so the caller can see exactly what's missing rather than a silent gap.
