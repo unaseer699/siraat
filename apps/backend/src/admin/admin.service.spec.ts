@@ -131,6 +131,7 @@ describe('AdminService', () => {
   let findSupplierByIdMock: jest.Mock;
   let createSupplierMock: jest.Mock;
   let searchSuppliersMock: jest.Mock;
+  let searchSuppliersByNameMock: jest.Mock;
 
   // TrustService mocks
   let createVerificationMock: jest.Mock;
@@ -158,6 +159,7 @@ describe('AdminService', () => {
     findSupplierByIdMock      = jest.fn().mockResolvedValue(null);
     createSupplierMock        = jest.fn().mockResolvedValue(SUPPLIER_RESULT);
     searchSuppliersMock       = jest.fn().mockResolvedValue({ suppliers: [], total_count: 0, page: 1, total_pages: 0 });
+    searchSuppliersByNameMock = jest.fn().mockResolvedValue([]);
     createVerificationMock     = jest.fn().mockResolvedValue(VERIFICATION_ENTITY);
     createAndLinkEvidenceMock  = jest.fn().mockResolvedValue(EVIDENCE_ENTITY);
     promoteVerificationToVerifiedMock = jest.fn().mockResolvedValue(VERIFIED_ENTITY);
@@ -184,6 +186,7 @@ describe('AdminService', () => {
             findSupplierById:   findSupplierByIdMock,
             createSupplier:     createSupplierMock,
             searchSuppliers:    searchSuppliersMock,
+            searchSuppliersByName: searchSuppliersByNameMock,
           },
         },
         {
@@ -615,6 +618,17 @@ describe('AdminService', () => {
 
     expect(searchSuppliersMock).toHaveBeenCalledWith({ material_category: 'STEEL', city: 'Islamabad' });
     expect(result.suppliers).toEqual([SUPPLIER_RESULT]);
+  });
+
+  // ─── SUPPLIER DIRECTORY Chunk 2b ───────────────────────────────────────────
+
+  it('searchSuppliersByName delegates to PropertyIntelligenceService.searchSuppliersByName', async () => {
+    searchSuppliersByNameMock.mockResolvedValue([{ id: 'sup-a-uuid', name: 'Al-Rehman Steel Traders' }]);
+
+    const result = await svc.searchSuppliersByName('al-rehman');
+
+    expect(searchSuppliersByNameMock).toHaveBeenCalledWith('al-rehman');
+    expect(result).toEqual([{ id: 'sup-a-uuid', name: 'Al-Rehman Steel Traders' }]);
   });
 
   // ─── Auth guard (controller-level wiring check) ───────────────────────────

@@ -212,6 +212,16 @@ export class AdminController {
     });
   }
 
+  // SUPPLIER DIRECTORY Chunk 2b — search-as-you-type by name, same pattern as
+  // GET /developers above; powers the supplier picker on the material-rate
+  // form. Declared before the paginated GET /suppliers below only for
+  // reading order — as a distinct literal path ('suppliers/search' vs
+  // 'suppliers') there's no route-matching ambiguity between the two.
+  @Get('suppliers/search')
+  searchSuppliersByName(@Query('q') q?: string) {
+    return this.adminSvc.searchSuppliersByName(q ?? '');
+  }
+
   // SUPPLIER DIRECTORY Chunk 2 — admin entry, same shape as POST /contractors.
   @Post('suppliers')
   @HttpCode(201)

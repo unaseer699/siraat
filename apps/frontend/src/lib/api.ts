@@ -9,15 +9,19 @@ import type {
   DeveloperStats,
   EstimateRequest,
   EstimateResponse,
-  MaterialRateSourceTier,
+  MaterialRateItem,
+  CreateMaterialRateBody,
   PlatformStatsResponse,
   SocietyListResponse,
   SocietyChangesRequest,
   SocietyChangesResponse,
   TradeCategory,
+  MaterialCategory,
   ContractorSummary,
   ContractorListResponse,
 } from '@siraat/shared-types';
+
+export type { MaterialRateItem, CreateMaterialRateBody };
 
 const BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001';
 
@@ -278,32 +282,12 @@ export async function addClaimToSociety(
   });
 }
 
-// Mirrors MaterialRateResult in apps/backend/src/construction-intelligence/construction-intelligence.service.ts
-export interface MaterialRateItem {
-  id: string;
-  material_name: string;
-  unit: string;
-  price: number;
-  city: string;
-  source_tier: MaterialRateSourceTier;
-  source_name: string;
-  source_contact: string | null;
-  recorded_date: string;
-  record_type: 'FACT';
-  is_stale: boolean;
-  staleness_threshold_days: number;
-}
-
-export interface CreateMaterialRateBody {
-  material_name: string;
-  unit: string;
-  price: number;
-  city: string;
-  source_tier: MaterialRateSourceTier;
-  source_name: string;
-  source_contact: string | null;
-  recorded_date: string;
-}
+// MaterialRateItem/CreateMaterialRateBody now come from @siraat/shared-types
+// (SUPPLIER DIRECTORY Chunk 2b) — previously hand-duplicated here (and
+// separately in admin.controller.ts's local Zod schema), each commented
+// "Mirrors ..." the other, exactly the silent-drift risk shared-types exists
+// to prevent. Re-exported above for existing callers that import these types
+// from '@/lib/api'.
 
 export async function fetchMaterialRates(filters?: {
   city?: string;
@@ -362,4 +346,60 @@ export async function addClaimToContractor(
     method: 'POST',
     body: JSON.stringify(data),
   });
+}
+
+// SUPPLIER DIRECTORY Chunk 2b — same shape/organization as the Contractor
+// block above. Mirrors SupplierResult in
+// apps/backend/src/property-intelligence/property-intelligence.service.ts —
+// local here (rather than shared-types) since, same as SupplierResult
+// upstream, there's no public API route exposing suppliers yet.
+export interface SupplierItem {
+  id: string;
+  name: string;
+  material_categories: MaterialCategory[];
+  service_cities: string[];
+  contact_phone: string;
+  contact_whatsapp: string | null;
+  is_siraat_affiliated: boolean;
+  record_type: 'FACT';
+}
+
+export interface CreateSupplierBody {
+  name: string;
+  material_categories: MaterialCategory[];
+  service_cities: string[];
+  contact_phone: string;
+  contact_whatsapp: string | null;
+  is_siraat_affiliated: boolean;
+}
+
+export async function createSupplier(data: CreateSupplierBody): Promise<SupplierItem> {
+  return apiFetch('/v1/admin/suppliers', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
+}
+
+// Same claim-adding shape as addClaimToContractor, just against the supplier
+// subject_type on the backend (both routes share AdminService.addClaim()).
+export async function addClaimToSupplier(
+  supplierId: string,
+  data: AddClaimBody,
+): Promise<{ verification_id: string }> {
+  return apiFetch(`/v1/admin/suppliers/${supplierId}/claims`, {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
+}
+
+export interface SupplierSearchResult {
+  id: string;
+  name: string;
+}
+
+// Search-as-you-type over GET /admin/suppliers/search?q= — same shape and
+// purpose as searchDevelopers above, powering the supplier picker on the
+// material-rate form.
+export async function searchSuppliers(query: string): Promise<SupplierSearchResult[]> {
+  return apiFetch(`/v1/admin/suppliers/search?q=${encodeURIComponent(query)}`);
 }
