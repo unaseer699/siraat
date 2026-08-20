@@ -259,6 +259,22 @@ export function EstimateResults({ result }: Props) {
           >
             Need help building this? Find verified contractors →
           </Link>
+
+          {/* SUPPLIER DIRECTORY Chunk 3 — unfiltered, since this estimate spans
+              multiple material categories (cement/steel/bricks/sand/crush), not
+              just one, unlike the single-trade contractor link above. */}
+          <Link
+            href="/suppliers"
+            style={{
+              fontSize: '14px',
+              fontWeight: 600,
+              color: '#2563eb',
+              textDecoration: 'none',
+              alignSelf: 'flex-start',
+            }}
+          >
+            Need materials? Find verified suppliers →
+          </Link>
         </>
       )}
     </div>

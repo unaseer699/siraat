@@ -19,6 +19,8 @@ import type {
   MaterialCategory,
   ContractorSummary,
   ContractorListResponse,
+  SupplierSummary,
+  SupplierListResponse,
 } from '@siraat/shared-types';
 
 export type { MaterialRateItem, CreateMaterialRateBody };
@@ -189,6 +191,39 @@ export async function fetchContractorVerifications(
   return apiFetch(`/v1/trust/contractors/${contractorId}/verification`);
 }
 
+// SUPPLIER DIRECTORY Chunk 3 — public directory listing + profile, same
+// shape/organization as the Contractor block above.
+export async function fetchSuppliers(params?: {
+  material_category?: string;
+  city?: string;
+  page?: number;
+  limit?: number;
+}): Promise<SupplierListResponse> {
+  const qs = new URLSearchParams();
+  if (params?.material_category) qs.set('material_category', params.material_category);
+  if (params?.city) qs.set('city', params.city);
+  if (params?.page) qs.set('page', String(params.page));
+  if (params?.limit) qs.set('limit', String(params.limit));
+  const suffix = qs.toString() ? `?${qs.toString()}` : '';
+  return apiFetch(`/v1/property-intelligence/suppliers${suffix}`);
+}
+
+export async function fetchSupplier(supplierId: string): Promise<SupplierSummary> {
+  return apiFetch(`/v1/property-intelligence/suppliers/${supplierId}`);
+}
+
+export async function fetchSupplierVerifications(
+  supplierId: string,
+): Promise<VerificationListResponse> {
+  return apiFetch(`/v1/trust/suppliers/${supplierId}/verification`);
+}
+
+// Linked active material rate submissions for the supplier profile page, via
+// findMaterialRatesBySupplierId (SUPPLIER DIRECTORY Chunk 1).
+export async function fetchSupplierMaterialRates(supplierId: string): Promise<MaterialRateItem[]> {
+  return apiFetch(`/v1/property-intelligence/suppliers/${supplierId}/material-rates`);
+}
+
 // ── Admin (internal, no public UI links to these) ──────────────────────────
 
 export interface CandidateSociety {
@@ -349,10 +384,10 @@ export async function addClaimToContractor(
 }
 
 // SUPPLIER DIRECTORY Chunk 2b — same shape/organization as the Contractor
-// block above. Mirrors SupplierResult in
-// apps/backend/src/property-intelligence/property-intelligence.service.ts —
-// local here (rather than shared-types) since, same as SupplierResult
-// upstream, there's no public API route exposing suppliers yet.
+// block above (ContractorItem): a lightweight admin-only return shape,
+// deliberately without verification_status (a freshly-created supplier has
+// none yet). Same relationship to the public SupplierSummary (shared-types,
+// added in Chunk 3) as ContractorItem has to ContractorSummary.
 export interface SupplierItem {
   id: string;
   name: string;

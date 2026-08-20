@@ -8,6 +8,7 @@ import {
   Building2,
   ShieldCheck,
   Wrench,
+  Package,
   Check,
   FileCheck,
   MapPin,
@@ -460,6 +461,14 @@ function HomeView() {
           title="Contractors"
           subtitle="Find verified trades near you"
           ariaLabel="Find contractors"
+        />
+        {/* SUPPLIER DIRECTORY Chunk 3 — 5th quick-access spot, same pattern as Contractors above. */}
+        <QuickAccessCard
+          href="/suppliers"
+          icon={Package}
+          title="Suppliers"
+          subtitle="Find verified material suppliers"
+          ariaLabel="Find suppliers"
         />
       </div>
 
