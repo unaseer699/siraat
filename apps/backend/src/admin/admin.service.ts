@@ -269,4 +269,11 @@ export class AdminService {
   }): Promise<SupplierSearchResult> {
     return this.piSvc.searchSuppliers(filters);
   }
+
+  // SUPPLIER DIRECTORY Chunk 2b — GET /v1/admin/suppliers/search?q=, same
+  // delegation pattern as searchDevelopers above; powers the supplier picker
+  // on the admin material-rate form.
+  async searchSuppliersByName(query: string): Promise<{ id: string; name: string }[]> {
+    return this.piSvc.searchSuppliersByName(query);
+  }
 }

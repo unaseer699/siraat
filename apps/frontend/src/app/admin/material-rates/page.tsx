@@ -1,8 +1,14 @@
 'use client';
 
-import { useEffect, useState, type CSSProperties, type FormEvent } from 'react';
+import { useEffect, useRef, useState, type CSSProperties, type FormEvent } from 'react';
 import type { MaterialRateSourceTier } from '@siraat/shared-types';
-import { createMaterialRate, fetchMaterialRates, type MaterialRateItem } from '@/lib/api';
+import {
+  createMaterialRate,
+  fetchMaterialRates,
+  searchSuppliers,
+  type MaterialRateItem,
+  type SupplierSearchResult,
+} from '@/lib/api';
 import { fieldGroupStyle, inputStyle, labelStyle } from '../constants';
 import { AdminNav } from '../AdminNav';
 import { TRUST_GREEN, WARNING_AMBER, NEUTRAL_GRAY } from '@/styles/tokens';
@@ -54,6 +60,146 @@ function SourceTierBadge({ tier }: { tier: MaterialRateSourceTier }) {
   );
 }
 
+// SUPPLIER DIRECTORY Chunk 2b — search-as-you-type over GET
+// /admin/suppliers/search?q=, same shape and debounce as new-society/page.tsx's
+// DeveloperSearchField. The operator only ever sees supplier names; the
+// selected UUID is tracked internally (supplierId) and never rendered back
+// into the input.
+function SupplierSearchField({
+  query,
+  onQueryChange,
+  supplierId,
+  onSelect,
+  onClear,
+}: {
+  query: string;
+  onQueryChange: (v: string) => void;
+  supplierId: string | null;
+  onSelect: (result: SupplierSearchResult) => void;
+  onClear: () => void;
+}) {
+  const [results, setResults] = useState<SupplierSearchResult[]>([]);
+  const [searching, setSearching] = useState(false);
+  const requestId = useRef(0);
+
+  useEffect(() => {
+    const trimmed = query.trim();
+    if (!trimmed || supplierId) {
+      setResults([]);
+      setSearching(false);
+      return;
+    }
+
+    setSearching(true);
+    const id = ++requestId.current;
+    const timer = setTimeout(async () => {
+      try {
+        const found = await searchSuppliers(trimmed);
+        if (id === requestId.current) setResults(found);
+      } catch {
+        if (id === requestId.current) setResults([]);
+      } finally {
+        if (id === requestId.current) setSearching(false);
+      }
+    }, 300);
+
+    return () => clearTimeout(timer);
+  }, [query, supplierId]);
+
+  const showDropdown = !supplierId && query.trim().length > 0 && (searching || results.length > 0);
+
+  return (
+    <div style={{ ...fieldGroupStyle, position: 'relative' }}>
+      <label style={labelStyle}>Supplier</label>
+      <div style={{ display: 'flex', gap: '8px' }}>
+        <input
+          type="text"
+          value={query}
+          onChange={(e) => onQueryChange(e.target.value)}
+          placeholder="Start typing a supplier name…"
+          autoComplete="off"
+          required
+          style={{ ...inputStyle, flex: 1 }}
+        />
+        {supplierId && (
+          <button
+            type="button"
+            onClick={onClear}
+            style={{
+              padding: '0 12px',
+              border: '1px solid var(--border)',
+              borderRadius: 'var(--radius)',
+              background: '#fff',
+              fontSize: '13px',
+              color: 'var(--muted)',
+              cursor: 'pointer',
+            }}
+          >
+            Clear
+          </button>
+        )}
+      </div>
+
+      {supplierId ? (
+        <p style={{ fontSize: '12px', color: '#166534' }}>✓ Linked — this rate will show under this supplier&apos;s profile.</p>
+      ) : (
+        <p style={{ fontSize: '12px', color: 'var(--muted)' }}>Select a match to link this rate to a supplier.</p>
+      )}
+
+      {showDropdown && (
+        <ul
+          style={{
+            position: 'absolute',
+            top: '100%',
+            left: 0,
+            right: 0,
+            zIndex: 10,
+            margin: 0,
+            marginTop: '4px',
+            padding: '4px',
+            listStyle: 'none',
+            background: '#fff',
+            border: '1px solid var(--border)',
+            borderRadius: 'var(--radius)',
+            boxShadow: '0 4px 12px rgba(0,0,0,0.08)',
+            maxHeight: '220px',
+            overflowY: 'auto',
+          }}
+        >
+          {searching && (
+            <li style={{ padding: '8px 10px', fontSize: '13px', color: 'var(--muted)' }}>Searching…</li>
+          )}
+          {!searching && results.length === 0 && (
+            <li style={{ padding: '8px 10px', fontSize: '13px', color: 'var(--muted)' }}>No matching suppliers</li>
+          )}
+          {!searching &&
+            results.map((r) => (
+              <li key={r.id}>
+                <button
+                  type="button"
+                  onClick={() => onSelect(r)}
+                  style={{
+                    width: '100%',
+                    textAlign: 'left',
+                    padding: '8px 10px',
+                    border: 'none',
+                    background: 'transparent',
+                    fontSize: '14px',
+                    cursor: 'pointer',
+                    borderRadius: '6px',
+                  }}
+                  onMouseDown={(e) => e.preventDefault()}
+                >
+                  {r.name}
+                </button>
+              </li>
+            ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
 export default function MaterialRatesPage() {
   const [materialName, setMaterialName] = useState('');
   const [unit, setUnit] = useState('');
@@ -62,6 +208,8 @@ export default function MaterialRatesPage() {
   const [sourceTier, setSourceTier] = useState<MaterialRateSourceTier>('MARKET_REFERENCE');
   const [sourceName, setSourceName] = useState('');
   const [sourceContact, setSourceContact] = useState('');
+  const [supplierQuery, setSupplierQuery] = useState('');
+  const [supplierId, setSupplierId] = useState<string | null>(null);
   const [recordedDate, setRecordedDate] = useState(todayIso());
 
   const [submitting, setSubmitting] = useState(false);
@@ -74,14 +222,36 @@ export default function MaterialRatesPage() {
   const priceNum = Number(price);
   const priceValid = price.trim().length > 0 && Number.isFinite(priceNum) && priceNum > 0;
   const contactOk = sourceTier !== 'SUPPLIER_VERIFIED' || sourceContact.trim().length > 0;
+  // SUPPLIER DIRECTORY Chunk 2b — source_name is only required for
+  // MARKET_REFERENCE now (that tier has no supplier link at all); a
+  // SUPPLIER_VERIFIED rate identifies via the supplier picker instead.
+  const sourceNameOk = sourceTier !== 'MARKET_REFERENCE' || sourceName.trim().length > 0;
+  const supplierOk = sourceTier !== 'SUPPLIER_VERIFIED' || supplierId !== null;
   const canSubmit =
     materialName.trim() &&
     unit.trim() &&
     priceValid &&
     city.trim() &&
-    sourceName.trim() &&
+    sourceNameOk &&
+    supplierOk &&
     recordedDate &&
     contactOk;
+
+  function handleSupplierSelect(r: SupplierSearchResult) {
+    setSupplierId(r.id);
+    setSupplierQuery(r.name);
+  }
+
+  function handleSupplierQueryChange(v: string) {
+    setSupplierQuery(v);
+    // Any edit invalidates a prior selection — must re-select to link again.
+    setSupplierId(null);
+  }
+
+  function handleSupplierClear() {
+    setSupplierId(null);
+    setSupplierQuery('');
+  }
 
   function loadRates() {
     setListLoading(true);
@@ -108,13 +278,15 @@ export default function MaterialRatesPage() {
         price: priceNum,
         city: city.trim(),
         source_tier: sourceTier,
-        source_name: sourceName.trim(),
-        source_contact: sourceTier === 'SUPPLIER_VERIFIED' ? sourceContact.trim() : null,
+        source_name: sourceName.trim() || null,
+        source_contact: sourceTier === 'SUPPLIER_VERIFIED' ? sourceContact.trim() || null : null,
+        supplier_id: sourceTier === 'SUPPLIER_VERIFIED' ? supplierId : null,
         recorded_date: recordedDate,
       });
       // Reset the fields an operator is least likely to want repeated between
-      // consecutive entries (name/rate/contact); keep city, tier, and date since
-      // a WhatsApp batch or a weekly site check is usually all the same city/tier/day.
+      // consecutive entries (name/rate/contact); keep city, tier, date, and
+      // supplier since a WhatsApp batch or a weekly site check is usually all
+      // the same city/tier/day/supplier.
       setMaterialName('');
       setUnit('');
       setPrice('');
@@ -237,11 +409,24 @@ export default function MaterialRatesPage() {
             </div>
           </div>
 
+          {/* SUPPLIER DIRECTORY Chunk 2b — the real identity for a
+              SUPPLIER_VERIFIED rate now lives here, not in the free-text
+              Source name field below (which becomes optional for this tier). */}
+          {sourceTier === 'SUPPLIER_VERIFIED' && (
+            <SupplierSearchField
+              query={supplierQuery}
+              onQueryChange={handleSupplierQueryChange}
+              supplierId={supplierId}
+              onSelect={handleSupplierSelect}
+              onClear={handleSupplierClear}
+            />
+          )}
+
           <div style={{ display: 'flex', gap: '12px' }}>
             <div style={{ ...fieldGroupStyle, flex: 1 }}>
               <label style={labelStyle}>
                 Source name{' '}
-                {sourceTier === 'SUPPLIER_VERIFIED' ? '(supplier name)' : '(site name)'}
+                {sourceTier === 'SUPPLIER_VERIFIED' ? '(optional override)' : '(site name)'}
               </label>
               <input
                 type="text"
@@ -250,9 +435,14 @@ export default function MaterialRatesPage() {
                 placeholder={
                   sourceTier === 'SUPPLIER_VERIFIED' ? 'e.g. Al-Habib Steel & Cement' : 'e.g. civilconstructionguide.com'
                 }
-                required
+                required={sourceTier === 'MARKET_REFERENCE'}
                 style={inputStyle}
               />
+              {!sourceNameOk && (
+                <p style={{ fontSize: '12px', color: 'var(--error)' }}>
+                  Required when source tier is Market Reference.
+                </p>
+              )}
             </div>
 
             {/* Only SUPPLIER_VERIFIED rates need contact traceability back to the
@@ -362,7 +552,12 @@ export default function MaterialRatesPage() {
                       <td style={tdStyle}>
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', alignItems: 'flex-start' }}>
                           <SourceTierBadge tier={r.source_tier} />
-                          <span style={{ fontSize: '12px', color: 'var(--muted)' }}>{r.source_name}</span>
+                          {/* SUPPLIER DIRECTORY Chunk 2b — source_name can now be null for a
+                              SUPPLIER_VERIFIED rate; fall back to the supplier link so the
+                              cell never renders blank. */}
+                          <span style={{ fontSize: '12px', color: 'var(--muted)' }}>
+                            {r.source_name ?? (r.supplier_id ? `Supplier #${r.supplier_id.slice(0, 8)}` : '—')}
+                          </span>
                         </div>
                       </td>
                       <td style={tdStyle}>{r.recorded_date}</td>

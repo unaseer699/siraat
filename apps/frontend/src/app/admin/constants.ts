@@ -1,8 +1,9 @@
 import type { CSSProperties } from 'react';
 import type { ClaimType, EvidenceType } from '@/lib/api';
 import { TRADE_CATEGORY_OPTIONS } from '@/lib/tradeCategories';
+import { MATERIAL_CATEGORY_OPTIONS } from '@/lib/materialCategories';
 
-export { TRADE_CATEGORY_OPTIONS };
+export { TRADE_CATEGORY_OPTIONS, MATERIAL_CATEGORY_OPTIONS };
 
 // Mirrors CLAIM_TYPES in apps/backend/src/admin/admin.controller.ts
 export const CLAIM_TYPE_OPTIONS: { value: ClaimType; label: string }[] = [
