@@ -164,3 +164,26 @@ export interface ContractorListResponse {
   page: number;
   total_pages: number;
 }
+
+// SUPPLIER DIRECTORY Chunk 3 — public directory + profile shapes. Same
+// shape/organization as ContractorSummary/ContractorListResponse above,
+// same verification_status derivation — see
+// PropertyIntelligenceService.searchSuppliers / findSupplierById.
+export interface SupplierSummary {
+  id: string;
+  name: string;
+  material_categories: MaterialCategory[];
+  service_cities: string[];
+  contact_phone: string;
+  contact_whatsapp: string | null;
+  is_siraat_affiliated: boolean;
+  record_type: 'FACT';
+  verification_status: SocietyVerificationStatus;
+}
+
+export interface SupplierListResponse {
+  suppliers: SupplierSummary[];
+  total_count: number;
+  page: number;
+  total_pages: number;
+}

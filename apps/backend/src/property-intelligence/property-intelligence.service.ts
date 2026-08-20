@@ -12,6 +12,8 @@ import type {
   SocietyChangeSummary,
   ContractorSummary,
   ContractorListResponse,
+  SupplierSummary,
+  SupplierListResponse,
 } from '@siraat/shared-types';
 import { TrustService } from '../trust/trust.service';
 import {
@@ -108,24 +110,15 @@ function toContractorFields(e: ContractorEntity) {
   };
 }
 
-// ─── SUPPLIER DIRECTORY Chunk 1 ──────────────────────────────────────────────
-// Same shape/organization as ContractorResult/ContractorSearchResult's
-// original (Chunk 1) form — plain entity fields only, local to this service
-// rather than shared-types, since there's no public API route exposing these
-// yet (that comes in a later chunk, same as Contractor's did).
+// ─── SUPPLIER DIRECTORY Chunk 1/3 ────────────────────────────────────────────
+// Fields straight off the entity — verification_status is spliced in
+// separately at each call site below, same as toContractorFields above.
+// SupplierResult/SupplierSearchResult (Chunk 1, local-only) were retired in
+// Chunk 3 in favor of the shared-types SupplierSummary/SupplierListResponse,
+// same migration ContractorResult/ContractorSearchResult went through when
+// their public route landed.
 
-export interface SupplierResult {
-  id: string;
-  name: string;
-  material_categories: MaterialCategory[];
-  service_cities: string[];
-  contact_phone: string;
-  contact_whatsapp: string | null;
-  is_siraat_affiliated: boolean;
-  record_type: 'FACT';
-}
-
-function toSupplierResult(e: SupplierEntity): SupplierResult {
+function toSupplierFields(e: SupplierEntity) {
   return {
     id: e.id,
     name: e.name,
@@ -136,13 +129,6 @@ function toSupplierResult(e: SupplierEntity): SupplierResult {
     is_siraat_affiliated: e.is_siraat_affiliated,
     record_type: e.record_type,
   };
-}
-
-export interface SupplierSearchResult {
-  suppliers: SupplierResult[];
-  total_count: number;
-  page: number;
-  total_pages: number;
 }
 
 @Injectable()
@@ -490,25 +476,37 @@ export class PropertyIntelligenceService {
     contact_phone: string;
     contact_whatsapp: string | null;
     is_siraat_affiliated: boolean;
-  }): Promise<SupplierResult> {
+  }): Promise<SupplierSummary> {
     const entity = this.supplierRepo.create({ ...data, record_type: 'FACT' });
     const saved = await this.supplierRepo.save(entity);
-    return toSupplierResult(saved);
+    return {
+      ...toSupplierFields(saved),
+      verification_status: await this.trustSvc.deriveVerificationStatus('SUPPLIER', saved.id),
+    };
   }
 
-  async findSupplierById(id: string): Promise<SupplierResult | null> {
+  // SUPPLIER DIRECTORY Chunk 3 — also backs the public GET
+  // /property-intelligence/suppliers/:id profile route; the admin addClaim
+  // existence check just discards the extra verification_status field.
+  async findSupplierById(id: string): Promise<SupplierSummary | null> {
     const entity = await this.supplierRepo.findOneBy({ id });
-    return entity ? toSupplierResult(entity) : null;
+    if (!entity) return null;
+    return {
+      ...toSupplierFields(entity),
+      verification_status: await this.trustSvc.deriveVerificationStatus('SUPPLIER', entity.id),
+    };
   }
 
   // Paginated the same way searchContractors is: page/limit default and
   // clamp the same way, order alphabetically, getManyAndCount.
+  // SUPPLIER DIRECTORY Chunk 3 — also backs the public GET
+  // /property-intelligence/suppliers route (same delegation as GET /admin/suppliers).
   async searchSuppliers(params: {
     material_category?: string;
     city?: string;
     page?: number;
     limit?: number;
-  }): Promise<SupplierSearchResult> {
+  }): Promise<SupplierListResponse> {
     const page = params.page && params.page > 0 ? params.page : 1;
     const limit = params.limit && params.limit > 0 ? params.limit : DEFAULT_SUPPLIER_PAGE_SIZE;
 
@@ -531,8 +529,16 @@ export class PropertyIntelligenceService {
       .take(limit)
       .getManyAndCount();
 
+    // Same per-row TrustService derivation + Promise.all shape as searchContractors above.
+    const suppliers = await Promise.all(
+      entities.map(async (e) => ({
+        ...toSupplierFields(e),
+        verification_status: await this.trustSvc.deriveVerificationStatus('SUPPLIER', e.id),
+      })),
+    );
+
     return {
-      suppliers: entities.map(toSupplierResult),
+      suppliers,
       total_count,
       page,
       total_pages: Math.ceil(total_count / limit),

@@ -72,4 +72,37 @@ export class PropertyIntelligenceController {
     if (!contractor) throw new NotFoundException(`Contractor ${id} not found`);
     return contractor;
   }
+
+  // SUPPLIER DIRECTORY Chunk 3 — public directory listing, same
+  // delegation/pattern as GET /contractors above.
+  @Get('suppliers')
+  async searchSuppliers(
+    @Query('material_category') material_category?: string,
+    @Query('city') city?: string,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+  ) {
+    return this.piSvc.searchSuppliers({
+      material_category,
+      city,
+      page: page !== undefined ? Number(page) : undefined,
+      limit: limit !== undefined ? Number(limit) : undefined,
+    });
+  }
+
+  // SUPPLIER DIRECTORY Chunk 3 — public profile lookup.
+  @Get('suppliers/:id')
+  async getSupplier(@Param('id') id: string) {
+    const supplier = await this.piSvc.findSupplierById(id);
+    if (!supplier) throw new NotFoundException(`Supplier ${id} not found`);
+    return supplier;
+  }
+
+  // SUPPLIER DIRECTORY Chunk 3 — linked active material rate submissions for
+  // the profile page, via findMaterialRatesBySupplierId (Chunk 1). A distinct
+  // literal path from 'suppliers/:id' above, so no route-matching ambiguity.
+  @Get('suppliers/:id/material-rates')
+  async getSupplierMaterialRates(@Param('id') id: string) {
+    return this.piSvc.findMaterialRatesBySupplierId(id);
+  }
 }

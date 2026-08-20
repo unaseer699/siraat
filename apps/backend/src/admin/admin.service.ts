@@ -6,12 +6,10 @@ import type {
   MaterialCategory,
   ContractorSummary,
   ContractorListResponse,
+  SupplierSummary,
+  SupplierListResponse,
 } from '@siraat/shared-types';
-import {
-  PropertyIntelligenceService,
-  type SupplierResult,
-  type SupplierSearchResult,
-} from '../property-intelligence/property-intelligence.service';
+import { PropertyIntelligenceService } from '../property-intelligence/property-intelligence.service';
 import { TrustService, ClaimType } from '../trust/trust.service';
 import { CandidateSocietyEntity } from '../property-intelligence/entities/candidate-society.entity';
 import {
@@ -255,7 +253,7 @@ export class AdminService {
 
   // SUPPLIER DIRECTORY Chunk 2 — POST /v1/admin/suppliers, same delegation
   // pattern as createContractor above.
-  async createSupplier(data: CreateSupplierInput): Promise<SupplierResult> {
+  async createSupplier(data: CreateSupplierInput): Promise<SupplierSummary> {
     return this.piSvc.createSupplier(data);
   }
 
@@ -266,7 +264,7 @@ export class AdminService {
     city?: string;
     page?: number;
     limit?: number;
-  }): Promise<SupplierSearchResult> {
+  }): Promise<SupplierListResponse> {
     return this.piSvc.searchSuppliers(filters);
   }
 
