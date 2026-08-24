@@ -10,6 +10,7 @@ import { DeveloperEntity } from './entities/developer.entity';
 import { ContractorEntity } from './entities/contractor.entity';
 import { SupplierEntity } from './entities/supplier.entity';
 import { HousePlanEntity } from './entities/house-plan.entity';
+import { CandidateSocietyEntity } from './entities/candidate-society.entity';
 import { ObservationEntity } from './entities/observation.entity';
 import { TrustService } from '../trust/trust.service';
 import { ConstructionIntelligenceService } from '../construction-intelligence/construction-intelligence.service';
@@ -68,6 +69,10 @@ describe('PropertyIntelligenceService', () => {
   let housePlanSaveMock: jest.Mock;
   let housePlanFindOneByMock: jest.Mock;
   let housePlanUpdateMock: jest.Mock;
+  let housePlanDeleteMock: jest.Mock;
+  let candidateFindOneByMock: jest.Mock;
+  let candidateSaveMock: jest.Mock;
+  let candidateDeleteMock: jest.Mock;
   let ciFindRatesBySupplierIdMock: jest.Mock;
 
   beforeEach(async () => {
@@ -144,6 +149,10 @@ describe('PropertyIntelligenceService', () => {
     housePlanSaveMock = jest.fn((entity) => Promise.resolve({ id: 'hp-new-uuid', ...entity }));
     housePlanFindOneByMock = jest.fn().mockResolvedValue(null);
     housePlanUpdateMock = jest.fn().mockResolvedValue({ affected: 1 });
+    housePlanDeleteMock = jest.fn().mockResolvedValue({ affected: 1 });
+    candidateFindOneByMock = jest.fn().mockResolvedValue(null);
+    candidateSaveMock = jest.fn((entity) => Promise.resolve(entity));
+    candidateDeleteMock = jest.fn().mockResolvedValue({ affected: 1 });
     ciFindRatesBySupplierIdMock = jest.fn().mockResolvedValue([]);
 
     const module = await Test.createTestingModule({
@@ -190,6 +199,15 @@ describe('PropertyIntelligenceService', () => {
             create: housePlanCreateMock,
             save: housePlanSaveMock,
             update: housePlanUpdateMock,
+            delete: housePlanDeleteMock,
+          },
+        },
+        {
+          provide: getRepositoryToken(CandidateSocietyEntity),
+          useValue: {
+            findOneBy: candidateFindOneByMock,
+            save: candidateSaveMock,
+            delete: candidateDeleteMock,
           },
         },
         {
@@ -1039,6 +1057,142 @@ describe('PropertyIntelligenceService', () => {
         { id: 'hp-a-uuid' },
         { preview_image_ref: 'house-plans/hp-a-uuid/new.jpg' },
       );
+    });
+  });
+
+  // ─── ADMIN CRUD PHASE 1 Chunk 1 ──────────────────────────────────────────────
+
+  describe('updateHousePlan', () => {
+    const EXISTING_PLAN = {
+      id: 'hp-a-uuid',
+      title: '5 Marla Modern Home',
+      area_marla: 5,
+      bedrooms: 3,
+      style: 'MODERN' as HousePlanStyle,
+      preview_image_ref: 'house-plans/hp-a-uuid/preview.jpg',
+      description: 'A compact modern layout with an open-plan lounge.',
+      contact_whatsapp: '+92 300 1112222',
+      is_siraat_affiliated: false,
+      record_type: 'FACT' as const,
+    };
+
+    it('updates the given fields and returns the updated plan', async () => {
+      housePlanFindOneByMock.mockResolvedValue({ ...EXISTING_PLAN });
+      housePlanSaveMock.mockImplementation((entity) => Promise.resolve(entity));
+
+      const result = await service.updateHousePlan('hp-a-uuid', {
+        title: '5 Marla Contemporary Home',
+        bedrooms: 4,
+      });
+
+      expect(result).not.toBeNull();
+      expect(result!.title).toBe('5 Marla Contemporary Home');
+      expect(result!.bedrooms).toBe(4);
+      // Untouched fields survive the partial update.
+      expect(result!.style).toBe('MODERN');
+      expect(housePlanSaveMock).toHaveBeenCalledWith(
+        expect.objectContaining({ title: '5 Marla Contemporary Home', bedrooms: 4 }),
+      );
+    });
+
+    it('never touches preview_image_ref, even if somehow present in the data', async () => {
+      housePlanFindOneByMock.mockResolvedValue({ ...EXISTING_PLAN });
+      housePlanSaveMock.mockImplementation((entity) => Promise.resolve(entity));
+
+      const result = await service.updateHousePlan('hp-a-uuid', { title: 'Renamed' });
+
+      expect(result!.preview_image_ref).toBe('house-plans/hp-a-uuid/preview.jpg');
+    });
+
+    it('returns null when no house plan matches the id', async () => {
+      housePlanFindOneByMock.mockResolvedValue(null);
+
+      const result = await service.updateHousePlan('non-existent-uuid', { title: 'X' });
+
+      expect(result).toBeNull();
+      expect(housePlanSaveMock).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('deleteHousePlan', () => {
+    it('returns true when a row was deleted', async () => {
+      housePlanDeleteMock.mockResolvedValue({ affected: 1 });
+
+      const result = await service.deleteHousePlan('hp-a-uuid');
+
+      expect(housePlanDeleteMock).toHaveBeenCalledWith({ id: 'hp-a-uuid' });
+      expect(result).toBe(true);
+    });
+
+    it('returns false when no row matched the id', async () => {
+      housePlanDeleteMock.mockResolvedValue({ affected: 0 });
+
+      const result = await service.deleteHousePlan('non-existent-uuid');
+
+      expect(result).toBe(false);
+    });
+  });
+
+  describe('updateCandidateSociety', () => {
+    const EXISTING_CANDIDATE = {
+      id: 'cand-a-uuid',
+      name: 'Park View City',
+      regulator: 'CDA' as const,
+      city: 'Islamabad',
+      status: 'NOT_STARTED' as const,
+      record_type: 'FACT' as const,
+      created_at: new Date('2026-01-01'),
+      updated_at: new Date('2026-01-01'),
+    };
+
+    it('updates the given fields and returns the updated candidate', async () => {
+      candidateFindOneByMock.mockResolvedValue({ ...EXISTING_CANDIDATE });
+
+      const result = await service.updateCandidateSociety('cand-a-uuid', { status: 'IN_PROGRESS' });
+
+      expect(result).not.toBeNull();
+      expect(result!.status).toBe('IN_PROGRESS');
+      // Untouched fields survive the partial update.
+      expect(result!.name).toBe('Park View City');
+      expect(candidateSaveMock).toHaveBeenCalledWith(
+        expect.objectContaining({ status: 'IN_PROGRESS' }),
+      );
+    });
+
+    it('supports reverting status back to NOT_STARTED (manual override)', async () => {
+      candidateFindOneByMock.mockResolvedValue({ ...EXISTING_CANDIDATE, status: 'ONBOARDED' });
+
+      const result = await service.updateCandidateSociety('cand-a-uuid', { status: 'NOT_STARTED' });
+
+      expect(result!.status).toBe('NOT_STARTED');
+    });
+
+    it('returns null when no candidate matches the id', async () => {
+      candidateFindOneByMock.mockResolvedValue(null);
+
+      const result = await service.updateCandidateSociety('non-existent-uuid', { status: 'IN_PROGRESS' });
+
+      expect(result).toBeNull();
+      expect(candidateSaveMock).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('deleteCandidateSociety', () => {
+    it('returns true when a row was deleted', async () => {
+      candidateDeleteMock.mockResolvedValue({ affected: 1 });
+
+      const result = await service.deleteCandidateSociety('cand-a-uuid');
+
+      expect(candidateDeleteMock).toHaveBeenCalledWith({ id: 'cand-a-uuid' });
+      expect(result).toBe(true);
+    });
+
+    it('returns false when no row matched the id', async () => {
+      candidateDeleteMock.mockResolvedValue({ affected: 0 });
+
+      const result = await service.deleteCandidateSociety('non-existent-uuid');
+
+      expect(result).toBe(false);
     });
   });
 
