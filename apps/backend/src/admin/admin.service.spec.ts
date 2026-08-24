@@ -1,6 +1,5 @@
 import { Test } from '@nestjs/testing';
 import { BadRequestException, NotFoundException } from '@nestjs/common';
-import { getRepositoryToken } from '@nestjs/typeorm';
 import {
   AdminService,
   type CreateContractorInput,
@@ -159,6 +158,15 @@ describe('AdminService', () => {
   let createHousePlanMock: jest.Mock;
   let searchHousePlansMock: jest.Mock;
   let updateHousePlanPreviewImageMock: jest.Mock;
+  let updateHousePlanMock: jest.Mock;
+  let deleteHousePlanMock: jest.Mock;
+  let updateCandidateSocietyMock: jest.Mock;
+  let deleteCandidateSocietyMock: jest.Mock;
+  // CLEANUP — CandidateSociety repository ownership consolidated onto
+  // PropertyIntelligenceService; these were AdminService's own repo-level
+  // mocks (find/findBy/findOneBy/save) and are now piSvc-level mocks instead.
+  let listCandidateSocietiesMock: jest.Mock;
+  let markCandidateSocietyOnboardedMock: jest.Mock;
 
   // TrustService mocks
   let createVerificationMock: jest.Mock;
@@ -168,12 +176,7 @@ describe('AdminService', () => {
 
   // StorageService mocks
   let uploadFileMock: jest.Mock;
-
-  // CandidateSocietyEntity repository mocks
-  let candidateFindMock: jest.Mock;
-  let candidateFindOneMock: jest.Mock;
-  let candidateFindByMock: jest.Mock;
-  let candidateSaveMock: jest.Mock;
+  let deleteFileMock: jest.Mock;
 
   // ConstructionIntelligenceService mocks
   let createMaterialRateMock: jest.Mock;
@@ -195,15 +198,20 @@ describe('AdminService', () => {
     createHousePlanMock       = jest.fn().mockResolvedValue(HOUSE_PLAN_RESULT);
     searchHousePlansMock      = jest.fn().mockResolvedValue({ house_plans: [], total_count: 0, page: 1, total_pages: 0 });
     updateHousePlanPreviewImageMock = jest.fn().mockResolvedValue(undefined);
+    updateHousePlanMock        = jest.fn().mockResolvedValue(HOUSE_PLAN_RESULT);
+    deleteHousePlanMock        = jest.fn().mockResolvedValue(true);
+    updateCandidateSocietyMock = jest.fn().mockResolvedValue({ ...CANDIDATE, status: 'IN_PROGRESS' });
+    deleteCandidateSocietyMock = jest.fn().mockResolvedValue(true);
+    listCandidateSocietiesMock = jest.fn().mockResolvedValue([CANDIDATE]);
+    // Default false (not found) — matches the old default candidateFindOneMock
+    // behavior (null) that most createSocietyWithFirstClaim tests relied on.
+    markCandidateSocietyOnboardedMock = jest.fn().mockResolvedValue(false);
     createVerificationMock     = jest.fn().mockResolvedValue(VERIFICATION_ENTITY);
     createAndLinkEvidenceMock  = jest.fn().mockResolvedValue(EVIDENCE_ENTITY);
     promoteVerificationToVerifiedMock = jest.fn().mockResolvedValue(VERIFIED_ENTITY);
     createEvidenceRecordMock   = jest.fn().mockResolvedValue(EVIDENCE_ENTITY);
     uploadFileMock             = jest.fn().mockResolvedValue(undefined);
-    candidateFindMock          = jest.fn().mockResolvedValue([CANDIDATE]);
-    candidateFindOneMock       = jest.fn().mockResolvedValue(null);
-    candidateFindByMock        = jest.fn().mockResolvedValue([CANDIDATE]);
-    candidateSaveMock          = jest.fn().mockResolvedValue({ ...CANDIDATE, status: 'ONBOARDED' });
+    deleteFileMock             = jest.fn().mockResolvedValue(undefined);
     createMaterialRateMock     = jest.fn().mockResolvedValue(MATERIAL_RATE_RESULT);
     listMaterialRatesMock      = jest.fn().mockResolvedValue([MATERIAL_RATE_RESULT]);
 
@@ -228,6 +236,12 @@ describe('AdminService', () => {
             createHousePlan:    createHousePlanMock,
             searchHousePlans:   searchHousePlansMock,
             updateHousePlanPreviewImage: updateHousePlanPreviewImageMock,
+            updateHousePlan:    updateHousePlanMock,
+            deleteHousePlan:    deleteHousePlanMock,
+            updateCandidateSociety: updateCandidateSocietyMock,
+            deleteCandidateSociety: deleteCandidateSocietyMock,
+            listCandidateSocieties: listCandidateSocietiesMock,
+            markCandidateSocietyOnboarded: markCandidateSocietyOnboardedMock,
           },
         },
         {
@@ -241,16 +255,7 @@ describe('AdminService', () => {
         },
         {
           provide: StorageService,
-          useValue: { uploadFile: uploadFileMock },
-        },
-        {
-          provide: getRepositoryToken(CandidateSocietyEntity),
-          useValue: {
-            find:       candidateFindMock,
-            findBy:     candidateFindByMock,
-            findOneBy:  candidateFindOneMock,
-            save:       candidateSaveMock,
-          },
+          useValue: { uploadFile: uploadFileMock, deleteFile: deleteFileMock },
         },
         {
           provide: ConstructionIntelligenceService,
@@ -266,16 +271,18 @@ describe('AdminService', () => {
   });
 
   // ─── listCandidateSocieties ───────────────────────────────────────────────
+  // CLEANUP — now a pure delegation to PropertyIntelligenceService, same
+  // pattern as searchContractors/searchSuppliers elsewhere in this file.
 
-  it('listCandidateSocieties returns all candidates when no status filter given', async () => {
+  it('listCandidateSocieties delegates to PropertyIntelligenceService.listCandidateSocieties', async () => {
     const result = await svc.listCandidateSocieties();
-    expect(candidateFindMock).toHaveBeenCalled();
-    expect(result).toHaveLength(1);
+    expect(listCandidateSocietiesMock).toHaveBeenCalledWith(undefined);
+    expect(result).toEqual([CANDIDATE]);
   });
 
-  it('listCandidateSocieties filters by status when provided', async () => {
+  it('listCandidateSocieties passes the status filter through', async () => {
     await svc.listCandidateSocieties('NOT_STARTED');
-    expect(candidateFindByMock).toHaveBeenCalledWith({ status: 'NOT_STARTED' });
+    expect(listCandidateSocietiesMock).toHaveBeenCalledWith('NOT_STARTED');
   });
 
   // ─── createSocietyWithFirstClaim ──────────────────────────────────────────
@@ -354,24 +361,20 @@ describe('AdminService', () => {
     expect(createSocietyMock).not.toHaveBeenCalled();
   });
 
-  it('marks matching CandidateSociety as ONBOARDED on name match', async () => {
-    candidateFindOneMock.mockResolvedValue({ ...CANDIDATE });
+  it('marks matching CandidateSociety as ONBOARDED via PropertyIntelligenceService', async () => {
+    markCandidateSocietyOnboardedMock.mockResolvedValue(true);
 
     const result = await svc.createSocietyWithFirstClaim(buildSocietyInput());
 
-    expect(candidateFindOneMock).toHaveBeenCalledWith({ name: 'Park View City' });
-    expect(candidateSaveMock).toHaveBeenCalledWith(
-      expect.objectContaining({ status: 'ONBOARDED' }),
-    );
+    expect(markCandidateSocietyOnboardedMock).toHaveBeenCalledWith('Park View City');
     expect(result.candidate_marked_onboarded).toBe(true);
   });
 
-  it('does not call candidateSave when no CandidateSociety matches the name', async () => {
-    candidateFindOneMock.mockResolvedValue(null);
+  it('reports candidate_marked_onboarded: false when no CandidateSociety matches the name', async () => {
+    markCandidateSocietyOnboardedMock.mockResolvedValue(false);
 
     const result = await svc.createSocietyWithFirstClaim(buildSocietyInput());
 
-    expect(candidateSaveMock).not.toHaveBeenCalled();
     expect(result.candidate_marked_onboarded).toBe(false);
   });
 
@@ -784,6 +787,92 @@ describe('AdminService', () => {
       }),
     ).rejects.toThrow(NotFoundException);
     expect(uploadFileMock).not.toHaveBeenCalled();
+  });
+
+  // ─── ADMIN CRUD PHASE 1 Chunk 1 ──────────────────────────────────────────────
+
+  it('updateHousePlan delegates to PropertyIntelligenceService.updateHousePlan', async () => {
+    const result = await svc.updateHousePlan(HOUSE_PLAN_ID, { title: 'Renamed Plan' });
+
+    expect(updateHousePlanMock).toHaveBeenCalledWith(HOUSE_PLAN_ID, { title: 'Renamed Plan' });
+    expect(result).toBe(HOUSE_PLAN_RESULT);
+  });
+
+  it('updateHousePlan throws NotFoundException when the house plan does not exist', async () => {
+    updateHousePlanMock.mockResolvedValue(null);
+
+    await expect(svc.updateHousePlan('non-existent-uuid', { title: 'X' })).rejects.toThrow(
+      NotFoundException,
+    );
+  });
+
+  it('deleteHousePlan deletes the stored image then the catalog row', async () => {
+    await svc.deleteHousePlan(HOUSE_PLAN_ID);
+
+    expect(findHousePlanByIdMock).toHaveBeenCalledWith(HOUSE_PLAN_ID);
+    expect(deleteFileMock).toHaveBeenCalledWith(HOUSE_PLAN_RESULT.preview_image_ref);
+    expect(deleteHousePlanMock).toHaveBeenCalledWith(HOUSE_PLAN_ID);
+  });
+
+  it('deleteHousePlan skips image cleanup when the plan has no image', async () => {
+    findHousePlanByIdMock.mockResolvedValue({ ...HOUSE_PLAN_RESULT, preview_image_ref: '' });
+
+    await svc.deleteHousePlan(HOUSE_PLAN_ID);
+
+    expect(deleteFileMock).not.toHaveBeenCalled();
+    expect(deleteHousePlanMock).toHaveBeenCalledWith(HOUSE_PLAN_ID);
+  });
+
+  it('deleteHousePlan still deletes the catalog row when image cleanup fails (best-effort, not silently ignored)', async () => {
+    deleteFileMock.mockRejectedValue(new Error('S3 unavailable'));
+
+    await svc.deleteHousePlan(HOUSE_PLAN_ID);
+
+    expect(deleteFileMock).toHaveBeenCalled();
+    expect(deleteHousePlanMock).toHaveBeenCalledWith(HOUSE_PLAN_ID);
+  });
+
+  it('deleteHousePlan throws NotFoundException when the house plan does not exist, without touching storage', async () => {
+    findHousePlanByIdMock.mockResolvedValue(null);
+
+    await expect(svc.deleteHousePlan('non-existent-uuid')).rejects.toThrow(NotFoundException);
+    expect(deleteFileMock).not.toHaveBeenCalled();
+    expect(deleteHousePlanMock).not.toHaveBeenCalled();
+  });
+
+  it('updateCandidateSociety delegates to PropertyIntelligenceService.updateCandidateSociety', async () => {
+    const result = await svc.updateCandidateSociety('cand-uuid-0001', { status: 'IN_PROGRESS' });
+
+    expect(updateCandidateSocietyMock).toHaveBeenCalledWith('cand-uuid-0001', { status: 'IN_PROGRESS' });
+    expect(result).toEqual({ ...CANDIDATE, status: 'IN_PROGRESS' });
+  });
+
+  it('updateCandidateSociety supports reverting status back to NOT_STARTED', async () => {
+    updateCandidateSocietyMock.mockResolvedValue({ ...CANDIDATE, status: 'NOT_STARTED' });
+
+    const result = await svc.updateCandidateSociety('cand-uuid-0001', { status: 'NOT_STARTED' });
+
+    expect(result.status).toBe('NOT_STARTED');
+  });
+
+  it('updateCandidateSociety throws NotFoundException when the candidate does not exist', async () => {
+    updateCandidateSocietyMock.mockResolvedValue(null);
+
+    await expect(
+      svc.updateCandidateSociety('non-existent-uuid', { status: 'IN_PROGRESS' }),
+    ).rejects.toThrow(NotFoundException);
+  });
+
+  it('deleteCandidateSociety delegates to PropertyIntelligenceService.deleteCandidateSociety', async () => {
+    await svc.deleteCandidateSociety('cand-uuid-0001');
+
+    expect(deleteCandidateSocietyMock).toHaveBeenCalledWith('cand-uuid-0001');
+  });
+
+  it('deleteCandidateSociety throws NotFoundException when the candidate does not exist', async () => {
+    deleteCandidateSocietyMock.mockResolvedValue(false);
+
+    await expect(svc.deleteCandidateSociety('non-existent-uuid')).rejects.toThrow(NotFoundException);
   });
 
   // ─── Auth guard (controller-level wiring check) ───────────────────────────

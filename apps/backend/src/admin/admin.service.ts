@@ -1,6 +1,4 @@
-import { Injectable, BadRequestException, NotFoundException } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Injectable, BadRequestException, Logger, NotFoundException } from '@nestjs/common';
 import type {
   TradeCategory,
   MaterialCategory,
@@ -112,26 +110,44 @@ export interface UploadHousePlanImageInput {
   data_base64: string;
 }
 
+// ADMIN CRUD PHASE 1 Chunk 1 — PATCH bodies. Deliberately all-optional
+// (partial update) and, for house plans, deliberately without
+// preview_image_ref — that field is only ever set via uploadHousePlanImage.
+export interface UpdateCandidateSocietyInput {
+  name?: string;
+  regulator?: CandidateSocietyEntity['regulator'];
+  city?: string;
+  status?: CandidateSocietyEntity['status'];
+}
+
+export interface UpdateHousePlanInput {
+  title?: string;
+  area_marla?: number;
+  bedrooms?: number;
+  style?: HousePlanStyle;
+  description?: string;
+  contact_whatsapp?: string;
+  is_siraat_affiliated?: boolean;
+}
+
 @Injectable()
 export class AdminService {
+  private readonly logger = new Logger(AdminService.name);
+
   constructor(
     private readonly piSvc: PropertyIntelligenceService,
     private readonly trustSvc: TrustService,
     private readonly ciSvc: ConstructionIntelligenceService,
     private readonly storageSvc: StorageService,
-    @InjectRepository(CandidateSocietyEntity)
-    private readonly candidateRepo: Repository<CandidateSocietyEntity>,
   ) {}
 
-  async listCandidateSocieties(
-    status?: string,
-  ): Promise<CandidateSocietyEntity[]> {
-    if (status) {
-      return this.candidateRepo.findBy({
-        status: status as CandidateSocietyEntity['status'],
-      });
-    }
-    return this.candidateRepo.find();
+  // CLEANUP — was AdminService's own CandidateSocietyEntity repository
+  // access (via AdminModule's own TypeOrmModule.forFeature registration,
+  // now removed); delegates to PropertyIntelligenceService instead, same
+  // cross-module public-method-call pattern used everywhere else here
+  // (piSvc/ciSvc/trustSvc) rather than a second repo owner for one table.
+  async listCandidateSocieties(status?: string): Promise<CandidateSocietyEntity[]> {
+    return this.piSvc.listCandidateSocieties(status);
   }
 
   async createSocietyWithFirstClaim(
@@ -181,14 +197,10 @@ export class AdminService {
       verificationId = ver.id;
     }
 
-    // Mark matching CandidateSociety ONBOARDED (exact name match)
-    const candidate = await this.candidateRepo.findOneBy({ name: data.name });
-    let candidateMarked = false;
-    if (candidate) {
-      candidate.status = 'ONBOARDED';
-      await this.candidateRepo.save(candidate);
-      candidateMarked = true;
-    }
+    // Mark matching CandidateSociety ONBOARDED (exact name match) — CLEANUP:
+    // delegates to PropertyIntelligenceService.markCandidateSocietyOnboarded
+    // now, same as listCandidateSocieties above.
+    const candidateMarked = await this.piSvc.markCandidateSocietyOnboarded(data.name);
 
     return {
       society_id: society.id,
@@ -361,5 +373,59 @@ export class AdminService {
     await this.piSvc.updateHousePlanPreviewImage(id, key);
 
     return { preview_image_ref: key };
+  }
+
+  // ADMIN CRUD PHASE 1 Chunk 1 — PATCH /v1/admin/house-plans/:id, same
+  // find-or-404 delegation pattern as addClaim's subject lookups above.
+  async updateHousePlan(id: string, data: UpdateHousePlanInput): Promise<HousePlanSummary> {
+    const updated = await this.piSvc.updateHousePlan(id, data);
+    if (!updated) throw new NotFoundException(`House plan ${id} not found`);
+    return updated;
+  }
+
+  // ADMIN CRUD PHASE 1 Chunk 1 — DELETE /v1/admin/house-plans/:id.
+  // Orchestrates across StorageService (image cleanup) and
+  // PropertyIntelligenceService (the catalog row itself) — same
+  // composition-at-the-orchestrator pattern as uploadHousePlanImage above.
+  // Image cleanup is best-effort: a failure here is logged loudly (not
+  // silently swallowed — it does leave an orphaned file in the bucket) but
+  // must not block deleting the catalog record itself, e.g. if the object
+  // was already gone or the storage backend has a transient blip.
+  async deleteHousePlan(id: string): Promise<void> {
+    const plan = await this.piSvc.findHousePlanById(id);
+    if (!plan) throw new NotFoundException(`House plan ${id} not found`);
+
+    if (plan.preview_image_ref) {
+      try {
+        await this.storageSvc.deleteFile(plan.preview_image_ref);
+      } catch (err) {
+        this.logger.error(
+          `Failed to delete stored image for house plan ${id} (key=${plan.preview_image_ref}) — file may be orphaned in the bucket`,
+          err instanceof Error ? err.stack : String(err),
+        );
+      }
+    }
+
+    await this.piSvc.deleteHousePlan(id);
+  }
+
+  // ADMIN CRUD PHASE 1 Chunk 1 — PATCH /v1/admin/candidate-societies/:id.
+  // Candidate Societies are a todo-list with no Trust/Observation history
+  // pointing at them, so plain update is safe here in a way it would not be
+  // for Society/Developer/Contractor/Supplier.
+  async updateCandidateSociety(
+    id: string,
+    data: UpdateCandidateSocietyInput,
+  ): Promise<CandidateSocietyEntity> {
+    const updated = await this.piSvc.updateCandidateSociety(id, data);
+    if (!updated) throw new NotFoundException(`Candidate society ${id} not found`);
+    return updated;
+  }
+
+  // ADMIN CRUD PHASE 1 Chunk 1 — DELETE /v1/admin/candidate-societies/:id.
+  // No storage cleanup needed — Candidate Societies carry no file references.
+  async deleteCandidateSociety(id: string): Promise<void> {
+    const deleted = await this.piSvc.deleteCandidateSociety(id);
+    if (!deleted) throw new NotFoundException(`Candidate society ${id} not found`);
   }
 }

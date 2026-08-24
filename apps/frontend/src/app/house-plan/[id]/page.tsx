@@ -76,7 +76,7 @@ export default async function HousePlanProfilePage({ params }: Props) {
           housePlanId={plan.id}
           hasImage={Boolean(plan.preview_image_ref)}
           alt={plan.title}
-          aspectRatio="16 / 10"
+          maxHeight={560}
         />
 
         <div

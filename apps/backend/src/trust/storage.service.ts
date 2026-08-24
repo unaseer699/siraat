@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { S3Client, GetObjectCommand, PutObjectCommand } from '@aws-sdk/client-s3';
+import { S3Client, GetObjectCommand, PutObjectCommand, DeleteObjectCommand } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 
 const PRESIGNED_TTL_SECONDS = 900; // 15 minutes — Phase 9/10 requirement
@@ -51,5 +51,15 @@ export class StorageService {
     });
     await this.client.send(command);
     return key;
+  }
+
+  // ADMIN CRUD PHASE 1 Chunk 1 — first delete path this service has ever
+  // needed (uploadFile above was the first write path; every read before
+  // that was getPresignedDownloadUrl). Backs AdminService.deleteHousePlan's
+  // image cleanup so DELETE /v1/admin/house-plans/:id doesn't leave an
+  // orphaned file in MinIO/DO Spaces.
+  async deleteFile(key: string): Promise<void> {
+    const command = new DeleteObjectCommand({ Bucket: this.bucket, Key: key });
+    await this.client.send(command);
   }
 }

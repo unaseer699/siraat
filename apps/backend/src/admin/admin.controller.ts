@@ -1,4 +1,4 @@
-import { Body, Controller, Get, HttpCode, Param, Post, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, HttpCode, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
 import { z } from 'zod';
 import {
   TradeCategorySchema,
@@ -31,6 +31,11 @@ const EvidenceItemSchema = z.object({
   file_ref: z.string().min(1),
   source_ref: z.string().min(1),
 });
+
+// ADMIN CRUD PHASE 1 Chunk 1 — mirrors CandidateSocietyEntity's regulator/status
+// union types (candidate-society.entity.ts).
+const REGULATORS = ['CDA', 'RDA', 'TMA', 'OTHER'] as const;
+const CANDIDATE_STATUSES = ['NOT_STARTED', 'IN_PROGRESS', 'ONBOARDED'] as const;
 
 // --- POST /v1/admin/societies ---
 
@@ -139,6 +144,34 @@ const UploadHousePlanImageBodySchema = z.object({
 });
 type UploadHousePlanImageBody = z.infer<typeof UploadHousePlanImageBodySchema>;
 
+// --- PATCH /v1/admin/house-plans/:id (ADMIN CRUD PHASE 1 Chunk 1) ---
+// All fields optional (partial update). preview_image_ref is deliberately
+// absent — that's upload-image's job, not this route's.
+
+const UpdateHousePlanBodySchema = z.object({
+  title: z.string().min(1).optional(),
+  area_marla: z.number().positive().optional(),
+  bedrooms: z.number().int().nonnegative().optional(),
+  style: HousePlanStyleSchema.optional(),
+  description: z.string().min(1).optional(),
+  contact_whatsapp: z.string().min(1).optional(),
+  is_siraat_affiliated: z.boolean().optional(),
+});
+type UpdateHousePlanBody = z.infer<typeof UpdateHousePlanBodySchema>;
+
+// --- PATCH /v1/admin/candidate-societies/:id (ADMIN CRUD PHASE 1 Chunk 1) ---
+// All fields optional (partial update) — status is the field this exists
+// for (manual override, e.g. reverting an accidental ONBOARDED back to
+// NOT_STARTED), but name/regulator/city are correctable too.
+
+const UpdateCandidateSocietyBodySchema = z.object({
+  name: z.string().min(1).optional(),
+  regulator: z.enum(REGULATORS).optional(),
+  city: z.string().min(1).optional(),
+  status: z.enum(CANDIDATE_STATUSES).optional(),
+});
+type UpdateCandidateSocietyBody = z.infer<typeof UpdateCandidateSocietyBodySchema>;
+
 // --- Controller ---
 
 @Controller('v1/admin')
@@ -149,6 +182,23 @@ export class AdminController {
   @Get('candidate-societies')
   listCandidateSocieties(@Query('status') status?: string) {
     return this.adminSvc.listCandidateSocieties(status);
+  }
+
+  // ADMIN CRUD PHASE 1 Chunk 1 — Candidate Societies are a todo-list with no
+  // Trust/Observation history pointing at them, so update/delete is safe
+  // here in a way it would not be for Society/Developer/Contractor/Supplier.
+  @Patch('candidate-societies/:id')
+  updateCandidateSociety(
+    @Param('id') id: string,
+    @Body(new ZodValidationPipe(UpdateCandidateSocietyBodySchema)) body: UpdateCandidateSocietyBody,
+  ) {
+    return this.adminSvc.updateCandidateSociety(id, body);
+  }
+
+  @Delete('candidate-societies/:id')
+  @HttpCode(204)
+  deleteCandidateSociety(@Param('id') id: string) {
+    return this.adminSvc.deleteCandidateSociety(id);
   }
 
   @Post('societies')
@@ -319,5 +369,25 @@ export class AdminController {
     @Body(new ZodValidationPipe(UploadHousePlanImageBodySchema)) body: UploadHousePlanImageBody,
   ) {
     return this.adminSvc.uploadHousePlanImage(id, body);
+  }
+
+  // ADMIN CRUD PHASE 1 Chunk 1 — PATCH /v1/admin/house-plans/:id. Any field
+  // except preview_image_ref (that's upload-image's job, above).
+  @Patch('house-plans/:id')
+  updateHousePlan(
+    @Param('id') id: string,
+    @Body(new ZodValidationPipe(UpdateHousePlanBodySchema)) body: UpdateHousePlanBody,
+  ) {
+    return this.adminSvc.updateHousePlan(id, body);
+  }
+
+  // ADMIN CRUD PHASE 1 Chunk 1 — DELETE /v1/admin/house-plans/:id. Also
+  // cleans up the stored preview image via StorageService (see
+  // AdminService.deleteHousePlan) so this doesn't leave an orphaned file in
+  // MinIO/DO Spaces.
+  @Delete('house-plans/:id')
+  @HttpCode(204)
+  deleteHousePlan(@Param('id') id: string) {
+    return this.adminSvc.deleteHousePlan(id);
   }
 }

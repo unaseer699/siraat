@@ -28,6 +28,7 @@ import { DeveloperEntity } from './entities/developer.entity';
 import { ContractorEntity } from './entities/contractor.entity';
 import { SupplierEntity } from './entities/supplier.entity';
 import { HousePlanEntity } from './entities/house-plan.entity';
+import { CandidateSocietyEntity } from './entities/candidate-society.entity';
 import { ObservationEntity } from './entities/observation.entity';
 
 // Watchlist Chunk 1: caps how many societies /societies/changes will check in one
@@ -177,6 +178,15 @@ export class PropertyIntelligenceService {
     private readonly supplierRepo: Repository<SupplierEntity>,
     @InjectRepository(HousePlanEntity)
     private readonly housePlanRepo: Repository<HousePlanEntity>,
+    // ADMIN CRUD PHASE 1 Chunk 1 — AdminService already holds its own
+    // CandidateSocietyEntity repo (listCandidateSocieties, the
+    // createSocietyWithFirstClaim onboarding lookup) via AdminModule's own
+    // TypeOrmModule.forFeature; this is a second repository provider for the
+    // same table, added here specifically for update/delete so those methods
+    // live on PropertyIntelligenceService alongside every other directory
+    // entity's CRUD, not bolted onto AdminService's existing repo access.
+    @InjectRepository(CandidateSocietyEntity)
+    private readonly candidateRepo: Repository<CandidateSocietyEntity>,
     @InjectRepository(ObservationEntity)
     private readonly observationRepo: Repository<ObservationEntity>,
     private readonly trustSvc: TrustService,
@@ -686,6 +696,94 @@ export class PropertyIntelligenceService {
   // key returned by StorageService.uploadFile as this plan's preview_image_ref.
   async updateHousePlanPreviewImage(id: string, previewImageRef: string): Promise<void> {
     await this.housePlanRepo.update({ id }, { preview_image_ref: previewImageRef });
+  }
+
+  // ADMIN CRUD PHASE 1 Chunk 1 — PATCH /v1/admin/house-plans/:id. Deliberately
+  // excludes preview_image_ref from the update shape — that field is only
+  // ever set by updateHousePlanPreviewImage above (the upload endpoint).
+  // Returns null (not a thrown error) on a bad id — same convention as
+  // findHousePlanById — so the 404 decision stays with the caller
+  // (AdminService), which already owns every other NotFoundException in
+  // this admin surface.
+  async updateHousePlan(
+    id: string,
+    data: Partial<{
+      title: string;
+      area_marla: number;
+      bedrooms: number;
+      style: HousePlanStyle;
+      description: string;
+      contact_whatsapp: string;
+      is_siraat_affiliated: boolean;
+    }>,
+  ): Promise<HousePlanSummary | null> {
+    const entity = await this.housePlanRepo.findOneBy({ id });
+    if (!entity) return null;
+    Object.assign(entity, data);
+    const saved = await this.housePlanRepo.save(entity);
+    return toHousePlanResult(saved);
+  }
+
+  // ADMIN CRUD PHASE 1 Chunk 1 — DELETE /v1/admin/house-plans/:id. Only
+  // removes the catalog row — the stored preview image (if any) is cleaned
+  // up by AdminService.deleteHousePlan, which owns StorageService and calls
+  // this after that cleanup. Returns whether a row was actually deleted (not
+  // a thrown error) so, again, the 404 decision stays with the caller.
+  async deleteHousePlan(id: string): Promise<boolean> {
+    const result = await this.housePlanRepo.delete({ id });
+    return (result.affected ?? 0) > 0;
+  }
+
+  // ADMIN CRUD PHASE 1 Chunk 1 — Candidate Societies are a todo-list (the
+  // original 146-list of known-but-not-yet-onboarded societies), with no
+  // Verification claims or Observation history pointing at them — unlike
+  // Society/Developer/Contractor/Supplier, plain update/delete is safe here.
+  // Same null/boolean-on-miss convention as the House Plan methods above.
+
+  async updateCandidateSociety(
+    id: string,
+    data: Partial<{
+      name: string;
+      regulator: CandidateSocietyEntity['regulator'];
+      city: string;
+      status: CandidateSocietyEntity['status'];
+    }>,
+  ): Promise<CandidateSocietyEntity | null> {
+    const entity = await this.candidateRepo.findOneBy({ id });
+    if (!entity) return null;
+    Object.assign(entity, data);
+    return this.candidateRepo.save(entity);
+  }
+
+  async deleteCandidateSociety(id: string): Promise<boolean> {
+    const result = await this.candidateRepo.delete({ id });
+    return (result.affected ?? 0) > 0;
+  }
+
+  // CLEANUP — consolidates CandidateSocietyEntity repository ownership onto
+  // this service (was previously also directly injected into AdminService,
+  // via AdminModule's own TypeOrmModule.forFeature registration). Backs GET
+  // /v1/admin/candidate-societies — same optional-status-filter shape
+  // AdminService.listCandidateSocieties had when it owned the repo directly.
+  async listCandidateSocieties(status?: string): Promise<CandidateSocietyEntity[]> {
+    if (status) {
+      return this.candidateRepo.findBy({ status: status as CandidateSocietyEntity['status'] });
+    }
+    return this.candidateRepo.find();
+  }
+
+  // CLEANUP — same consolidation as listCandidateSocieties above. Backs
+  // createSocietyWithFirstClaim's post-onboarding sync: marks the
+  // CandidateSociety matching this exact name ONBOARDED, if one exists.
+  // Returns whether a match was found (and marked) rather than the entity
+  // itself, since the only caller needs just the boolean for its
+  // candidate_marked_onboarded response field.
+  async markCandidateSocietyOnboarded(name: string): Promise<boolean> {
+    const candidate = await this.candidateRepo.findOneBy({ name });
+    if (!candidate) return false;
+    candidate.status = 'ONBOARDED';
+    await this.candidateRepo.save(candidate);
+    return true;
   }
 
   // ─── WATCHLIST Chunk 1 — Society Changes ───────────────────────────────────
