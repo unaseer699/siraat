@@ -18,7 +18,7 @@ const SECTIONS: { key: AdminSection; href: string; label: string }[] = [
 // living as isolated pages — sits above each admin screen's own heading.
 export function AdminNav({ active }: { active: AdminSection }) {
   return (
-    <nav style={{ display: 'flex', gap: '4px', borderBottom: '1px solid var(--border)' }}>
+    <nav style={{ display: 'flex', gap: '4px', flexWrap: 'wrap', borderBottom: '1px solid var(--border)' }}>
       {SECTIONS.map((s) => {
         const isActive = s.key === active;
         const style: CSSProperties = {

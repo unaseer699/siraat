@@ -356,7 +356,7 @@ export default function MaterialRatesPage() {
             </div>
           </div>
 
-          <div style={{ display: 'flex', gap: '12px' }}>
+          <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
             <div style={{ ...fieldGroupStyle, flex: 1 }}>
               <label style={labelStyle}>Price (PKR)</label>
               <input
@@ -528,7 +528,7 @@ export default function MaterialRatesPage() {
             <p style={{ fontSize: '14px', color: 'var(--muted)' }}>No rates entered yet.</p>
           ) : (
             <div style={{ overflowX: 'auto', border: '1px solid var(--border)', borderRadius: 'var(--radius)' }}>
-              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '14px' }}>
+              <table style={{ width: '100%', minWidth: '640px', borderCollapse: 'collapse', fontSize: '14px' }}>
                 <thead>
                   <tr style={{ background: '#f3f4f6', textAlign: 'left' }}>
                     <th style={thStyle}>Material</th>

@@ -245,7 +245,7 @@ function NewSupplierForm() {
 
               <ServiceCitiesField selected={serviceCities} onChange={setServiceCities} />
 
-              <div style={{ display: 'flex', gap: '12px' }}>
+              <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
                 <div style={{ ...fieldGroupStyle, flex: 1 }}>
                   <label style={labelStyle}>Contact phone</label>
                   <input
