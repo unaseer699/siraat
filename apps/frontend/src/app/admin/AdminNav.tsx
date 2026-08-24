@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import type { CSSProperties } from 'react';
 
-type AdminSection = 'candidates' | 'material-rates' | 'contractors' | 'suppliers';
+type AdminSection = 'candidates' | 'material-rates' | 'contractors' | 'suppliers' | 'house-plans';
 
 const SECTIONS: { key: AdminSection; href: string; label: string }[] = [
   { key: 'candidates', href: '/admin/candidates', label: 'Candidate Societies' },
@@ -12,6 +12,8 @@ const SECTIONS: { key: AdminSection; href: string; label: string }[] = [
   { key: 'contractors', href: '/admin/new-contractor', label: 'Contractors' },
   // SUPPLIER DIRECTORY Chunk 2b — same no-standalone-list-page pattern as Contractors.
   { key: 'suppliers', href: '/admin/new-supplier', label: 'Suppliers' },
+  // HOUSE PLANS DIRECTORY Chunk 2 — same no-standalone-list-page pattern again.
+  { key: 'house-plans', href: '/admin/new-house-plan', label: 'House Plans' },
 ];
 
 // Shared nav row so the admin tools are reachable from one another instead of

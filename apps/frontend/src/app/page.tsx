@@ -9,6 +9,7 @@ import {
   ShieldCheck,
   Wrench,
   Package,
+  Home as HomeIcon,
   Check,
   FileCheck,
   MapPin,
@@ -469,6 +470,14 @@ function HomeView() {
           title="Suppliers"
           subtitle="Find verified material suppliers"
           ariaLabel="Find suppliers"
+        />
+        {/* HOUSE PLANS DIRECTORY Chunk 2 — 6th quick-access spot, same pattern as Suppliers above. */}
+        <QuickAccessCard
+          href="/house-plans"
+          icon={HomeIcon}
+          title="House Plans"
+          subtitle="Browse ready-made floor plans"
+          ariaLabel="Browse house plans"
         />
       </div>
 

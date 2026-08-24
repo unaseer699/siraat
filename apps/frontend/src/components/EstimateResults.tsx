@@ -275,6 +275,21 @@ export function EstimateResults({ result }: Props) {
           >
             Need materials? Find verified suppliers →
           </Link>
+
+          {/* HOUSE PLANS DIRECTORY Chunk 2 — cross-sell entry point: someone who
+              just priced grey-structure materials may not have a design yet. */}
+          <Link
+            href="/house-plans"
+            style={{
+              fontSize: '14px',
+              fontWeight: 600,
+              color: '#2563eb',
+              textDecoration: 'none',
+              alignSelf: 'flex-start',
+            }}
+          >
+            Have a plot? Browse house plans →
+          </Link>
         </>
       )}
     </div>

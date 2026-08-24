@@ -3,11 +3,19 @@ import { BearerGuard } from '../auth/bearer.guard';
 import { ZodValidationPipe } from '../common/zod-validation.pipe';
 import { SocietyChangesRequestSchema, type SocietyChangesRequest } from '@siraat/shared-types';
 import { PropertyIntelligenceService } from './property-intelligence.service';
+import { StorageService } from '../trust/storage.service';
 
 @Controller('v1/property-intelligence')
 @UseGuards(BearerGuard)
 export class PropertyIntelligenceController {
-  constructor(private readonly piSvc: PropertyIntelligenceService) {}
+  constructor(
+    private readonly piSvc: PropertyIntelligenceService,
+    // HOUSE PLANS DIRECTORY Chunk 2 — first public route that needs to serve a
+    // file, hence the first place this controller (rather than TrustController)
+    // needs StorageService. Available here because PropertyIntelligenceModule
+    // already imports TrustModule, which now exports StorageService (Chunk 1).
+    private readonly storageSvc: StorageService,
+  ) {}
 
   @Get('societies')
   async listSocieties(
@@ -104,5 +112,52 @@ export class PropertyIntelligenceController {
   @Get('suppliers/:id/material-rates')
   async getSupplierMaterialRates(@Param('id') id: string) {
     return this.piSvc.findMaterialRatesBySupplierId(id);
+  }
+
+  // HOUSE PLANS DIRECTORY Chunk 2 — public directory listing, same
+  // delegation/pattern as GET /contractors / GET /suppliers above. No
+  // TrustService involvement (no verification_status) — this directory was
+  // never wired to Trust claims, unlike Contractor/Supplier.
+  @Get('house-plans')
+  async searchHousePlans(
+    @Query('area_marla_min') area_marla_min?: string,
+    @Query('area_marla_max') area_marla_max?: string,
+    @Query('bedrooms') bedrooms?: string,
+    @Query('style') style?: string,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+  ) {
+    return this.piSvc.searchHousePlans({
+      area_marla_min: area_marla_min !== undefined ? Number(area_marla_min) : undefined,
+      area_marla_max: area_marla_max !== undefined ? Number(area_marla_max) : undefined,
+      bedrooms: bedrooms !== undefined ? Number(bedrooms) : undefined,
+      style,
+      page: page !== undefined ? Number(page) : undefined,
+      limit: limit !== undefined ? Number(limit) : undefined,
+    });
+  }
+
+  // HOUSE PLANS DIRECTORY Chunk 2 — public profile lookup.
+  @Get('house-plans/:id')
+  async getHousePlan(@Param('id') id: string) {
+    const plan = await this.piSvc.findHousePlanById(id);
+    if (!plan) throw new NotFoundException(`House plan ${id} not found`);
+    return plan;
+  }
+
+  // HOUSE PLANS DIRECTORY Chunk 2 — preview_image_ref is a private
+  // bucket-relative storage key (same convention as Evidence.file_ref), not a
+  // publicly servable URL, so the detail/catalog pages fetch a short-lived
+  // presigned URL through this route instead — same pattern as
+  // GET /v1/trust/evidence/:id/download-url. A plan with no image yet
+  // (preview_image_ref === '', the Chunk 2 "no image" sentinel) 404s here
+  // rather than presigning an empty key.
+  @Get('house-plans/:id/image-url')
+  async getHousePlanImageUrl(@Param('id') id: string) {
+    const plan = await this.piSvc.findHousePlanById(id);
+    if (!plan) throw new NotFoundException(`House plan ${id} not found`);
+    if (!plan.preview_image_ref) throw new NotFoundException(`House plan ${id} has no image`);
+    const url = await this.storageSvc.getPresignedDownloadUrl(plan.preview_image_ref);
+    return { url, expires_in_seconds: 900 };
   }
 }
