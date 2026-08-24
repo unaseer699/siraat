@@ -117,7 +117,7 @@ export default function AdminCandidatesPage() {
           <p style={{ fontSize: '14px', color: 'var(--muted)' }}>No candidate societies found.</p>
         ) : (
           <div style={{ overflowX: 'auto', border: '1px solid var(--border)', borderRadius: 'var(--radius)' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '14px' }}>
+            <table style={{ width: '100%', minWidth: '700px', borderCollapse: 'collapse', fontSize: '14px' }}>
               <thead>
                 <tr style={{ background: '#f3f4f6', textAlign: 'left' }}>
                   <th style={thStyle}>Name</th>

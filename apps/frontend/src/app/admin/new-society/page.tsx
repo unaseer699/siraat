@@ -312,7 +312,7 @@ function NewSocietyForm() {
                 <input type="text" value={city} onChange={(e) => setCity(e.target.value)} required style={inputStyle} />
               </div>
 
-              <div style={{ display: 'flex', gap: '12px' }}>
+              <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
                 <div style={{ ...fieldGroupStyle, flex: 1 }}>
                   <label style={labelStyle}>Min price (PKR)</label>
                   <input type="number" value={minPrice} onChange={(e) => setMinPrice(e.target.value)} style={inputStyle} />
@@ -323,7 +323,7 @@ function NewSocietyForm() {
                 </div>
               </div>
 
-              <div style={{ display: 'flex', gap: '12px' }}>
+              <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
                 <div style={{ ...fieldGroupStyle, flex: 1 }}>
                   <label style={labelStyle}>Min area (marla)</label>
                   <input type="number" value={minAreaMarla} onChange={(e) => setMinAreaMarla(e.target.value)} style={inputStyle} />
