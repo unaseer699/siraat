@@ -166,6 +166,19 @@ Each item: **Priority** (Low / Medium / High) · **Found in** (capability) ·
   public routes ARE covered at the controller level. Worth closing this gap for both
   directories together in one pass, matching Society's existing coverage standard.
 
+### 19. House Plans catalog fetches each card's preview image individually
+- **Priority:** Low
+- **Found in:** House Plans Directory Chunk 2
+- **Target:** General cleanup — revisit if the catalog grows past today's tiny volume
+- `HousePlanImage.tsx` resolves its presigned preview URL in its own `useEffect`
+  (`GET /v1/property-intelligence/house-plans/:id/image-url`), and the catalog grid
+  (`house-plans/page.tsx`) renders one `<HousePlanImage>` per card — so a full page
+  of `PAGE_SIZE = 20` plans fires up to 20 separate image-url requests on mount, with
+  no batching or shared request. Acceptable now; if volume grows, replace with a
+  batched endpoint (e.g. `POST /v1/property-intelligence/house-plans/image-urls`
+  accepting an id array and returning a map) so a page of cards costs one request
+  instead of N.
+
 ---
 
 ## Resolved Items

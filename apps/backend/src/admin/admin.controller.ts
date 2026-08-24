@@ -110,12 +110,18 @@ type CreateSupplierBody = z.infer<typeof CreateSupplierBodySchema>;
 
 // --- POST /v1/admin/house-plans (HOUSE PLANS DIRECTORY Chunk 1) ---
 
+// HOUSE PLANS DIRECTORY Chunk 2 — preview_image_ref now defaults to '' (was
+// required, min(1)) so the admin form can create the plan first and then
+// upload its image as a second call against the now-known plan id (POST
+// .../:id/upload-image below persists the resulting key). An empty string is
+// the "no image yet" sentinel throughout — not nullable, since the column
+// itself never was; the frontend simply skips rendering a preview when it's ''.
 const CreateHousePlanBodySchema = z.object({
   title: z.string().min(1),
   area_marla: z.number().positive(),
   bedrooms: z.number().int().nonnegative(),
   style: HousePlanStyleSchema,
-  preview_image_ref: z.string().min(1),
+  preview_image_ref: z.string().default(''),
   description: z.string().min(1),
   contact_whatsapp: z.string().min(1),
   is_siraat_affiliated: z.boolean().default(false),

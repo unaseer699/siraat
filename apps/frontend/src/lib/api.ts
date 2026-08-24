@@ -17,10 +17,13 @@ import type {
   SocietyChangesResponse,
   TradeCategory,
   MaterialCategory,
+  HousePlanStyle,
   ContractorSummary,
   ContractorListResponse,
   SupplierSummary,
   SupplierListResponse,
+  HousePlanSummary,
+  HousePlanListResponse,
 } from '@siraat/shared-types';
 
 export type { MaterialRateItem, CreateMaterialRateBody };
@@ -222,6 +225,44 @@ export async function fetchSupplierVerifications(
 // findMaterialRatesBySupplierId (SUPPLIER DIRECTORY Chunk 1).
 export async function fetchSupplierMaterialRates(supplierId: string): Promise<MaterialRateItem[]> {
   return apiFetch(`/v1/property-intelligence/suppliers/${supplierId}/material-rates`);
+}
+
+// HOUSE PLANS DIRECTORY Chunk 2 — public directory listing + profile, same
+// shape/organization as the Contractor/Supplier blocks above. No
+// verification_status field — this directory was never wired to Trust claims.
+export async function fetchHousePlans(params?: {
+  area_marla_min?: number;
+  area_marla_max?: number;
+  bedrooms?: number;
+  style?: string;
+  page?: number;
+  limit?: number;
+}): Promise<HousePlanListResponse> {
+  const qs = new URLSearchParams();
+  if (params?.area_marla_min != null) qs.set('area_marla_min', String(params.area_marla_min));
+  if (params?.area_marla_max != null) qs.set('area_marla_max', String(params.area_marla_max));
+  if (params?.bedrooms != null) qs.set('bedrooms', String(params.bedrooms));
+  if (params?.style) qs.set('style', params.style);
+  if (params?.page) qs.set('page', String(params.page));
+  if (params?.limit) qs.set('limit', String(params.limit));
+  const suffix = qs.toString() ? `?${qs.toString()}` : '';
+  return apiFetch(`/v1/property-intelligence/house-plans${suffix}`);
+}
+
+export async function fetchHousePlan(id: string): Promise<HousePlanSummary> {
+  return apiFetch(`/v1/property-intelligence/house-plans/${id}`);
+}
+
+// house_plans.preview_image_ref is a private bucket-relative storage key
+// (same convention as Evidence.file_ref), never a directly-servable URL — the
+// actual image is fetched through this presigned-URL route instead (same
+// pattern as fetchEvidenceDownloadUrl above). Callers should skip calling
+// this at all when preview_image_ref is '' (the "no image yet" sentinel) —
+// see HousePlanImage.tsx.
+export async function fetchHousePlanImageUrl(
+  id: string,
+): Promise<{ url: string; expires_in_seconds: number }> {
+  return apiFetch(`/v1/property-intelligence/house-plans/${id}/image-url`);
 }
 
 // ── Admin (internal, no public UI links to these) ──────────────────────────
@@ -447,4 +488,42 @@ export interface SupplierSearchResult {
 // material-rate form.
 export async function searchSuppliers(query: string): Promise<SupplierSearchResult[]> {
   return apiFetch(`/v1/admin/suppliers/search?q=${encodeURIComponent(query)}`);
+}
+
+// HOUSE PLANS DIRECTORY Chunk 2 — admin onboarding. No claim/evidence step
+// (unlike Society/Contractor/Supplier) — this directory was never wired to
+// Trust claims, so creation is a single call. preview_image_ref is
+// deliberately omitted here: the backend defaults it to '' ("no image yet"),
+// and the real key is set afterward via uploadHousePlanImage once the plan
+// (and therefore its id) exists.
+export interface CreateHousePlanBody {
+  title: string;
+  area_marla: number;
+  bedrooms: number;
+  style: HousePlanStyle;
+  description: string;
+  contact_whatsapp: string;
+  is_siraat_affiliated: boolean;
+}
+
+export async function createHousePlan(data: CreateHousePlanBody): Promise<HousePlanSummary> {
+  return apiFetch('/v1/admin/house-plans', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
+}
+
+// POST /v1/admin/house-plans/:id/upload-image — base64 JSON body, not
+// multipart/form-data (the backend runs on the Fastify adapter with no
+// @fastify/multipart plugin installed; see admin.controller.ts). Callers
+// base64-encode the file client-side (see fileToBase64 in
+// admin/new-house-plan/page.tsx) before calling this.
+export async function uploadHousePlanImage(
+  id: string,
+  data: { filename: string; content_type: string; data_base64: string },
+): Promise<{ preview_image_ref: string }> {
+  return apiFetch(`/v1/admin/house-plans/${id}/upload-image`, {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
 }
