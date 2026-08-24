@@ -1,7 +1,7 @@
 import { BadRequestException, Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { ILike, In, MoreThan, Repository } from 'typeorm';
-import type { ParsedIntent, TradeCategory, MaterialCategory } from '@siraat/shared-types';
+import type { ParsedIntent, TradeCategory, MaterialCategory, HousePlanStyle } from '@siraat/shared-types';
 import type {
   PropertyDetail,
   DeveloperProfile,
@@ -14,6 +14,8 @@ import type {
   ContractorListResponse,
   SupplierSummary,
   SupplierListResponse,
+  HousePlanSummary,
+  HousePlanListResponse,
 } from '@siraat/shared-types';
 import { TrustService } from '../trust/trust.service';
 import {
@@ -25,6 +27,7 @@ import { PropertyEntity } from './entities/property.entity';
 import { DeveloperEntity } from './entities/developer.entity';
 import { ContractorEntity } from './entities/contractor.entity';
 import { SupplierEntity } from './entities/supplier.entity';
+import { HousePlanEntity } from './entities/house-plan.entity';
 import { ObservationEntity } from './entities/observation.entity';
 
 // Watchlist Chunk 1: caps how many societies /societies/changes will check in one
@@ -47,6 +50,10 @@ const DEFAULT_SUPPLIER_PAGE_SIZE = 20;
 // SUPPLIER DIRECTORY Chunk 2b — same cap/rationale as DEVELOPER_SEARCH_LIMIT
 // above, for the supplier name search-as-you-type field.
 const SUPPLIER_SEARCH_LIMIT = 10;
+
+// HOUSE PLANS DIRECTORY Chunk 1 — same default page size/convention as
+// Browse Societies and the Contractor/Supplier directories.
+const DEFAULT_HOUSE_PLAN_PAGE_SIZE = 20;
 
 export interface SocietyResult {
   id: string;
@@ -131,6 +138,28 @@ function toSupplierFields(e: SupplierEntity) {
   };
 }
 
+// ─── HOUSE PLANS DIRECTORY Chunk 1 ──────────────────────────────────────────
+// Standalone catalog, not linked to any Society/Property — no TrustService
+// involvement (no verification_status field), unlike Contractor/Supplier.
+// area_marla is a `decimal` column, which pg/TypeORM returns as a string —
+// same Number() conversion PropertyEntity.area_marla and SocietyEntity.
+// base_confidence go through in toSocietyResult/findPropertyById above.
+
+function toHousePlanResult(e: HousePlanEntity): HousePlanSummary {
+  return {
+    id: e.id,
+    title: e.title,
+    area_marla: Number(e.area_marla),
+    bedrooms: e.bedrooms,
+    style: e.style,
+    preview_image_ref: e.preview_image_ref,
+    description: e.description,
+    contact_whatsapp: e.contact_whatsapp,
+    is_siraat_affiliated: e.is_siraat_affiliated,
+    record_type: e.record_type,
+  };
+}
+
 @Injectable()
 export class PropertyIntelligenceService {
   private readonly logger = new Logger(PropertyIntelligenceService.name);
@@ -146,6 +175,8 @@ export class PropertyIntelligenceService {
     private readonly contractorRepo: Repository<ContractorEntity>,
     @InjectRepository(SupplierEntity)
     private readonly supplierRepo: Repository<SupplierEntity>,
+    @InjectRepository(HousePlanEntity)
+    private readonly housePlanRepo: Repository<HousePlanEntity>,
     @InjectRepository(ObservationEntity)
     private readonly observationRepo: Repository<ObservationEntity>,
     private readonly trustSvc: TrustService,
@@ -582,6 +613,79 @@ export class PropertyIntelligenceService {
   // Powers the supplier profile page's "active material rate submissions" list.
   async findMaterialRatesBySupplierId(supplierId: string): Promise<MaterialRateResult[]> {
     return this.ciSvc.findRatesBySupplierId(supplierId);
+  }
+
+  // ─── HOUSE PLANS DIRECTORY Chunk 1 — Schema & Core Service ─────────────────
+  // Standalone entity, organized the same way Developer/Contractor/Supplier
+  // are (methods live directly on this service — no dedicated
+  // HousePlanService). A directory catalog only; no payment or
+  // full-resolution download.
+
+  async createHousePlan(data: {
+    title: string;
+    area_marla: number;
+    bedrooms: number;
+    style: HousePlanStyle;
+    preview_image_ref: string;
+    description: string;
+    contact_whatsapp: string;
+    is_siraat_affiliated: boolean;
+  }): Promise<HousePlanSummary> {
+    const entity = this.housePlanRepo.create({ ...data, record_type: 'FACT' });
+    const saved = await this.housePlanRepo.save(entity);
+    return toHousePlanResult(saved);
+  }
+
+  async findHousePlanById(id: string): Promise<HousePlanSummary | null> {
+    const entity = await this.housePlanRepo.findOneBy({ id });
+    return entity ? toHousePlanResult(entity) : null;
+  }
+
+  // Paginated the same way searchContractors/searchSuppliers are: page/limit
+  // default and clamp the same way, order alphabetically, getManyAndCount.
+  async searchHousePlans(params: {
+    area_marla_min?: number;
+    area_marla_max?: number;
+    bedrooms?: number;
+    style?: string;
+    page?: number;
+    limit?: number;
+  }): Promise<HousePlanListResponse> {
+    const page = params.page && params.page > 0 ? params.page : 1;
+    const limit = params.limit && params.limit > 0 ? params.limit : DEFAULT_HOUSE_PLAN_PAGE_SIZE;
+
+    const qb = this.housePlanRepo.createQueryBuilder('h');
+    if (params.area_marla_min != null) {
+      qb.andWhere('h.area_marla >= :areaMin', { areaMin: params.area_marla_min });
+    }
+    if (params.area_marla_max != null) {
+      qb.andWhere('h.area_marla <= :areaMax', { areaMax: params.area_marla_max });
+    }
+    if (params.bedrooms != null) {
+      qb.andWhere('h.bedrooms = :bedrooms', { bedrooms: params.bedrooms });
+    }
+    if (params.style) {
+      qb.andWhere('h.style = :style', { style: params.style });
+    }
+
+    const [entities, total_count] = await qb
+      .orderBy('h.title', 'ASC')
+      .skip((page - 1) * limit)
+      .take(limit)
+      .getManyAndCount();
+
+    return {
+      house_plans: entities.map(toHousePlanResult),
+      total_count,
+      page,
+      total_pages: Math.ceil(total_count / limit),
+    };
+  }
+
+  // Backs POST /v1/admin/house-plans/:id/upload-image — persists the storage
+  // key returned by StorageService.uploadFile as this plan's preview_image_ref.
+  async updateHousePlanPreviewImage(id: string, previewImageRef: string): Promise<void> {
+    await this.housePlanRepo.update({ id }, { preview_image_ref: previewImageRef });
   }
 
   // ─── WATCHLIST Chunk 1 — Society Changes ───────────────────────────────────

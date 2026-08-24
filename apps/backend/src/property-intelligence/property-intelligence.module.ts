@@ -5,6 +5,7 @@ import { PropertyEntity } from './entities/property.entity';
 import { DeveloperEntity } from './entities/developer.entity';
 import { ContractorEntity } from './entities/contractor.entity';
 import { SupplierEntity } from './entities/supplier.entity';
+import { HousePlanEntity } from './entities/house-plan.entity';
 import { CandidateSocietyEntity } from './entities/candidate-society.entity';
 import { ObservationEntity } from './entities/observation.entity';
 import { PropertyIntelligenceService } from './property-intelligence.service';
@@ -20,6 +21,7 @@ import { ConstructionIntelligenceModule } from '../construction-intelligence/con
       DeveloperEntity,
       ContractorEntity,
       SupplierEntity,
+      HousePlanEntity,
       CandidateSocietyEntity,
       ObservationEntity,
     ]),

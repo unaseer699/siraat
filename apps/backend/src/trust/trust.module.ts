@@ -19,6 +19,9 @@ import { StorageService } from './storage.service';
   ],
   controllers: [TrustController],
   providers: [TrustService, StorageService],
-  exports: [TrustService],
+  // StorageService exported (previously TrustService-only) so AdminModule can
+  // inject it for the HOUSE PLANS DIRECTORY Chunk 1 image-upload endpoint —
+  // AdminModule already imports TrustModule.
+  exports: [TrustService, StorageService],
 })
 export class TrustModule {}

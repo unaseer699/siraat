@@ -4,13 +4,17 @@ import { Repository } from 'typeorm';
 import type {
   TradeCategory,
   MaterialCategory,
+  HousePlanStyle,
   ContractorSummary,
   ContractorListResponse,
   SupplierSummary,
   SupplierListResponse,
+  HousePlanSummary,
+  HousePlanListResponse,
 } from '@siraat/shared-types';
 import { PropertyIntelligenceService } from '../property-intelligence/property-intelligence.service';
 import { TrustService, ClaimType } from '../trust/trust.service';
+import { StorageService } from '../trust/storage.service';
 import { CandidateSocietyEntity } from '../property-intelligence/entities/candidate-society.entity';
 import {
   ConstructionIntelligenceService,
@@ -86,12 +90,35 @@ export interface CreateSupplierInput {
   is_siraat_affiliated: boolean;
 }
 
+export interface CreateHousePlanInput {
+  title: string;
+  area_marla: number;
+  bedrooms: number;
+  style: HousePlanStyle;
+  preview_image_ref: string;
+  description: string;
+  contact_whatsapp: string;
+  is_siraat_affiliated: boolean;
+}
+
+// POST /v1/admin/house-plans/:id/upload-image — no @fastify/multipart plugin
+// installed (this app runs on the Fastify adapter, not Express, so
+// @nestjs/platform-express's FileInterceptor/multer isn't usable here
+// either), so the file travels as a base64 string in a JSON body rather than
+// multipart/form-data. Minimal, matches the Chunk 1 scope note.
+export interface UploadHousePlanImageInput {
+  filename: string;
+  content_type: string;
+  data_base64: string;
+}
+
 @Injectable()
 export class AdminService {
   constructor(
     private readonly piSvc: PropertyIntelligenceService,
     private readonly trustSvc: TrustService,
     private readonly ciSvc: ConstructionIntelligenceService,
+    private readonly storageSvc: StorageService,
     @InjectRepository(CandidateSocietyEntity)
     private readonly candidateRepo: Repository<CandidateSocietyEntity>,
   ) {}
@@ -296,5 +323,43 @@ export class AdminService {
   // on the admin material-rate form.
   async searchSuppliersByName(query: string): Promise<{ id: string; name: string }[]> {
     return this.piSvc.searchSuppliersByName(query);
+  }
+
+  // HOUSE PLANS DIRECTORY Chunk 1 — POST /v1/admin/house-plans, same
+  // delegation pattern as createContractor/createSupplier above.
+  async createHousePlan(data: CreateHousePlanInput): Promise<HousePlanSummary> {
+    return this.piSvc.createHousePlan(data);
+  }
+
+  // HOUSE PLANS DIRECTORY Chunk 1 — GET /v1/admin/house-plans, same
+  // delegation pattern as searchContractors/searchSuppliers above.
+  async searchHousePlans(filters: {
+    area_marla_min?: number;
+    area_marla_max?: number;
+    bedrooms?: number;
+    style?: string;
+    page?: number;
+    limit?: number;
+  }): Promise<HousePlanListResponse> {
+    return this.piSvc.searchHousePlans(filters);
+  }
+
+  // HOUSE PLANS DIRECTORY Chunk 1 — POST /v1/admin/house-plans/:id/upload-image.
+  // Orchestrates across StorageService (raw S3 write) and
+  // PropertyIntelligenceService (persists the resulting key) — same
+  // composition-at-the-orchestrator pattern as listMaterialRates above.
+  async uploadHousePlanImage(
+    id: string,
+    data: UploadHousePlanImageInput,
+  ): Promise<{ preview_image_ref: string }> {
+    const plan = await this.piSvc.findHousePlanById(id);
+    if (!plan) throw new NotFoundException(`House plan ${id} not found`);
+
+    const key = `house-plans/${id}/${data.filename}`;
+    const buffer = Buffer.from(data.data_base64, 'base64');
+    await this.storageSvc.uploadFile(key, buffer, data.content_type);
+    await this.piSvc.updateHousePlanPreviewImage(id, key);
+
+    return { preview_image_ref: key };
   }
 }

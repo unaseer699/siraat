@@ -2,13 +2,14 @@ import { Test } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import { ILike, In, MoreThan } from 'typeorm';
 import { BadRequestException } from '@nestjs/common';
-import type { TradeCategory, MaterialCategory } from '@siraat/shared-types';
+import type { TradeCategory, MaterialCategory, HousePlanStyle } from '@siraat/shared-types';
 import { PropertyIntelligenceService } from './property-intelligence.service';
 import { SocietyEntity } from './entities/society.entity';
 import { PropertyEntity } from './entities/property.entity';
 import { DeveloperEntity } from './entities/developer.entity';
 import { ContractorEntity } from './entities/contractor.entity';
 import { SupplierEntity } from './entities/supplier.entity';
+import { HousePlanEntity } from './entities/house-plan.entity';
 import { ObservationEntity } from './entities/observation.entity';
 import { TrustService } from '../trust/trust.service';
 import { ConstructionIntelligenceService } from '../construction-intelligence/construction-intelligence.service';
@@ -38,6 +39,13 @@ describe('PropertyIntelligenceService', () => {
     take: jest.Mock;
     getManyAndCount: jest.Mock;
   };
+  let housePlanQbMocks: {
+    andWhere: jest.Mock;
+    orderBy: jest.Mock;
+    skip: jest.Mock;
+    take: jest.Mock;
+    getManyAndCount: jest.Mock;
+  };
   let deriveVerificationStatusMock: jest.Mock;
   let trustGetVerificationsMock: jest.Mock;
   let trustGetObservationsSinceMock: jest.Mock;
@@ -56,6 +64,10 @@ describe('PropertyIntelligenceService', () => {
   let supplierCreateMock: jest.Mock;
   let supplierSaveMock: jest.Mock;
   let supplierFindOneByMock: jest.Mock;
+  let housePlanCreateMock: jest.Mock;
+  let housePlanSaveMock: jest.Mock;
+  let housePlanFindOneByMock: jest.Mock;
+  let housePlanUpdateMock: jest.Mock;
   let ciFindRatesBySupplierIdMock: jest.Mock;
 
   beforeEach(async () => {
@@ -98,6 +110,18 @@ describe('PropertyIntelligenceService', () => {
     supplierQbMocks.skip.mockReturnValue(supplierQbMocks);
     supplierQbMocks.take.mockReturnValue(supplierQbMocks);
 
+    housePlanQbMocks = {
+      andWhere: jest.fn(),
+      orderBy: jest.fn(),
+      skip: jest.fn(),
+      take: jest.fn(),
+      getManyAndCount: jest.fn().mockResolvedValue([[], 0]),
+    };
+    housePlanQbMocks.andWhere.mockReturnValue(housePlanQbMocks);
+    housePlanQbMocks.orderBy.mockReturnValue(housePlanQbMocks);
+    housePlanQbMocks.skip.mockReturnValue(housePlanQbMocks);
+    housePlanQbMocks.take.mockReturnValue(housePlanQbMocks);
+
     deriveVerificationStatusMock = jest.fn().mockResolvedValue('PENDING');
     trustGetVerificationsMock = jest.fn().mockResolvedValue([]);
     trustGetObservationsSinceMock = jest.fn().mockResolvedValue([]);
@@ -116,6 +140,10 @@ describe('PropertyIntelligenceService', () => {
     supplierCreateMock = jest.fn((data) => data);
     supplierSaveMock = jest.fn((entity) => Promise.resolve({ id: 'sup-new-uuid', ...entity }));
     supplierFindOneByMock = jest.fn().mockResolvedValue(null);
+    housePlanCreateMock = jest.fn((data) => data);
+    housePlanSaveMock = jest.fn((entity) => Promise.resolve({ id: 'hp-new-uuid', ...entity }));
+    housePlanFindOneByMock = jest.fn().mockResolvedValue(null);
+    housePlanUpdateMock = jest.fn().mockResolvedValue({ affected: 1 });
     ciFindRatesBySupplierIdMock = jest.fn().mockResolvedValue([]);
 
     const module = await Test.createTestingModule({
@@ -152,6 +180,16 @@ describe('PropertyIntelligenceService', () => {
             findOneBy: supplierFindOneByMock,
             create: supplierCreateMock,
             save: supplierSaveMock,
+          },
+        },
+        {
+          provide: getRepositoryToken(HousePlanEntity),
+          useValue: {
+            createQueryBuilder: jest.fn(() => housePlanQbMocks),
+            findOneBy: housePlanFindOneByMock,
+            create: housePlanCreateMock,
+            save: housePlanSaveMock,
+            update: housePlanUpdateMock,
           },
         },
         {
@@ -822,6 +860,185 @@ describe('PropertyIntelligenceService', () => {
       expect(supplierQbMocks.skip).toHaveBeenCalledWith(0);
       expect(supplierQbMocks.take).toHaveBeenCalledWith(20);
       expect(result.page).toBe(1);
+    });
+  });
+
+  // ─── HOUSE PLANS DIRECTORY Chunk 1 ───────────────────────────────────────────
+
+  function buildHousePlanInput(overrides: object = {}) {
+    return {
+      title: '5 Marla Modern Home',
+      area_marla: 5,
+      bedrooms: 3,
+      style: 'MODERN' as HousePlanStyle,
+      preview_image_ref: 'house-plans/hp-a-uuid/preview.jpg',
+      description: 'A compact modern layout with an open-plan lounge.',
+      contact_whatsapp: '+92 300 1112222',
+      is_siraat_affiliated: false,
+      ...overrides,
+    };
+  }
+
+  describe('createHousePlan', () => {
+    it('creates a house plan with all fields', async () => {
+      const input = buildHousePlanInput();
+
+      const result = await service.createHousePlan(input);
+
+      expect(housePlanCreateMock).toHaveBeenCalledWith(
+        expect.objectContaining({ title: '5 Marla Modern Home', style: 'MODERN', record_type: 'FACT' }),
+      );
+      expect(result.title).toBe('5 Marla Modern Home');
+      expect(result.area_marla).toBe(5);
+      expect(result.bedrooms).toBe(3);
+      expect(result.style).toBe('MODERN');
+      expect(result.contact_whatsapp).toBe('+92 300 1112222');
+      expect(result.record_type).toBe('FACT');
+    });
+
+    it('converts a string-typed decimal area_marla column back to a number', async () => {
+      // pg/TypeORM returns `decimal` columns as strings — same conversion
+      // toSocietyResult/findPropertyById already rely on elsewhere.
+      housePlanSaveMock.mockResolvedValue({
+        id: 'hp-new-uuid',
+        ...buildHousePlanInput(),
+        area_marla: '5.00',
+        record_type: 'FACT',
+      });
+
+      const result = await service.createHousePlan(buildHousePlanInput());
+
+      expect(result.area_marla).toBe(5);
+      expect(typeof result.area_marla).toBe('number');
+    });
+  });
+
+  describe('findHousePlanById', () => {
+    it('returns the house plan when found', async () => {
+      housePlanFindOneByMock.mockResolvedValue({
+        id: 'hp-a-uuid',
+        ...buildHousePlanInput(),
+        record_type: 'FACT',
+      });
+
+      const result = await service.findHousePlanById('hp-a-uuid');
+
+      expect(result).not.toBeNull();
+      expect(result!.title).toBe('5 Marla Modern Home');
+    });
+
+    it('returns null when no house plan matches the id', async () => {
+      housePlanFindOneByMock.mockResolvedValue(null);
+
+      const result = await service.findHousePlanById('non-existent-uuid');
+
+      expect(result).toBeNull();
+    });
+  });
+
+  describe('searchHousePlans', () => {
+    const HOUSE_PLAN_ROW = {
+      id: 'hp-a-uuid',
+      title: '5 Marla Modern Home',
+      area_marla: '5.00',
+      bedrooms: 3,
+      style: 'MODERN',
+      preview_image_ref: 'house-plans/hp-a-uuid/preview.jpg',
+      description: 'A compact modern layout with an open-plan lounge.',
+      contact_whatsapp: '+92 300 1112222',
+      is_siraat_affiliated: false,
+      record_type: 'FACT',
+    };
+
+    it('filters by area_marla range (min and max)', async () => {
+      housePlanQbMocks.getManyAndCount.mockResolvedValue([[HOUSE_PLAN_ROW], 1]);
+
+      const result = await service.searchHousePlans({ area_marla_min: 4, area_marla_max: 6 });
+
+      expect(housePlanQbMocks.andWhere).toHaveBeenCalledWith('h.area_marla >= :areaMin', { areaMin: 4 });
+      expect(housePlanQbMocks.andWhere).toHaveBeenCalledWith('h.area_marla <= :areaMax', { areaMax: 6 });
+      expect(result.house_plans).toHaveLength(1);
+      expect(result.house_plans[0].area_marla).toBe(5);
+    });
+
+    it('filters by bedrooms', async () => {
+      housePlanQbMocks.getManyAndCount.mockResolvedValue([[HOUSE_PLAN_ROW], 1]);
+
+      await service.searchHousePlans({ bedrooms: 3 });
+
+      expect(housePlanQbMocks.andWhere).toHaveBeenCalledWith('h.bedrooms = :bedrooms', { bedrooms: 3 });
+    });
+
+    it('filters by style', async () => {
+      housePlanQbMocks.getManyAndCount.mockResolvedValue([[HOUSE_PLAN_ROW], 1]);
+
+      await service.searchHousePlans({ style: 'MODERN' });
+
+      expect(housePlanQbMocks.andWhere).toHaveBeenCalledWith('h.style = :style', { style: 'MODERN' });
+    });
+
+    it('combines area range, bedrooms, and style filters together', async () => {
+      housePlanQbMocks.getManyAndCount.mockResolvedValue([[HOUSE_PLAN_ROW], 1]);
+
+      await service.searchHousePlans({ area_marla_min: 4, area_marla_max: 6, bedrooms: 3, style: 'MODERN' });
+
+      expect(housePlanQbMocks.andWhere).toHaveBeenCalledTimes(4);
+    });
+
+    it('returns [] with total_count 0 when no house plans match', async () => {
+      housePlanQbMocks.getManyAndCount.mockResolvedValue([[], 0]);
+
+      const result = await service.searchHousePlans({ style: 'MINIMALIST' });
+
+      expect(result.house_plans).toEqual([]);
+      expect(result.total_count).toBe(0);
+      expect(result.total_pages).toBe(0);
+    });
+
+    // ─── Pagination — matches the Browse Societies (listSocieties) pattern ───
+
+    it('defaults to page 1, limit 20 — same defaults as listSocieties', async () => {
+      housePlanQbMocks.getManyAndCount.mockResolvedValue([[HOUSE_PLAN_ROW], 1]);
+
+      const result = await service.searchHousePlans({});
+
+      expect(housePlanQbMocks.skip).toHaveBeenCalledWith(0);
+      expect(housePlanQbMocks.take).toHaveBeenCalledWith(20);
+      expect(result.page).toBe(1);
+    });
+
+    it('applies page/limit and computes total_pages via skip/take/getManyAndCount, same as listSocieties', async () => {
+      housePlanQbMocks.getManyAndCount.mockResolvedValue([[HOUSE_PLAN_ROW], 45]);
+
+      const result = await service.searchHousePlans({ page: 2, limit: 10 });
+
+      expect(housePlanQbMocks.skip).toHaveBeenCalledWith(10);
+      expect(housePlanQbMocks.take).toHaveBeenCalledWith(10);
+      expect(housePlanQbMocks.orderBy).toHaveBeenCalledWith('h.title', 'ASC');
+      expect(result.page).toBe(2);
+      expect(result.total_count).toBe(45);
+      expect(result.total_pages).toBe(5);
+    });
+
+    it('falls back to defaults for a non-positive page/limit, same guard as listSocieties', async () => {
+      housePlanQbMocks.getManyAndCount.mockResolvedValue([[], 0]);
+
+      const result = await service.searchHousePlans({ page: 0, limit: -5 });
+
+      expect(housePlanQbMocks.skip).toHaveBeenCalledWith(0);
+      expect(housePlanQbMocks.take).toHaveBeenCalledWith(20);
+      expect(result.page).toBe(1);
+    });
+  });
+
+  describe('updateHousePlanPreviewImage', () => {
+    it('persists the new preview_image_ref by id', async () => {
+      await service.updateHousePlanPreviewImage('hp-a-uuid', 'house-plans/hp-a-uuid/new.jpg');
+
+      expect(housePlanUpdateMock).toHaveBeenCalledWith(
+        { id: 'hp-a-uuid' },
+        { preview_image_ref: 'house-plans/hp-a-uuid/new.jpg' },
+      );
     });
   });
 
