@@ -1,6 +1,4 @@
 import { Injectable, BadRequestException, Logger, NotFoundException } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
 import type {
   TradeCategory,
   MaterialCategory,
@@ -141,19 +139,15 @@ export class AdminService {
     private readonly trustSvc: TrustService,
     private readonly ciSvc: ConstructionIntelligenceService,
     private readonly storageSvc: StorageService,
-    @InjectRepository(CandidateSocietyEntity)
-    private readonly candidateRepo: Repository<CandidateSocietyEntity>,
   ) {}
 
-  async listCandidateSocieties(
-    status?: string,
-  ): Promise<CandidateSocietyEntity[]> {
-    if (status) {
-      return this.candidateRepo.findBy({
-        status: status as CandidateSocietyEntity['status'],
-      });
-    }
-    return this.candidateRepo.find();
+  // CLEANUP — was AdminService's own CandidateSocietyEntity repository
+  // access (via AdminModule's own TypeOrmModule.forFeature registration,
+  // now removed); delegates to PropertyIntelligenceService instead, same
+  // cross-module public-method-call pattern used everywhere else here
+  // (piSvc/ciSvc/trustSvc) rather than a second repo owner for one table.
+  async listCandidateSocieties(status?: string): Promise<CandidateSocietyEntity[]> {
+    return this.piSvc.listCandidateSocieties(status);
   }
 
   async createSocietyWithFirstClaim(
@@ -203,14 +197,10 @@ export class AdminService {
       verificationId = ver.id;
     }
 
-    // Mark matching CandidateSociety ONBOARDED (exact name match)
-    const candidate = await this.candidateRepo.findOneBy({ name: data.name });
-    let candidateMarked = false;
-    if (candidate) {
-      candidate.status = 'ONBOARDED';
-      await this.candidateRepo.save(candidate);
-      candidateMarked = true;
-    }
+    // Mark matching CandidateSociety ONBOARDED (exact name match) — CLEANUP:
+    // delegates to PropertyIntelligenceService.markCandidateSocietyOnboarded
+    // now, same as listCandidateSocieties above.
+    const candidateMarked = await this.piSvc.markCandidateSocietyOnboarded(data.name);
 
     return {
       society_id: society.id,

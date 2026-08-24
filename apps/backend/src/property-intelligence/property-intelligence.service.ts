@@ -760,6 +760,32 @@ export class PropertyIntelligenceService {
     return (result.affected ?? 0) > 0;
   }
 
+  // CLEANUP — consolidates CandidateSocietyEntity repository ownership onto
+  // this service (was previously also directly injected into AdminService,
+  // via AdminModule's own TypeOrmModule.forFeature registration). Backs GET
+  // /v1/admin/candidate-societies — same optional-status-filter shape
+  // AdminService.listCandidateSocieties had when it owned the repo directly.
+  async listCandidateSocieties(status?: string): Promise<CandidateSocietyEntity[]> {
+    if (status) {
+      return this.candidateRepo.findBy({ status: status as CandidateSocietyEntity['status'] });
+    }
+    return this.candidateRepo.find();
+  }
+
+  // CLEANUP — same consolidation as listCandidateSocieties above. Backs
+  // createSocietyWithFirstClaim's post-onboarding sync: marks the
+  // CandidateSociety matching this exact name ONBOARDED, if one exists.
+  // Returns whether a match was found (and marked) rather than the entity
+  // itself, since the only caller needs just the boolean for its
+  // candidate_marked_onboarded response field.
+  async markCandidateSocietyOnboarded(name: string): Promise<boolean> {
+    const candidate = await this.candidateRepo.findOneBy({ name });
+    if (!candidate) return false;
+    candidate.status = 'ONBOARDED';
+    await this.candidateRepo.save(candidate);
+    return true;
+  }
+
   // ─── WATCHLIST Chunk 1 — Society Changes ───────────────────────────────────
 
   // Read side of this context's own Observation ledger — entityRefs here is

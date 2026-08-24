@@ -73,6 +73,10 @@ describe('PropertyIntelligenceService', () => {
   let candidateFindOneByMock: jest.Mock;
   let candidateSaveMock: jest.Mock;
   let candidateDeleteMock: jest.Mock;
+  // CLEANUP — added alongside listCandidateSocieties/markCandidateSocietyOnboarded,
+  // migrated here from AdminService's own now-removed repository access.
+  let candidateFindMock: jest.Mock;
+  let candidateFindByMock: jest.Mock;
   let ciFindRatesBySupplierIdMock: jest.Mock;
 
   beforeEach(async () => {
@@ -153,6 +157,8 @@ describe('PropertyIntelligenceService', () => {
     candidateFindOneByMock = jest.fn().mockResolvedValue(null);
     candidateSaveMock = jest.fn((entity) => Promise.resolve(entity));
     candidateDeleteMock = jest.fn().mockResolvedValue({ affected: 1 });
+    candidateFindMock = jest.fn().mockResolvedValue([]);
+    candidateFindByMock = jest.fn().mockResolvedValue([]);
     ciFindRatesBySupplierIdMock = jest.fn().mockResolvedValue([]);
 
     const module = await Test.createTestingModule({
@@ -208,6 +214,8 @@ describe('PropertyIntelligenceService', () => {
             findOneBy: candidateFindOneByMock,
             save: candidateSaveMock,
             delete: candidateDeleteMock,
+            find: candidateFindMock,
+            findBy: candidateFindByMock,
           },
         },
         {
@@ -1192,6 +1200,76 @@ describe('PropertyIntelligenceService', () => {
 
       const result = await service.deleteCandidateSociety('non-existent-uuid');
 
+      expect(result).toBe(false);
+    });
+  });
+
+  // CLEANUP — listCandidateSocieties/markCandidateSocietyOnboarded moved here
+  // from AdminService's own direct repository access (which is now removed).
+
+  describe('listCandidateSocieties', () => {
+    const CANDIDATE_ROW = {
+      id: 'cand-a-uuid',
+      name: 'Park View City',
+      regulator: 'CDA' as const,
+      city: 'Islamabad',
+      status: 'NOT_STARTED' as const,
+      record_type: 'FACT' as const,
+      created_at: new Date('2026-01-01'),
+      updated_at: new Date('2026-01-01'),
+    };
+
+    it('returns all candidates when no status filter given', async () => {
+      candidateFindMock.mockResolvedValue([CANDIDATE_ROW]);
+
+      const result = await service.listCandidateSocieties();
+
+      expect(candidateFindMock).toHaveBeenCalled();
+      expect(candidateFindByMock).not.toHaveBeenCalled();
+      expect(result).toEqual([CANDIDATE_ROW]);
+    });
+
+    it('filters by status when provided', async () => {
+      candidateFindByMock.mockResolvedValue([CANDIDATE_ROW]);
+
+      const result = await service.listCandidateSocieties('NOT_STARTED');
+
+      expect(candidateFindByMock).toHaveBeenCalledWith({ status: 'NOT_STARTED' });
+      expect(candidateFindMock).not.toHaveBeenCalled();
+      expect(result).toEqual([CANDIDATE_ROW]);
+    });
+  });
+
+  describe('markCandidateSocietyOnboarded', () => {
+    const CANDIDATE_ROW = {
+      id: 'cand-a-uuid',
+      name: 'Park View City',
+      regulator: 'CDA' as const,
+      city: 'Islamabad',
+      status: 'NOT_STARTED' as const,
+      record_type: 'FACT' as const,
+      created_at: new Date('2026-01-01'),
+      updated_at: new Date('2026-01-01'),
+    };
+
+    it('marks the matching candidate ONBOARDED and returns true', async () => {
+      candidateFindOneByMock.mockResolvedValue({ ...CANDIDATE_ROW });
+
+      const result = await service.markCandidateSocietyOnboarded('Park View City');
+
+      expect(candidateFindOneByMock).toHaveBeenCalledWith({ name: 'Park View City' });
+      expect(candidateSaveMock).toHaveBeenCalledWith(
+        expect.objectContaining({ status: 'ONBOARDED' }),
+      );
+      expect(result).toBe(true);
+    });
+
+    it('returns false and does not save when no candidate matches the name', async () => {
+      candidateFindOneByMock.mockResolvedValue(null);
+
+      const result = await service.markCandidateSocietyOnboarded('Unknown Society');
+
+      expect(candidateSaveMock).not.toHaveBeenCalled();
       expect(result).toBe(false);
     });
   });

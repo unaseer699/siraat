@@ -1,6 +1,4 @@
 import { Module } from '@nestjs/common';
-import { TypeOrmModule } from '@nestjs/typeorm';
-import { CandidateSocietyEntity } from '../property-intelligence/entities/candidate-society.entity';
 import { PropertyIntelligenceModule } from '../property-intelligence/property-intelligence.module';
 import { TrustModule } from '../trust/trust.module';
 import { ConstructionIntelligenceModule } from '../construction-intelligence/construction-intelligence.module';
@@ -9,7 +7,11 @@ import { AdminController } from './admin.controller';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([CandidateSocietyEntity]),
+    // CLEANUP — TypeOrmModule.forFeature([CandidateSocietyEntity]) removed:
+    // AdminService no longer holds its own repository for this table.
+    // CandidateSociety CRUD lives entirely on PropertyIntelligenceService
+    // now (PropertyIntelligenceModule owns the one repository provider for
+    // it), matching every other directory entity's CRUD ownership.
     PropertyIntelligenceModule,
     TrustModule,
     ConstructionIntelligenceModule,

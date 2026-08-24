@@ -1,6 +1,5 @@
 import { Test } from '@nestjs/testing';
 import { BadRequestException, NotFoundException } from '@nestjs/common';
-import { getRepositoryToken } from '@nestjs/typeorm';
 import {
   AdminService,
   type CreateContractorInput,
@@ -163,6 +162,11 @@ describe('AdminService', () => {
   let deleteHousePlanMock: jest.Mock;
   let updateCandidateSocietyMock: jest.Mock;
   let deleteCandidateSocietyMock: jest.Mock;
+  // CLEANUP — CandidateSociety repository ownership consolidated onto
+  // PropertyIntelligenceService; these were AdminService's own repo-level
+  // mocks (find/findBy/findOneBy/save) and are now piSvc-level mocks instead.
+  let listCandidateSocietiesMock: jest.Mock;
+  let markCandidateSocietyOnboardedMock: jest.Mock;
 
   // TrustService mocks
   let createVerificationMock: jest.Mock;
@@ -173,12 +177,6 @@ describe('AdminService', () => {
   // StorageService mocks
   let uploadFileMock: jest.Mock;
   let deleteFileMock: jest.Mock;
-
-  // CandidateSocietyEntity repository mocks
-  let candidateFindMock: jest.Mock;
-  let candidateFindOneMock: jest.Mock;
-  let candidateFindByMock: jest.Mock;
-  let candidateSaveMock: jest.Mock;
 
   // ConstructionIntelligenceService mocks
   let createMaterialRateMock: jest.Mock;
@@ -204,16 +202,16 @@ describe('AdminService', () => {
     deleteHousePlanMock        = jest.fn().mockResolvedValue(true);
     updateCandidateSocietyMock = jest.fn().mockResolvedValue({ ...CANDIDATE, status: 'IN_PROGRESS' });
     deleteCandidateSocietyMock = jest.fn().mockResolvedValue(true);
+    listCandidateSocietiesMock = jest.fn().mockResolvedValue([CANDIDATE]);
+    // Default false (not found) — matches the old default candidateFindOneMock
+    // behavior (null) that most createSocietyWithFirstClaim tests relied on.
+    markCandidateSocietyOnboardedMock = jest.fn().mockResolvedValue(false);
     createVerificationMock     = jest.fn().mockResolvedValue(VERIFICATION_ENTITY);
     createAndLinkEvidenceMock  = jest.fn().mockResolvedValue(EVIDENCE_ENTITY);
     promoteVerificationToVerifiedMock = jest.fn().mockResolvedValue(VERIFIED_ENTITY);
     createEvidenceRecordMock   = jest.fn().mockResolvedValue(EVIDENCE_ENTITY);
     uploadFileMock             = jest.fn().mockResolvedValue(undefined);
     deleteFileMock             = jest.fn().mockResolvedValue(undefined);
-    candidateFindMock          = jest.fn().mockResolvedValue([CANDIDATE]);
-    candidateFindOneMock       = jest.fn().mockResolvedValue(null);
-    candidateFindByMock        = jest.fn().mockResolvedValue([CANDIDATE]);
-    candidateSaveMock          = jest.fn().mockResolvedValue({ ...CANDIDATE, status: 'ONBOARDED' });
     createMaterialRateMock     = jest.fn().mockResolvedValue(MATERIAL_RATE_RESULT);
     listMaterialRatesMock      = jest.fn().mockResolvedValue([MATERIAL_RATE_RESULT]);
 
@@ -242,6 +240,8 @@ describe('AdminService', () => {
             deleteHousePlan:    deleteHousePlanMock,
             updateCandidateSociety: updateCandidateSocietyMock,
             deleteCandidateSociety: deleteCandidateSocietyMock,
+            listCandidateSocieties: listCandidateSocietiesMock,
+            markCandidateSocietyOnboarded: markCandidateSocietyOnboardedMock,
           },
         },
         {
@@ -258,15 +258,6 @@ describe('AdminService', () => {
           useValue: { uploadFile: uploadFileMock, deleteFile: deleteFileMock },
         },
         {
-          provide: getRepositoryToken(CandidateSocietyEntity),
-          useValue: {
-            find:       candidateFindMock,
-            findBy:     candidateFindByMock,
-            findOneBy:  candidateFindOneMock,
-            save:       candidateSaveMock,
-          },
-        },
-        {
           provide: ConstructionIntelligenceService,
           useValue: {
             createMaterialRate: createMaterialRateMock,
@@ -280,16 +271,18 @@ describe('AdminService', () => {
   });
 
   // ─── listCandidateSocieties ───────────────────────────────────────────────
+  // CLEANUP — now a pure delegation to PropertyIntelligenceService, same
+  // pattern as searchContractors/searchSuppliers elsewhere in this file.
 
-  it('listCandidateSocieties returns all candidates when no status filter given', async () => {
+  it('listCandidateSocieties delegates to PropertyIntelligenceService.listCandidateSocieties', async () => {
     const result = await svc.listCandidateSocieties();
-    expect(candidateFindMock).toHaveBeenCalled();
-    expect(result).toHaveLength(1);
+    expect(listCandidateSocietiesMock).toHaveBeenCalledWith(undefined);
+    expect(result).toEqual([CANDIDATE]);
   });
 
-  it('listCandidateSocieties filters by status when provided', async () => {
+  it('listCandidateSocieties passes the status filter through', async () => {
     await svc.listCandidateSocieties('NOT_STARTED');
-    expect(candidateFindByMock).toHaveBeenCalledWith({ status: 'NOT_STARTED' });
+    expect(listCandidateSocietiesMock).toHaveBeenCalledWith('NOT_STARTED');
   });
 
   // ─── createSocietyWithFirstClaim ──────────────────────────────────────────
@@ -368,24 +361,20 @@ describe('AdminService', () => {
     expect(createSocietyMock).not.toHaveBeenCalled();
   });
 
-  it('marks matching CandidateSociety as ONBOARDED on name match', async () => {
-    candidateFindOneMock.mockResolvedValue({ ...CANDIDATE });
+  it('marks matching CandidateSociety as ONBOARDED via PropertyIntelligenceService', async () => {
+    markCandidateSocietyOnboardedMock.mockResolvedValue(true);
 
     const result = await svc.createSocietyWithFirstClaim(buildSocietyInput());
 
-    expect(candidateFindOneMock).toHaveBeenCalledWith({ name: 'Park View City' });
-    expect(candidateSaveMock).toHaveBeenCalledWith(
-      expect.objectContaining({ status: 'ONBOARDED' }),
-    );
+    expect(markCandidateSocietyOnboardedMock).toHaveBeenCalledWith('Park View City');
     expect(result.candidate_marked_onboarded).toBe(true);
   });
 
-  it('does not call candidateSave when no CandidateSociety matches the name', async () => {
-    candidateFindOneMock.mockResolvedValue(null);
+  it('reports candidate_marked_onboarded: false when no CandidateSociety matches the name', async () => {
+    markCandidateSocietyOnboardedMock.mockResolvedValue(false);
 
     const result = await svc.createSocietyWithFirstClaim(buildSocietyInput());
 
-    expect(candidateSaveMock).not.toHaveBeenCalled();
     expect(result.candidate_marked_onboarded).toBe(false);
   });
 
