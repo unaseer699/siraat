@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { S3Client, GetObjectCommand } from '@aws-sdk/client-s3';
+import { S3Client, GetObjectCommand, PutObjectCommand } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 
 const PRESIGNED_TTL_SECONDS = 900; // 15 minutes — Phase 9/10 requirement
@@ -33,5 +33,23 @@ export class StorageService {
       : fileKey;
     const command = new GetObjectCommand({ Bucket: this.bucket, Key: key });
     return getSignedUrl(this.client, command, { expiresIn: PRESIGNED_TTL_SECONDS });
+  }
+
+  // HOUSE PLANS DIRECTORY Chunk 1 — first upload path this service has ever
+  // needed; every prior feature (Evidence included) only ever read
+  // pre-existing files manually uploaded via MinIO's console, so file_ref/
+  // preview_image_ref values were always caller-supplied. `key` must already
+  // be bucket-relative (same convention as getPresignedDownloadUrl's Key,
+  // and as Evidence.file_ref) — this method does not prepend or strip
+  // anything.
+  async uploadFile(key: string, body: Buffer, contentType: string): Promise<string> {
+    const command = new PutObjectCommand({
+      Bucket: this.bucket,
+      Key: key,
+      Body: body,
+      ContentType: contentType,
+    });
+    await this.client.send(command);
+    return key;
   }
 }

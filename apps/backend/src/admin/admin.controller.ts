@@ -3,6 +3,7 @@ import { z } from 'zod';
 import {
   TradeCategorySchema,
   MaterialCategorySchema,
+  HousePlanStyleSchema,
   CreateMaterialRateBodySchema,
   type CreateMaterialRateBody,
 } from '@siraat/shared-types';
@@ -106,6 +107,31 @@ const CreateSupplierBodySchema = z.object({
   is_siraat_affiliated: z.boolean().default(false),
 });
 type CreateSupplierBody = z.infer<typeof CreateSupplierBodySchema>;
+
+// --- POST /v1/admin/house-plans (HOUSE PLANS DIRECTORY Chunk 1) ---
+
+const CreateHousePlanBodySchema = z.object({
+  title: z.string().min(1),
+  area_marla: z.number().positive(),
+  bedrooms: z.number().int().nonnegative(),
+  style: HousePlanStyleSchema,
+  preview_image_ref: z.string().min(1),
+  description: z.string().min(1),
+  contact_whatsapp: z.string().min(1),
+  is_siraat_affiliated: z.boolean().default(false),
+});
+type CreateHousePlanBody = z.infer<typeof CreateHousePlanBodySchema>;
+
+// --- POST /v1/admin/house-plans/:id/upload-image ---
+// No multipart parsing (Fastify adapter, no @fastify/multipart plugin
+// installed) — the file travels as a base64 string in a JSON body instead.
+
+const UploadHousePlanImageBodySchema = z.object({
+  filename: z.string().min(1),
+  content_type: z.string().min(1),
+  data_base64: z.string().min(1),
+});
+type UploadHousePlanImageBody = z.infer<typeof UploadHousePlanImageBodySchema>;
 
 // --- Controller ---
 
@@ -245,5 +271,47 @@ export class AdminController {
       page: page !== undefined ? Number(page) : undefined,
       limit: limit !== undefined ? Number(limit) : undefined,
     });
+  }
+
+  // HOUSE PLANS DIRECTORY Chunk 1 — admin entry, same shape as POST /suppliers.
+  @Post('house-plans')
+  @HttpCode(201)
+  createHousePlan(
+    @Body(new ZodValidationPipe(CreateHousePlanBodySchema)) body: CreateHousePlanBody,
+  ) {
+    return this.adminSvc.createHousePlan(body);
+  }
+
+  // HOUSE PLANS DIRECTORY Chunk 1 — admin list view, same pagination pattern
+  // as GET /contractors / GET /suppliers above.
+  @Get('house-plans')
+  searchHousePlans(
+    @Query('area_marla_min') area_marla_min?: string,
+    @Query('area_marla_max') area_marla_max?: string,
+    @Query('bedrooms') bedrooms?: string,
+    @Query('style') style?: string,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+  ) {
+    return this.adminSvc.searchHousePlans({
+      area_marla_min: area_marla_min !== undefined ? Number(area_marla_min) : undefined,
+      area_marla_max: area_marla_max !== undefined ? Number(area_marla_max) : undefined,
+      bedrooms: bedrooms !== undefined ? Number(bedrooms) : undefined,
+      style,
+      page: page !== undefined ? Number(page) : undefined,
+      limit: limit !== undefined ? Number(limit) : undefined,
+    });
+  }
+
+  // HOUSE PLANS DIRECTORY Chunk 1 — minimal image upload; no upload endpoint
+  // existed anywhere prior to this (StorageService only ever read
+  // pre-existing, manually-uploaded files). Base64 JSON body, not
+  // multipart/form-data — see UploadHousePlanImageBodySchema above.
+  @Post('house-plans/:id/upload-image')
+  uploadHousePlanImage(
+    @Param('id') id: string,
+    @Body(new ZodValidationPipe(UploadHousePlanImageBodySchema)) body: UploadHousePlanImageBody,
+  ) {
+    return this.adminSvc.uploadHousePlanImage(id, body);
   }
 }

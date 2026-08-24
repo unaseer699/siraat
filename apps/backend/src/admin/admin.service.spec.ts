@@ -1,9 +1,15 @@
 import { Test } from '@nestjs/testing';
 import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { getRepositoryToken } from '@nestjs/typeorm';
-import { AdminService, type CreateContractorInput, type CreateSupplierInput } from './admin.service';
+import {
+  AdminService,
+  type CreateContractorInput,
+  type CreateSupplierInput,
+  type CreateHousePlanInput,
+} from './admin.service';
 import { PropertyIntelligenceService } from '../property-intelligence/property-intelligence.service';
 import { TrustService } from '../trust/trust.service';
+import { StorageService } from '../trust/storage.service';
 import { ConstructionIntelligenceService } from '../construction-intelligence/construction-intelligence.service';
 import { CandidateSocietyEntity } from '../property-intelligence/entities/candidate-society.entity';
 
@@ -92,6 +98,21 @@ const SUPPLIER_RESULT = {
   record_type: 'FACT' as const,
 };
 
+const HOUSE_PLAN_ID = 'hp-uuid-0001';
+
+const HOUSE_PLAN_RESULT = {
+  id: HOUSE_PLAN_ID,
+  title: '5 Marla Modern Home',
+  area_marla: 5,
+  bedrooms: 3,
+  style: 'MODERN' as const,
+  preview_image_ref: 'house-plans/hp-uuid-0001/preview.jpg',
+  description: 'A compact modern layout with an open-plan lounge.',
+  contact_whatsapp: '+92 300 1112222',
+  is_siraat_affiliated: false,
+  record_type: 'FACT' as const,
+};
+
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function buildSocietyInput(overrides: object = {}) {
@@ -134,12 +155,19 @@ describe('AdminService', () => {
   let searchSuppliersMock: jest.Mock;
   let searchSuppliersByNameMock: jest.Mock;
   let findSuppliersByIdsMock: jest.Mock;
+  let findHousePlanByIdMock: jest.Mock;
+  let createHousePlanMock: jest.Mock;
+  let searchHousePlansMock: jest.Mock;
+  let updateHousePlanPreviewImageMock: jest.Mock;
 
   // TrustService mocks
   let createVerificationMock: jest.Mock;
   let createAndLinkEvidenceMock: jest.Mock;
   let promoteVerificationToVerifiedMock: jest.Mock;
   let createEvidenceRecordMock: jest.Mock;
+
+  // StorageService mocks
+  let uploadFileMock: jest.Mock;
 
   // CandidateSocietyEntity repository mocks
   let candidateFindMock: jest.Mock;
@@ -163,10 +191,15 @@ describe('AdminService', () => {
     searchSuppliersMock       = jest.fn().mockResolvedValue({ suppliers: [], total_count: 0, page: 1, total_pages: 0 });
     searchSuppliersByNameMock = jest.fn().mockResolvedValue([]);
     findSuppliersByIdsMock    = jest.fn().mockResolvedValue([]);
+    findHousePlanByIdMock     = jest.fn().mockResolvedValue(HOUSE_PLAN_RESULT);
+    createHousePlanMock       = jest.fn().mockResolvedValue(HOUSE_PLAN_RESULT);
+    searchHousePlansMock      = jest.fn().mockResolvedValue({ house_plans: [], total_count: 0, page: 1, total_pages: 0 });
+    updateHousePlanPreviewImageMock = jest.fn().mockResolvedValue(undefined);
     createVerificationMock     = jest.fn().mockResolvedValue(VERIFICATION_ENTITY);
     createAndLinkEvidenceMock  = jest.fn().mockResolvedValue(EVIDENCE_ENTITY);
     promoteVerificationToVerifiedMock = jest.fn().mockResolvedValue(VERIFIED_ENTITY);
     createEvidenceRecordMock   = jest.fn().mockResolvedValue(EVIDENCE_ENTITY);
+    uploadFileMock             = jest.fn().mockResolvedValue(undefined);
     candidateFindMock          = jest.fn().mockResolvedValue([CANDIDATE]);
     candidateFindOneMock       = jest.fn().mockResolvedValue(null);
     candidateFindByMock        = jest.fn().mockResolvedValue([CANDIDATE]);
@@ -191,6 +224,10 @@ describe('AdminService', () => {
             searchSuppliers:    searchSuppliersMock,
             searchSuppliersByName: searchSuppliersByNameMock,
             findSuppliersByIds: findSuppliersByIdsMock,
+            findHousePlanById:  findHousePlanByIdMock,
+            createHousePlan:    createHousePlanMock,
+            searchHousePlans:   searchHousePlansMock,
+            updateHousePlanPreviewImage: updateHousePlanPreviewImageMock,
           },
         },
         {
@@ -201,6 +238,10 @@ describe('AdminService', () => {
             promoteVerificationToVerified:  promoteVerificationToVerifiedMock,
             createEvidenceRecord:           createEvidenceRecordMock,
           },
+        },
+        {
+          provide: StorageService,
+          useValue: { uploadFile: uploadFileMock },
         },
         {
           provide: getRepositoryToken(CandidateSocietyEntity),
@@ -671,6 +712,78 @@ describe('AdminService', () => {
 
     expect(searchSuppliersByNameMock).toHaveBeenCalledWith('al-rehman');
     expect(result).toEqual([{ id: 'sup-a-uuid', name: 'Al-Rehman Steel Traders' }]);
+  });
+
+  // ─── HOUSE PLANS DIRECTORY Chunk 1 ─────────────────────────────────────────
+
+  it('createHousePlan delegates to PropertyIntelligenceService.createHousePlan', async () => {
+    const input: CreateHousePlanInput = {
+      title: '5 Marla Modern Home',
+      area_marla: 5,
+      bedrooms: 3,
+      style: 'MODERN',
+      preview_image_ref: 'house-plans/hp-uuid-0001/preview.jpg',
+      description: 'A compact modern layout with an open-plan lounge.',
+      contact_whatsapp: '+92 300 1112222',
+      is_siraat_affiliated: false,
+    };
+
+    const result = await svc.createHousePlan(input);
+
+    expect(createHousePlanMock).toHaveBeenCalledWith(input);
+    expect(result).toBe(HOUSE_PLAN_RESULT);
+  });
+
+  it('searchHousePlans delegates to PropertyIntelligenceService.searchHousePlans with the given filters', async () => {
+    searchHousePlansMock.mockResolvedValue({
+      house_plans: [HOUSE_PLAN_RESULT],
+      total_count: 1,
+      page: 1,
+      total_pages: 1,
+    });
+
+    const result = await svc.searchHousePlans({ area_marla_min: 4, area_marla_max: 6, bedrooms: 3, style: 'MODERN' });
+
+    expect(searchHousePlansMock).toHaveBeenCalledWith({
+      area_marla_min: 4,
+      area_marla_max: 6,
+      bedrooms: 3,
+      style: 'MODERN',
+    });
+    expect(result.house_plans).toEqual([HOUSE_PLAN_RESULT]);
+  });
+
+  it('uploadHousePlanImage stores the file via StorageService and persists the key as preview_image_ref', async () => {
+    const result = await svc.uploadHousePlanImage(HOUSE_PLAN_ID, {
+      filename: 'preview.jpg',
+      content_type: 'image/jpeg',
+      data_base64: Buffer.from('fake-image-bytes').toString('base64'),
+    });
+
+    expect(findHousePlanByIdMock).toHaveBeenCalledWith(HOUSE_PLAN_ID);
+    expect(uploadFileMock).toHaveBeenCalledWith(
+      `house-plans/${HOUSE_PLAN_ID}/preview.jpg`,
+      Buffer.from('fake-image-bytes'),
+      'image/jpeg',
+    );
+    expect(updateHousePlanPreviewImageMock).toHaveBeenCalledWith(
+      HOUSE_PLAN_ID,
+      `house-plans/${HOUSE_PLAN_ID}/preview.jpg`,
+    );
+    expect(result).toEqual({ preview_image_ref: `house-plans/${HOUSE_PLAN_ID}/preview.jpg` });
+  });
+
+  it('uploadHousePlanImage throws NotFoundException when the house plan does not exist', async () => {
+    findHousePlanByIdMock.mockResolvedValue(null);
+
+    await expect(
+      svc.uploadHousePlanImage('non-existent-uuid', {
+        filename: 'preview.jpg',
+        content_type: 'image/jpeg',
+        data_base64: 'ZmFrZQ==',
+      }),
+    ).rejects.toThrow(NotFoundException);
+    expect(uploadFileMock).not.toHaveBeenCalled();
   });
 
   // ─── Auth guard (controller-level wiring check) ───────────────────────────

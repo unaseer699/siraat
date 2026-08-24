@@ -187,3 +187,36 @@ export interface SupplierListResponse {
   page: number;
   total_pages: number;
 }
+
+// ─── HOUSE PLANS DIRECTORY Chunk 1 ───────────────────────────────────────────
+// Standalone catalog, not linked to any Society/Property (founder decision,
+// Phase 1 scope). Directory only: no payment, no full-resolution download.
+
+export const HousePlanStyleSchema = z.enum([
+  'MODERN',
+  'TRADITIONAL',
+  'CONTEMPORARY',
+  'MINIMALIST',
+]);
+export type HousePlanStyle = z.infer<typeof HousePlanStyleSchema>;
+export const HOUSE_PLAN_STYLES = HousePlanStyleSchema.options;
+
+export interface HousePlanSummary {
+  id: string;
+  title: string;
+  area_marla: number;
+  bedrooms: number;
+  style: HousePlanStyle;
+  preview_image_ref: string;
+  description: string;
+  contact_whatsapp: string;
+  is_siraat_affiliated: boolean;
+  record_type: 'FACT';
+}
+
+export interface HousePlanListResponse {
+  house_plans: HousePlanSummary[];
+  total_count: number;
+  page: number;
+  total_pages: number;
+}
