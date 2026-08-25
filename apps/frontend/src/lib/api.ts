@@ -46,6 +46,12 @@ async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
     const text = await res.text();
     throw new Error(`API error ${res.status}: ${text}`);
   }
+  // ADMIN CRUD PHASE 1 Chunk 2 — first callers to hit a 204 No Content
+  // response (the new DELETE routes). res.json() throws on an empty body,
+  // so it's skipped here rather than at each call site.
+  if (res.status === 204) {
+    return undefined as T;
+  }
   return res.json() as Promise<T>;
 }
 
@@ -328,6 +334,31 @@ export async function fetchCandidateSocieties(status?: string): Promise<Candidat
   return apiFetch(`/v1/admin/candidate-societies${qs}`);
 }
 
+// ADMIN CRUD PHASE 1 Chunk 2 — all fields optional (partial update); the
+// field this exists for is `status` (manual override, e.g. reverting an
+// accidental ONBOARDED back to NOT_STARTED), but name/regulator/city are
+// correctable too.
+export interface UpdateCandidateSocietyBody {
+  name?: string;
+  regulator?: CandidateSociety['regulator'];
+  city?: string;
+  status?: CandidateSociety['status'];
+}
+
+export async function updateCandidateSociety(
+  id: string,
+  data: UpdateCandidateSocietyBody,
+): Promise<CandidateSociety> {
+  return apiFetch(`/v1/admin/candidate-societies/${id}`, {
+    method: 'PATCH',
+    body: JSON.stringify(data),
+  });
+}
+
+export async function deleteCandidateSociety(id: string): Promise<void> {
+  return apiFetch(`/v1/admin/candidate-societies/${id}`, { method: 'DELETE' });
+}
+
 export interface DeveloperSearchResult {
   id: string;
   name: string;
@@ -526,4 +557,53 @@ export async function uploadHousePlanImage(
     method: 'POST',
     body: JSON.stringify(data),
   });
+}
+
+// ADMIN CRUD PHASE 1 Chunk 2 — GET /v1/admin/house-plans, backs the new
+// admin list page. Same shape/filters as the public fetchHousePlans above,
+// different route — the admin route has no verification-status gating (this
+// directory never had any) but stays distinct in case admin-only fields are
+// ever added to the response.
+export async function fetchAdminHousePlans(params?: {
+  area_marla_min?: number;
+  area_marla_max?: number;
+  bedrooms?: number;
+  style?: string;
+  page?: number;
+  limit?: number;
+}): Promise<HousePlanListResponse> {
+  const qs = new URLSearchParams();
+  if (params?.area_marla_min != null) qs.set('area_marla_min', String(params.area_marla_min));
+  if (params?.area_marla_max != null) qs.set('area_marla_max', String(params.area_marla_max));
+  if (params?.bedrooms != null) qs.set('bedrooms', String(params.bedrooms));
+  if (params?.style) qs.set('style', params.style);
+  if (params?.page) qs.set('page', String(params.page));
+  if (params?.limit) qs.set('limit', String(params.limit));
+  const suffix = qs.toString() ? `?${qs.toString()}` : '';
+  return apiFetch(`/v1/admin/house-plans${suffix}`);
+}
+
+// All fields optional (partial update). preview_image_ref is deliberately
+// absent — that's uploadHousePlanImage's job, not this one's.
+export interface UpdateHousePlanBody {
+  title?: string;
+  area_marla?: number;
+  bedrooms?: number;
+  style?: HousePlanStyle;
+  description?: string;
+  contact_whatsapp?: string;
+  is_siraat_affiliated?: boolean;
+}
+
+export async function updateHousePlan(id: string, data: UpdateHousePlanBody): Promise<HousePlanSummary> {
+  return apiFetch(`/v1/admin/house-plans/${id}`, {
+    method: 'PATCH',
+    body: JSON.stringify(data),
+  });
+}
+
+// Also removes the stored preview image server-side (AdminService.deleteHousePlan)
+// — no separate cleanup call needed here.
+export async function deleteHousePlan(id: string): Promise<void> {
+  return apiFetch(`/v1/admin/house-plans/${id}`, { method: 'DELETE' });
 }
