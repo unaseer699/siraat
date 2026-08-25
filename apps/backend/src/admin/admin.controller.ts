@@ -172,6 +172,47 @@ const UpdateCandidateSocietyBodySchema = z.object({
 });
 type UpdateCandidateSocietyBody = z.infer<typeof UpdateCandidateSocietyBodySchema>;
 
+// --- POST /v1/admin/projects (PROJECT COST TRACKER Chunk 1) ---
+
+const PROJECT_STATUSES = ['ACTIVE', 'COMPLETE', 'ON_HOLD'] as const;
+
+const CreateProjectBodySchema = z.object({
+  name: z.string().min(1),
+  // UUID string, no SQL FK per Law 2 — optional link to a Society/Property.
+  property_ref: z.string().uuid().nullable().default(null),
+  owner_contact: z.string().min(1),
+  start_date: z.string().min(1),
+  status: z.enum(PROJECT_STATUSES).default('ACTIVE'),
+});
+type CreateProjectBody = z.infer<typeof CreateProjectBodySchema>;
+
+// --- POST /v1/admin/projects/:id/sections ---
+// category reuses the shared TradeCategorySchema (now extended with
+// KITCHEN_WORK/MISCELLANEOUS) rather than a separate enum.
+
+const CreateSectionBodySchema = z.object({
+  category: TradeCategorySchema,
+  display_order: z.number().int().nonnegative(),
+});
+type CreateSectionBody = z.infer<typeof CreateSectionBodySchema>;
+
+// --- POST /v1/admin/sections/:id/expenses ---
+// amount is deliberately NOT constrained to positive — a correction to a
+// prior expense is a new row with a negative amount (Law 3: FACT records are
+// immutable, never edited in place). No PATCH/PUT route exists for expenses
+// in this chunk, and none should be added later without revisiting that rule.
+
+const CreateExpenseBodySchema = z.object({
+  expense_date: z.string().min(1),
+  description: z.string().min(1),
+  vendor_name: z.string().min(1),
+  vendor_contact: z.string().nullable().default(null),
+  linked_contractor_id: z.string().uuid().nullable().default(null),
+  linked_supplier_id: z.string().uuid().nullable().default(null),
+  amount: z.number(),
+});
+type CreateExpenseBody = z.infer<typeof CreateExpenseBodySchema>;
+
 // --- Controller ---
 
 @Controller('v1/admin')
@@ -389,5 +430,38 @@ export class AdminController {
   @HttpCode(204)
   deleteHousePlan(@Param('id') id: string) {
     return this.adminSvc.deleteHousePlan(id);
+  }
+
+  // ─── PROJECT COST TRACKER Chunk 1 ────────────────────────────────────────
+
+  @Post('projects')
+  @HttpCode(201)
+  createProject(@Body(new ZodValidationPipe(CreateProjectBodySchema)) body: CreateProjectBody) {
+    return this.adminSvc.createProject(body);
+  }
+
+  @Post('projects/:id/sections')
+  @HttpCode(201)
+  createProjectSection(
+    @Param('id') id: string,
+    @Body(new ZodValidationPipe(CreateSectionBodySchema)) body: CreateSectionBody,
+  ) {
+    return this.adminSvc.createProjectSection(id, body);
+  }
+
+  @Post('sections/:id/expenses')
+  @HttpCode(201)
+  createSectionExpense(
+    @Param('id') id: string,
+    @Body(new ZodValidationPipe(CreateExpenseBodySchema)) body: CreateExpenseBody,
+  ) {
+    return this.adminSvc.createSectionExpense(id, body);
+  }
+
+  // Full nested view (project → sections → expenses) for the admin to review
+  // what's been entered, with a computed total and per-section subtotals.
+  @Get('projects/:id')
+  getProject(@Param('id') id: string) {
+    return this.adminSvc.getProjectWithSectionsAndExpenses(id);
   }
 }

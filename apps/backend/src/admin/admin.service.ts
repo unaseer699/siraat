@@ -19,9 +19,28 @@ import {
   CreateMaterialRateInput,
   MaterialRateResult,
 } from '../construction-intelligence/construction-intelligence.service';
+import {
+  ConstructionProjectService,
+  type CreateProjectInput,
+  type ProjectResult,
+  type CreateSectionInput,
+  type SectionResult,
+  type CreateExpenseInput,
+  type ExpenseResult,
+  type ProjectWithSectionsAndExpenses,
+} from '../construction-intelligence/construction-project.service';
 
 export type { ClaimType };
 export type { CreateMaterialRateInput, MaterialRateResult };
+export type {
+  CreateProjectInput,
+  ProjectResult,
+  CreateSectionInput,
+  SectionResult,
+  CreateExpenseInput,
+  ExpenseResult,
+  ProjectWithSectionsAndExpenses,
+};
 
 // GET /v1/admin/material-rates response shape — MaterialRateResult plus the
 // linked supplier's resolved name (see listMaterialRates below). Admin-only;
@@ -139,6 +158,7 @@ export class AdminService {
     private readonly trustSvc: TrustService,
     private readonly ciSvc: ConstructionIntelligenceService,
     private readonly storageSvc: StorageService,
+    private readonly cpSvc: ConstructionProjectService,
   ) {}
 
   // CLEANUP — was AdminService's own CandidateSocietyEntity repository
@@ -427,5 +447,35 @@ export class AdminService {
   async deleteCandidateSociety(id: string): Promise<void> {
     const deleted = await this.piSvc.deleteCandidateSociety(id);
     if (!deleted) throw new NotFoundException(`Candidate society ${id} not found`);
+  }
+
+  // ─── PROJECT COST TRACKER Chunk 1 ──────────────────────────────────────────
+
+  // POST /v1/admin/projects — no existence check needed, this is the create path.
+  async createProject(data: CreateProjectInput): Promise<ProjectResult> {
+    return this.cpSvc.createProject(data);
+  }
+
+  // POST /v1/admin/projects/:id/sections — existence-checked here (not in
+  // ConstructionProjectService) same as every other find-or-404 in this file.
+  async createProjectSection(projectId: string, data: CreateSectionInput): Promise<SectionResult> {
+    const project = await this.cpSvc.findProjectById(projectId);
+    if (!project) throw new NotFoundException(`Project ${projectId} not found`);
+    return this.cpSvc.createSection(projectId, data);
+  }
+
+  // POST /v1/admin/sections/:id/expenses
+  async createSectionExpense(sectionId: string, data: CreateExpenseInput): Promise<ExpenseResult> {
+    const section = await this.cpSvc.findSectionById(sectionId);
+    if (!section) throw new NotFoundException(`Section ${sectionId} not found`);
+    return this.cpSvc.createExpense(sectionId, data);
+  }
+
+  // GET /v1/admin/projects/:id — full nested view (project → sections →
+  // expenses) with a computed total and per-section subtotals.
+  async getProjectWithSectionsAndExpenses(id: string): Promise<ProjectWithSectionsAndExpenses> {
+    const result = await this.cpSvc.getProjectWithSectionsAndExpenses(id);
+    if (!result) throw new NotFoundException(`Project ${id} not found`);
+    return result;
   }
 }

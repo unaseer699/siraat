@@ -122,6 +122,11 @@ export const TradeCategorySchema = z.enum([
   'ALUMINUM_GLASS',
   'FALSE_CEILING',
   'GENERAL_CONTRACTOR',
+  // PROJECT COST TRACKER Chunk 1 — extended (not a separate enum) for
+  // ProjectSectionEntity.category, seen in real project data (Bahria 1180)
+  // with no existing match above.
+  'KITCHEN_WORK',
+  'MISCELLANEOUS',
 ]);
 export type TradeCategory = z.infer<typeof TradeCategorySchema>;
 export const TRADE_CATEGORIES = TradeCategorySchema.options;
