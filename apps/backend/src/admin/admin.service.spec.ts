@@ -10,6 +10,7 @@ import { PropertyIntelligenceService } from '../property-intelligence/property-i
 import { TrustService } from '../trust/trust.service';
 import { StorageService } from '../trust/storage.service';
 import { ConstructionIntelligenceService } from '../construction-intelligence/construction-intelligence.service';
+import { ConstructionProjectService } from '../construction-intelligence/construction-project.service';
 import { CandidateSocietyEntity } from '../property-intelligence/entities/candidate-society.entity';
 
 // ─── Fixtures ─────────────────────────────────────────────────────────────────
@@ -112,6 +113,48 @@ const HOUSE_PLAN_RESULT = {
   record_type: 'FACT' as const,
 };
 
+// ─── PROJECT COST TRACKER Chunk 1 ──────────────────────────────────────────────
+
+const PROJECT_ID = 'proj-uuid-0001';
+const SECTION_ID = 'sec-uuid-0001';
+
+const PROJECT_RESULT = {
+  id: PROJECT_ID,
+  name: 'Bahria 1180',
+  property_ref: null,
+  owner_contact: '+92 300 1112222',
+  start_date: '2026-01-15',
+  status: 'ACTIVE' as const,
+  record_type: 'FACT' as const,
+};
+
+const SECTION_RESULT = {
+  id: SECTION_ID,
+  project_ref: PROJECT_ID,
+  category: 'WOODWORK_CARPENTER' as const,
+  display_order: 1,
+  record_type: 'FACT' as const,
+};
+
+const EXPENSE_RESULT = {
+  id: 'exp-uuid-0001',
+  section_ref: SECTION_ID,
+  expense_date: '2026-01-20',
+  description: 'Cupboards',
+  vendor_name: 'Malik Woodworks',
+  vendor_contact: null,
+  linked_contractor_id: null,
+  linked_supplier_id: null,
+  amount: 45000,
+  record_type: 'FACT' as const,
+};
+
+const PROJECT_WITH_SECTIONS_RESULT = {
+  ...PROJECT_RESULT,
+  sections: [{ ...SECTION_RESULT, expenses: [EXPENSE_RESULT], subtotal: 45000 }],
+  total: 45000,
+};
+
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function buildSocietyInput(overrides: object = {}) {
@@ -182,6 +225,14 @@ describe('AdminService', () => {
   let createMaterialRateMock: jest.Mock;
   let listMaterialRatesMock: jest.Mock;
 
+  // ConstructionProjectService mocks
+  let createProjectMock: jest.Mock;
+  let findProjectByIdMock: jest.Mock;
+  let createSectionMock: jest.Mock;
+  let findSectionByIdMock: jest.Mock;
+  let createExpenseMock: jest.Mock;
+  let getProjectWithSectionsAndExpensesMock: jest.Mock;
+
   beforeEach(async () => {
     createSocietyMock          = jest.fn().mockResolvedValue(SOCIETY_RESULT);
     findSocietyByIdMock        = jest.fn().mockResolvedValue(SOCIETY_RESULT);
@@ -214,6 +265,12 @@ describe('AdminService', () => {
     deleteFileMock             = jest.fn().mockResolvedValue(undefined);
     createMaterialRateMock     = jest.fn().mockResolvedValue(MATERIAL_RATE_RESULT);
     listMaterialRatesMock      = jest.fn().mockResolvedValue([MATERIAL_RATE_RESULT]);
+    createProjectMock          = jest.fn().mockResolvedValue(PROJECT_RESULT);
+    findProjectByIdMock        = jest.fn().mockResolvedValue(PROJECT_RESULT);
+    createSectionMock          = jest.fn().mockResolvedValue(SECTION_RESULT);
+    findSectionByIdMock        = jest.fn().mockResolvedValue(SECTION_RESULT);
+    createExpenseMock          = jest.fn().mockResolvedValue(EXPENSE_RESULT);
+    getProjectWithSectionsAndExpensesMock = jest.fn().mockResolvedValue(PROJECT_WITH_SECTIONS_RESULT);
 
     const module = await Test.createTestingModule({
       providers: [
@@ -262,6 +319,17 @@ describe('AdminService', () => {
           useValue: {
             createMaterialRate: createMaterialRateMock,
             listMaterialRates:  listMaterialRatesMock,
+          },
+        },
+        {
+          provide: ConstructionProjectService,
+          useValue: {
+            createProject: createProjectMock,
+            findProjectById: findProjectByIdMock,
+            createSection: createSectionMock,
+            findSectionById: findSectionByIdMock,
+            createExpense: createExpenseMock,
+            getProjectWithSectionsAndExpenses: getProjectWithSectionsAndExpensesMock,
           },
         },
       ],
@@ -873,6 +941,93 @@ describe('AdminService', () => {
     deleteCandidateSocietyMock.mockResolvedValue(false);
 
     await expect(svc.deleteCandidateSociety('non-existent-uuid')).rejects.toThrow(NotFoundException);
+  });
+
+  // ─── PROJECT COST TRACKER Chunk 1 ──────────────────────────────────────────
+
+  it('createProject delegates to ConstructionProjectService.createProject', async () => {
+    const input = {
+      name: 'Bahria 1180',
+      property_ref: null,
+      owner_contact: '+92 300 1112222',
+      start_date: '2026-01-15',
+      status: 'ACTIVE' as const,
+    };
+
+    const result = await svc.createProject(input);
+
+    expect(createProjectMock).toHaveBeenCalledWith(input);
+    expect(result).toBe(PROJECT_RESULT);
+  });
+
+  it('createProjectSection delegates after confirming the project exists', async () => {
+    const input = { category: 'WOODWORK_CARPENTER' as const, display_order: 1 };
+
+    const result = await svc.createProjectSection(PROJECT_ID, input);
+
+    expect(findProjectByIdMock).toHaveBeenCalledWith(PROJECT_ID);
+    expect(createSectionMock).toHaveBeenCalledWith(PROJECT_ID, input);
+    expect(result).toBe(SECTION_RESULT);
+  });
+
+  it('createProjectSection throws NotFoundException when the project does not exist', async () => {
+    findProjectByIdMock.mockResolvedValue(null);
+
+    await expect(
+      svc.createProjectSection('non-existent-uuid', { category: 'TILE_WORK', display_order: 1 }),
+    ).rejects.toThrow(NotFoundException);
+    expect(createSectionMock).not.toHaveBeenCalled();
+  });
+
+  it('createSectionExpense delegates after confirming the section exists', async () => {
+    const input = {
+      expense_date: '2026-01-20',
+      description: 'Cupboards',
+      vendor_name: 'Malik Woodworks',
+      vendor_contact: null,
+      linked_contractor_id: null,
+      linked_supplier_id: null,
+      amount: 45000,
+    };
+
+    const result = await svc.createSectionExpense(SECTION_ID, input);
+
+    expect(findSectionByIdMock).toHaveBeenCalledWith(SECTION_ID);
+    expect(createExpenseMock).toHaveBeenCalledWith(SECTION_ID, input);
+    expect(result).toBe(EXPENSE_RESULT);
+  });
+
+  it('createSectionExpense throws NotFoundException when the section does not exist', async () => {
+    findSectionByIdMock.mockResolvedValue(null);
+
+    await expect(
+      svc.createSectionExpense('non-existent-uuid', {
+        expense_date: '2026-01-20',
+        description: 'Cupboards',
+        vendor_name: 'Malik Woodworks',
+        vendor_contact: null,
+        linked_contractor_id: null,
+        linked_supplier_id: null,
+        amount: 45000,
+      }),
+    ).rejects.toThrow(NotFoundException);
+    expect(createExpenseMock).not.toHaveBeenCalled();
+  });
+
+  it('getProjectWithSectionsAndExpenses delegates to ConstructionProjectService', async () => {
+    const result = await svc.getProjectWithSectionsAndExpenses(PROJECT_ID);
+
+    expect(getProjectWithSectionsAndExpensesMock).toHaveBeenCalledWith(PROJECT_ID);
+    expect(result).toBe(PROJECT_WITH_SECTIONS_RESULT);
+    expect(result.total).toBe(45000);
+  });
+
+  it('getProjectWithSectionsAndExpenses throws NotFoundException when the project does not exist', async () => {
+    getProjectWithSectionsAndExpensesMock.mockResolvedValue(null);
+
+    await expect(svc.getProjectWithSectionsAndExpenses('non-existent-uuid')).rejects.toThrow(
+      NotFoundException,
+    );
   });
 
   // ─── Auth guard (controller-level wiring check) ───────────────────────────
