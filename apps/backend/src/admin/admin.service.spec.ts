@@ -192,6 +192,7 @@ describe('AdminService', () => {
   let findContractorByIdMock: jest.Mock;
   let createContractorMock: jest.Mock;
   let searchContractorsMock: jest.Mock;
+  let searchContractorsByNameMock: jest.Mock;
   let findSupplierByIdMock: jest.Mock;
   let createSupplierMock: jest.Mock;
   let searchSuppliersMock: jest.Mock;
@@ -240,6 +241,7 @@ describe('AdminService', () => {
     findContractorByIdMock    = jest.fn().mockResolvedValue(null);
     createContractorMock      = jest.fn().mockResolvedValue(CONTRACTOR_RESULT);
     searchContractorsMock     = jest.fn().mockResolvedValue({ contractors: [], total_count: 0, page: 1, total_pages: 0 });
+    searchContractorsByNameMock = jest.fn().mockResolvedValue([]);
     findSupplierByIdMock      = jest.fn().mockResolvedValue(null);
     createSupplierMock        = jest.fn().mockResolvedValue(SUPPLIER_RESULT);
     searchSuppliersMock       = jest.fn().mockResolvedValue({ suppliers: [], total_count: 0, page: 1, total_pages: 0 });
@@ -284,6 +286,7 @@ describe('AdminService', () => {
             findContractorById: findContractorByIdMock,
             createContractor:   createContractorMock,
             searchContractors:  searchContractorsMock,
+            searchContractorsByName: searchContractorsByNameMock,
             findSupplierById:   findSupplierByIdMock,
             createSupplier:     createSupplierMock,
             searchSuppliers:    searchSuppliersMock,
@@ -740,6 +743,17 @@ describe('AdminService', () => {
 
     expect(searchContractorsMock).toHaveBeenCalledWith({ trade_category: 'ELECTRICIAN', city: 'Islamabad' });
     expect(result.contractors).toEqual([CONTRACTOR_RESULT]);
+  });
+
+  // ─── PROJECT COST TRACKER Chunk 2 ──────────────────────────────────────────
+
+  it('searchContractorsByName delegates to PropertyIntelligenceService.searchContractorsByName', async () => {
+    searchContractorsByNameMock.mockResolvedValue([{ id: 'con-a-uuid', name: 'Ali Electrical Services' }]);
+
+    const result = await svc.searchContractorsByName('ali');
+
+    expect(searchContractorsByNameMock).toHaveBeenCalledWith('ali');
+    expect(result).toEqual([{ id: 'con-a-uuid', name: 'Ali Electrical Services' }]);
   });
 
   // ─── SUPPLIER DIRECTORY Chunk 2 ────────────────────────────────────────────

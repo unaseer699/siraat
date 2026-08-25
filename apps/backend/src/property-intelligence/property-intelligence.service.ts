@@ -52,6 +52,10 @@ const DEFAULT_SUPPLIER_PAGE_SIZE = 20;
 // above, for the supplier name search-as-you-type field.
 const SUPPLIER_SEARCH_LIMIT = 10;
 
+// PROJECT COST TRACKER Chunk 2 — same cap/rationale, for the contractor name
+// search-as-you-type field on the project expense form.
+const CONTRACTOR_SEARCH_LIMIT = 10;
+
 // HOUSE PLANS DIRECTORY Chunk 1 — same default page size/convention as
 // Browse Societies and the Contractor/Supplier directories.
 const DEFAULT_HOUSE_PLAN_PAGE_SIZE = 20;
@@ -502,6 +506,22 @@ export class PropertyIntelligenceService {
       page,
       total_pages: Math.ceil(total_count / limit),
     };
+  }
+
+  // PROJECT COST TRACKER Chunk 2 — search-as-you-type by name, same
+  // shape/ILike pattern as searchDevelopers/searchSuppliersByName; powers the
+  // contractor picker on the admin project expense form (GET
+  // /v1/admin/contractors/search?q=).
+  async searchContractorsByName(query: string): Promise<{ id: string; name: string }[]> {
+    const trimmed = query.trim();
+    if (!trimmed) return [];
+
+    const results = await this.contractorRepo.find({
+      where: { name: ILike(`%${trimmed}%`) },
+      order: { name: 'ASC' },
+      take: CONTRACTOR_SEARCH_LIMIT,
+    });
+    return results.map((c) => ({ id: c.id, name: c.name }));
   }
 
   // ─── SUPPLIER DIRECTORY Chunk 1 — Schema & Core Service ────────────────────

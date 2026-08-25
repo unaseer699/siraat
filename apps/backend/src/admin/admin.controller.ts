@@ -310,6 +310,16 @@ export class AdminController {
     return this.adminSvc.searchDevelopers(search ?? '');
   }
 
+  // PROJECT COST TRACKER Chunk 2 — search-as-you-type by name, same pattern
+  // as GET /developers / GET /suppliers/search above; powers the contractor
+  // picker on the admin project expense form. Declared before the paginated
+  // GET /contractors below for reading order only — distinct literal paths,
+  // no route-matching ambiguity.
+  @Get('contractors/search')
+  searchContractorsByName(@Query('q') q?: string) {
+    return this.adminSvc.searchContractorsByName(q ?? '');
+  }
+
   // CONTRACTOR DIRECTORY Chunk 2 — admin entry, same shape as POST /societies.
   @Post('contractors')
   @HttpCode(201)
