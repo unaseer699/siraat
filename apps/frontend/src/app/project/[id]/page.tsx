@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState, type CSSProperties } from 'react';
 import {
-  fetchProject,
+  fetchProjectDashboard,
   type ProjectWithSectionsAndExpenses,
   type ExpenseResult,
 } from '@/lib/api';
@@ -114,7 +114,7 @@ export default function ProjectDashboardPage({ params }: Props) {
 
   useEffect(() => {
     let cancelled = false;
-    fetchProject(params.id)
+    fetchProjectDashboard(params.id)
       .then((data) => {
         if (!cancelled) setProject(data);
       })

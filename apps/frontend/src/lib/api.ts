@@ -609,12 +609,7 @@ export async function deleteHousePlan(id: string): Promise<void> {
 }
 
 // PROJECT COST TRACKER Chunk 2 — an organized, immutable expense ledger per
-// construction project. No dedicated public route exists for this (Chunk 1
-// only added admin routes) — the "private link" project dashboard
-// (app/project/[id]/page.tsx) calls the same /v1/admin/projects/:id route
-// the admin management page uses. That's consistent with how every other
-// "public" page in this app already works: BearerGuard is one shared API key
-// today (REVIEW_BACKLOG #9), not a real admin-vs-public auth split.
+// construction project.
 
 export type ConstructionProjectStatus = 'ACTIVE' | 'COMPLETE' | 'ON_HOLD';
 
@@ -712,8 +707,21 @@ export interface ProjectWithSectionsAndExpenses extends ProjectResult {
   total: number;
 }
 
+// Admin-route fetch — used by the admin management page
+// (admin/project/[id]/page.tsx), which legitimately belongs under /admin.
 export async function fetchProject(id: string): Promise<ProjectWithSectionsAndExpenses> {
   return apiFetch(`/v1/admin/projects/${id}`);
+}
+
+// PROJECT COST TRACKER Chunk 2 fix — a genuinely public route
+// (ConstructionProjectController, construction-intelligence module), same
+// data as fetchProject above (both call
+// ConstructionProjectService.getProjectWithSectionsAndExpenses) but under
+// the public namespace, matching the pattern every other "public" page in
+// this app follows. Used by the private-link dashboard
+// (app/project/[id]/page.tsx) instead of the admin route.
+export async function fetchProjectDashboard(id: string): Promise<ProjectWithSectionsAndExpenses> {
+  return apiFetch(`/v1/construction-intelligence/projects/${id}`);
 }
 
 export interface ContractorSearchResult {
