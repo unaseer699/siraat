@@ -607,3 +607,131 @@ export async function updateHousePlan(id: string, data: UpdateHousePlanBody): Pr
 export async function deleteHousePlan(id: string): Promise<void> {
   return apiFetch(`/v1/admin/house-plans/${id}`, { method: 'DELETE' });
 }
+
+// PROJECT COST TRACKER Chunk 2 — an organized, immutable expense ledger per
+// construction project.
+
+export type ConstructionProjectStatus = 'ACTIVE' | 'COMPLETE' | 'ON_HOLD';
+
+export interface ProjectResult {
+  id: string;
+  name: string;
+  property_ref: string | null;
+  owner_contact: string;
+  start_date: string;
+  status: ConstructionProjectStatus;
+  record_type: 'FACT';
+}
+
+export interface CreateProjectBody {
+  name: string;
+  property_ref: string | null;
+  owner_contact: string;
+  start_date: string;
+  status: ConstructionProjectStatus;
+}
+
+export async function createProject(data: CreateProjectBody): Promise<ProjectResult> {
+  return apiFetch('/v1/admin/projects', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
+}
+
+export interface SectionResult {
+  id: string;
+  project_ref: string;
+  category: TradeCategory;
+  display_order: number;
+  record_type: 'FACT';
+}
+
+export interface CreateSectionBody {
+  category: TradeCategory;
+  display_order: number;
+}
+
+export async function createProjectSection(
+  projectId: string,
+  data: CreateSectionBody,
+): Promise<SectionResult> {
+  return apiFetch(`/v1/admin/projects/${projectId}/sections`, {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
+}
+
+export interface ExpenseResult {
+  id: string;
+  section_ref: string;
+  expense_date: string;
+  description: string;
+  vendor_name: string;
+  vendor_contact: string | null;
+  linked_contractor_id: string | null;
+  linked_supplier_id: string | null;
+  amount: number;
+  record_type: 'FACT';
+}
+
+// May be negative — a correction to a prior expense is a new row with a
+// negative amount, never an edit to the original (Law 3: FACT records are
+// immutable). No updateExpense function exists here, deliberately.
+export interface CreateExpenseBody {
+  expense_date: string;
+  description: string;
+  vendor_name: string;
+  vendor_contact: string | null;
+  linked_contractor_id: string | null;
+  linked_supplier_id: string | null;
+  amount: number;
+}
+
+export async function createSectionExpense(
+  sectionId: string,
+  data: CreateExpenseBody,
+): Promise<ExpenseResult> {
+  return apiFetch(`/v1/admin/sections/${sectionId}/expenses`, {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
+}
+
+export interface SectionWithExpenses extends SectionResult {
+  expenses: ExpenseResult[];
+  subtotal: number;
+}
+
+export interface ProjectWithSectionsAndExpenses extends ProjectResult {
+  sections: SectionWithExpenses[];
+  total: number;
+}
+
+// Admin-route fetch — used by the admin management page
+// (admin/project/[id]/page.tsx), which legitimately belongs under /admin.
+export async function fetchProject(id: string): Promise<ProjectWithSectionsAndExpenses> {
+  return apiFetch(`/v1/admin/projects/${id}`);
+}
+
+// PROJECT COST TRACKER Chunk 2 fix — a genuinely public route
+// (ConstructionProjectController, construction-intelligence module), same
+// data as fetchProject above (both call
+// ConstructionProjectService.getProjectWithSectionsAndExpenses) but under
+// the public namespace, matching the pattern every other "public" page in
+// this app follows. Used by the private-link dashboard
+// (app/project/[id]/page.tsx) instead of the admin route.
+export async function fetchProjectDashboard(id: string): Promise<ProjectWithSectionsAndExpenses> {
+  return apiFetch(`/v1/construction-intelligence/projects/${id}`);
+}
+
+export interface ContractorSearchResult {
+  id: string;
+  name: string;
+}
+
+// Search-as-you-type over GET /admin/contractors/search?q= — same shape and
+// purpose as searchSuppliers above, powering the contractor picker on the
+// project expense form.
+export async function searchContractorsByName(query: string): Promise<ContractorSearchResult[]> {
+  return apiFetch(`/v1/admin/contractors/search?q=${encodeURIComponent(query)}`);
+}

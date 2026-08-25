@@ -333,6 +333,13 @@ export class AdminService {
     return this.piSvc.searchContractors(filters);
   }
 
+  // PROJECT COST TRACKER Chunk 2 — GET /v1/admin/contractors/search?q=, same
+  // delegation pattern as searchDevelopers/searchSuppliersByName above;
+  // powers the contractor picker on the admin project expense form.
+  async searchContractorsByName(query: string): Promise<{ id: string; name: string }[]> {
+    return this.piSvc.searchContractorsByName(query);
+  }
+
   // SUPPLIER DIRECTORY Chunk 2 — POST /v1/admin/suppliers, same delegation
   // pattern as createContractor above.
   async createSupplier(data: CreateSupplierInput): Promise<SupplierSummary> {

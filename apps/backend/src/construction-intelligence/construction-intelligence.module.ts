@@ -10,6 +10,7 @@ import { ConstructionIntelligenceService } from './construction-intelligence.ser
 import { ConstructionProjectService } from './construction-project.service';
 import { EstimatesService } from './estimates.service';
 import { EstimatesController } from './estimates.controller';
+import { ConstructionProjectController } from './construction-project.controller';
 
 @Module({
   imports: [
@@ -23,7 +24,7 @@ import { EstimatesController } from './estimates.controller';
       ProjectExpenseEntity,
     ]),
   ],
-  controllers: [EstimatesController],
+  controllers: [EstimatesController, ConstructionProjectController],
   providers: [ConstructionIntelligenceService, ConstructionProjectService, EstimatesService],
   exports: [ConstructionIntelligenceService, ConstructionProjectService],
 })
