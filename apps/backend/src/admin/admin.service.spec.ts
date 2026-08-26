@@ -1095,9 +1095,16 @@ describe('AdminService', () => {
   it('getProjectWithSectionsAndExpenses delegates to ConstructionProjectService', async () => {
     const result = await svc.getProjectWithSectionsAndExpenses(PROJECT_ID);
 
-    expect(getProjectWithSectionsAndExpensesMock).toHaveBeenCalledWith(PROJECT_ID);
+    expect(getProjectWithSectionsAndExpensesMock).toHaveBeenCalledWith(PROJECT_ID, { includeAllStatuses: undefined });
     expect(result).toBe(PROJECT_WITH_SECTIONS_RESULT);
     expect(result.total).toBe(45000);
+  });
+
+  // EXPENSE EDIT/DELETE Chunk 2 — admin-only history reveal.
+  it('getProjectWithSectionsAndExpenses passes includeAllStatuses through to ConstructionProjectService', async () => {
+    await svc.getProjectWithSectionsAndExpenses(PROJECT_ID, true);
+
+    expect(getProjectWithSectionsAndExpensesMock).toHaveBeenCalledWith(PROJECT_ID, { includeAllStatuses: true });
   });
 
   it('getProjectWithSectionsAndExpenses throws NotFoundException when the project does not exist', async () => {

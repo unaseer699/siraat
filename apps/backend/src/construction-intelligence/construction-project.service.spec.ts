@@ -533,17 +533,17 @@ describe('ConstructionProjectService', () => {
       sectionFindMock.mockResolvedValue([WOOD_SECTION, TILE_SECTION, ELECTRIC_SECTION]);
 
       const WOOD_EXPENSES = [
-        { id: 'exp-1', section_ref: 'sec-wood-uuid', expense_date: '2026-01-20', description: 'Cupboards', vendor_name: 'Malik Woodworks', vendor_contact: null, linked_contractor_id: null, linked_supplier_id: null, amount: '45000.00', record_type: 'FACT' },
-        { id: 'exp-2', section_ref: 'sec-wood-uuid', expense_date: '2026-01-25', description: 'Wardrobes', vendor_name: 'Malik Woodworks', vendor_contact: null, linked_contractor_id: null, linked_supplier_id: null, amount: '30000.00', record_type: 'FACT' },
+        { id: 'exp-1', section_ref: 'sec-wood-uuid', expense_date: '2026-01-20', description: 'Cupboards', vendor_name: 'Malik Woodworks', vendor_contact: null, linked_contractor_id: null, linked_supplier_id: null, amount: '45000.00', record_type: 'FACT', status: 'ACTIVE', supersedes_id: null, void_reason: null },
+        { id: 'exp-2', section_ref: 'sec-wood-uuid', expense_date: '2026-01-25', description: 'Wardrobes', vendor_name: 'Malik Woodworks', vendor_contact: null, linked_contractor_id: null, linked_supplier_id: null, amount: '30000.00', record_type: 'FACT', status: 'ACTIVE', supersedes_id: null, void_reason: null },
       ];
       const TILE_EXPENSES = [
-        { id: 'exp-3', section_ref: 'sec-tile-uuid', expense_date: '2026-02-01', description: 'Bathroom tiling', vendor_name: 'Ali Tiles', vendor_contact: null, linked_contractor_id: 'con-uuid-001', linked_supplier_id: null, amount: '60000.00', record_type: 'FACT' },
+        { id: 'exp-3', section_ref: 'sec-tile-uuid', expense_date: '2026-02-01', description: 'Bathroom tiling', vendor_name: 'Ali Tiles', vendor_contact: null, linked_contractor_id: 'con-uuid-001', linked_supplier_id: null, amount: '60000.00', record_type: 'FACT', status: 'ACTIVE', supersedes_id: null, void_reason: null },
       ];
       const ELECTRIC_EXPENSES = [
-        { id: 'exp-4', section_ref: 'sec-electric-uuid', expense_date: '2026-02-05', description: 'Wiring', vendor_name: 'City Electric', vendor_contact: null, linked_contractor_id: null, linked_supplier_id: null, amount: '25000.00', record_type: 'FACT' },
-        { id: 'exp-5', section_ref: 'sec-electric-uuid', expense_date: '2026-02-10', description: 'Fixtures', vendor_name: 'City Electric', vendor_contact: null, linked_contractor_id: null, linked_supplier_id: 'sup-uuid-001', amount: '15000.00', record_type: 'FACT' },
+        { id: 'exp-4', section_ref: 'sec-electric-uuid', expense_date: '2026-02-05', description: 'Wiring', vendor_name: 'City Electric', vendor_contact: null, linked_contractor_id: null, linked_supplier_id: null, amount: '25000.00', record_type: 'FACT', status: 'ACTIVE', supersedes_id: null, void_reason: null },
+        { id: 'exp-5', section_ref: 'sec-electric-uuid', expense_date: '2026-02-10', description: 'Fixtures', vendor_name: 'City Electric', vendor_contact: null, linked_contractor_id: null, linked_supplier_id: 'sup-uuid-001', amount: '15000.00', record_type: 'FACT', status: 'ACTIVE', supersedes_id: null, void_reason: null },
         // A correction: overbilled fixtures, entered as a negative amount rather than editing exp-5.
-        { id: 'exp-6', section_ref: 'sec-electric-uuid', expense_date: '2026-02-11', description: 'Correction: overbilled fixtures', vendor_name: 'City Electric', vendor_contact: null, linked_contractor_id: null, linked_supplier_id: null, amount: '-5000.00', record_type: 'FACT' },
+        { id: 'exp-6', section_ref: 'sec-electric-uuid', expense_date: '2026-02-11', description: 'Correction: overbilled fixtures', vendor_name: 'City Electric', vendor_contact: null, linked_contractor_id: null, linked_supplier_id: null, amount: '-5000.00', record_type: 'FACT', status: 'ACTIVE', supersedes_id: null, void_reason: null },
       ];
       expenseFindMock.mockResolvedValue([...WOOD_EXPENSES, ...TILE_EXPENSES, ...ELECTRIC_EXPENSES]);
 
@@ -606,6 +606,58 @@ describe('ConstructionProjectService', () => {
       expect(expenseFindMock).toHaveBeenCalledWith(
         expect.objectContaining({ where: expect.objectContaining({ status: 'ACTIVE' }) }),
       );
+    });
+
+    // EXPENSE EDIT/DELETE Chunk 2 — admin-only history reveal.
+    describe('includeAllStatuses (admin-only history reveal)', () => {
+      it('drops the status filter from the query when includeAllStatuses is true', async () => {
+        projectFindOneByMock.mockResolvedValue({ id: 'proj-a-uuid', ...buildProjectInput(), record_type: 'FACT' });
+        sectionFindMock.mockResolvedValue([
+          { id: 'sec-a-uuid', project_ref: 'proj-a-uuid', category: 'WOODWORK_CARPENTER', display_order: 1, record_type: 'FACT' },
+        ]);
+        expenseFindMock.mockResolvedValue([buildExistingExpense()]);
+
+        await service.getProjectWithSectionsAndExpenses('proj-a-uuid', { includeAllStatuses: true });
+
+        const whereClause = expenseFindMock.mock.calls[0][0].where;
+        expect(whereClause).not.toHaveProperty('status');
+      });
+
+      it('returns CORRECTED/VOID rows in `expenses`, but subtotal/total still only sum ACTIVE rows', async () => {
+        projectFindOneByMock.mockResolvedValue({ id: 'proj-a-uuid', ...buildProjectInput(), record_type: 'FACT' });
+        sectionFindMock.mockResolvedValue([
+          { id: 'sec-a-uuid', project_ref: 'proj-a-uuid', category: 'WOODWORK_CARPENTER', display_order: 1, record_type: 'FACT' },
+        ]);
+        expenseFindMock.mockResolvedValue([
+          buildExistingExpense({ id: 'exp-active', amount: '45000.00', status: 'ACTIVE' }),
+          buildExistingExpense({ id: 'exp-corrected', amount: '40000.00', status: 'CORRECTED' }),
+          buildExistingExpense({ id: 'exp-voided', amount: '99999.00', status: 'VOID', void_reason: 'Duplicate entry' }),
+        ]);
+
+        const result = await service.getProjectWithSectionsAndExpenses('proj-a-uuid', { includeAllStatuses: true });
+
+        const section = result!.sections[0];
+        expect(section.expenses).toHaveLength(3);
+        expect(section.expenses.map((e) => e.status).sort()).toEqual(['ACTIVE', 'CORRECTED', 'VOID']);
+        expect(section.expenses.find((e) => e.id === 'exp-voided')!.void_reason).toBe('Duplicate entry');
+        // Not 45000 + 40000 + 99999 — CORRECTED/VOID amounts never enter the sum.
+        expect(section.subtotal).toBe(45000);
+        expect(result!.total).toBe(45000);
+      });
+
+      it('still filters to status: ACTIVE when includeAllStatuses is false/omitted', async () => {
+        projectFindOneByMock.mockResolvedValue({ id: 'proj-a-uuid', ...buildProjectInput(), record_type: 'FACT' });
+        sectionFindMock.mockResolvedValue([
+          { id: 'sec-a-uuid', project_ref: 'proj-a-uuid', category: 'WOODWORK_CARPENTER', display_order: 1, record_type: 'FACT' },
+        ]);
+        expenseFindMock.mockResolvedValue([buildExistingExpense()]);
+
+        await service.getProjectWithSectionsAndExpenses('proj-a-uuid', { includeAllStatuses: false });
+
+        expect(expenseFindMock).toHaveBeenCalledWith(
+          expect.objectContaining({ where: expect.objectContaining({ status: 'ACTIVE' }) }),
+        );
+      });
     });
   });
 });

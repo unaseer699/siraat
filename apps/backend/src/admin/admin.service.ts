@@ -504,8 +504,14 @@ export class AdminService {
 
   // GET /v1/admin/projects/:id — full nested view (project → sections →
   // expenses) with a computed total and per-section subtotals.
-  async getProjectWithSectionsAndExpenses(id: string): Promise<ProjectWithSectionsAndExpenses> {
-    const result = await this.cpSvc.getProjectWithSectionsAndExpenses(id);
+  // includeAllStatuses (EXPENSE EDIT/DELETE Chunk 2) is admin-only surface —
+  // see ConstructionProjectService.getProjectWithSectionsAndExpenses. The
+  // public route (ConstructionProjectController) never passes this.
+  async getProjectWithSectionsAndExpenses(
+    id: string,
+    includeAllStatuses?: boolean,
+  ): Promise<ProjectWithSectionsAndExpenses> {
+    const result = await this.cpSvc.getProjectWithSectionsAndExpenses(id, { includeAllStatuses });
     if (!result) throw new NotFoundException(`Project ${id} not found`);
     return result;
   }

@@ -308,14 +308,25 @@ export class ConstructionProjectService {
   // subtotals. Two queries total (sections, then all their expenses in one
   // IN() call) rather than one query per section.
   //
-  // status: 'ACTIVE' is the one and only place expenses get read for
-  // totals/listing in this service — every section subtotal and the project
-  // total below are derived from this same filtered list, so CORRECTED/VOID
-  // rows never double-count or linger in a sum. This is also the query the
-  // public project page (ConstructionProjectController) and the admin
+  // status: 'ACTIVE' is the default read filter — every section subtotal and
+  // the project total are always derived from ACTIVE rows only, regardless
+  // of `includeAllStatuses` below, so CORRECTED/VOID rows never double-count
+  // or linger in a sum no matter who calls this or how. This is the query
+  // the public project page (ConstructionProjectController) and the admin
   // dashboard (AdminController.getProject) both go through — there is no
   // second read path for expenses to have missed.
-  async getProjectWithSectionsAndExpenses(projectId: string): Promise<ProjectWithSectionsAndExpenses | null> {
+  //
+  // EXPENSE EDIT/DELETE Chunk 2 — includeAllStatuses is admin-only surface
+  // (only AdminController exposes it, via ?include_all_statuses=true; the
+  // public ConstructionProjectController never passes it, so the public
+  // dashboard's behavior is unchanged). It widens which rows land in each
+  // section's `expenses` array (for the admin's collapsed-by-default
+  // CORRECTED/VOID history reveal) — it never widens what `subtotal`/`total`
+  // are computed from.
+  async getProjectWithSectionsAndExpenses(
+    projectId: string,
+    options?: { includeAllStatuses?: boolean },
+  ): Promise<ProjectWithSectionsAndExpenses | null> {
     const project = await this.projectRepo.findOneBy({ id: projectId });
     if (!project) return null;
 
@@ -328,7 +339,9 @@ export class ConstructionProjectService {
     const expenses =
       sectionIds.length > 0
         ? await this.expenseRepo.find({
-            where: { section_ref: In(sectionIds), status: 'ACTIVE' },
+            where: options?.includeAllStatuses
+              ? { section_ref: In(sectionIds) }
+              : { section_ref: In(sectionIds), status: 'ACTIVE' },
             order: { expense_date: 'ASC' },
           })
         : [];
@@ -343,7 +356,11 @@ export class ConstructionProjectService {
     let total = 0;
     const sectionsWithExpenses: SectionWithExpenses[] = sections.map((s) => {
       const sectionExpenses = expensesBySectionRef.get(s.id) ?? [];
-      const subtotal = sectionExpenses.reduce((sum, e) => sum + e.amount, 0);
+      // Always ACTIVE-only, even when includeAllStatuses widened `expenses`
+      // itself — subtotal/total must never reflect CORRECTED/VOID rows.
+      const subtotal = sectionExpenses
+        .filter((e) => e.status === 'ACTIVE')
+        .reduce((sum, e) => sum + e.amount, 0);
       total += subtotal;
       return { ...toSectionResult(s), expenses: sectionExpenses, subtotal };
     });

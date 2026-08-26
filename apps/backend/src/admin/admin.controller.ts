@@ -508,8 +508,12 @@ export class AdminController {
 
   // Full nested view (project → sections → expenses) for the admin to review
   // what's been entered, with a computed total and per-section subtotals.
+  // ?include_all_statuses=true (EXPENSE EDIT/DELETE Chunk 2) additionally
+  // returns CORRECTED/VOID rows per section — subtotal/total stay ACTIVE-only
+  // regardless (see ConstructionProjectService). Admin-only: the public
+  // route (ConstructionProjectController) has no equivalent query param.
   @Get('projects/:id')
-  getProject(@Param('id') id: string) {
-    return this.adminSvc.getProjectWithSectionsAndExpenses(id);
+  getProject(@Param('id') id: string, @Query('include_all_statuses') includeAllStatuses?: string) {
+    return this.adminSvc.getProjectWithSectionsAndExpenses(id, includeAllStatuses === 'true');
   }
 }
