@@ -26,6 +26,7 @@ import {
   type CreateSectionInput,
   type SectionResult,
   type CreateExpenseInput,
+  type EditExpenseInput,
   type ExpenseResult,
   type ProjectWithSectionsAndExpenses,
 } from '../construction-intelligence/construction-project.service';
@@ -38,6 +39,7 @@ export type {
   CreateSectionInput,
   SectionResult,
   CreateExpenseInput,
+  EditExpenseInput,
   ExpenseResult,
   ProjectWithSectionsAndExpenses,
 };
@@ -478,10 +480,38 @@ export class AdminService {
     return this.cpSvc.createExpense(sectionId, data);
   }
 
+  // PATCH /v1/admin/projects/:projectId/expenses/:id — project existence
+  // checked here (same find-or-404 pattern as every other route in this
+  // file); expense-belongs-to-project and status=ACTIVE are checked inside
+  // ConstructionProjectService.editExpense, since resolving that requires
+  // the expense's section anyway.
+  async editProjectExpense(
+    projectId: string,
+    expenseId: string,
+    data: EditExpenseInput,
+  ): Promise<ExpenseResult> {
+    const project = await this.cpSvc.findProjectById(projectId);
+    if (!project) throw new NotFoundException(`Project ${projectId} not found`);
+    return this.cpSvc.editExpense(projectId, expenseId, data);
+  }
+
+  // DELETE /v1/admin/projects/:projectId/expenses/:id — voids, never deletes.
+  async voidProjectExpense(projectId: string, expenseId: string, reason: string): Promise<ExpenseResult> {
+    const project = await this.cpSvc.findProjectById(projectId);
+    if (!project) throw new NotFoundException(`Project ${projectId} not found`);
+    return this.cpSvc.voidExpense(projectId, expenseId, reason);
+  }
+
   // GET /v1/admin/projects/:id — full nested view (project → sections →
   // expenses) with a computed total and per-section subtotals.
-  async getProjectWithSectionsAndExpenses(id: string): Promise<ProjectWithSectionsAndExpenses> {
-    const result = await this.cpSvc.getProjectWithSectionsAndExpenses(id);
+  // includeAllStatuses (EXPENSE EDIT/DELETE Chunk 2) is admin-only surface —
+  // see ConstructionProjectService.getProjectWithSectionsAndExpenses. The
+  // public route (ConstructionProjectController) never passes this.
+  async getProjectWithSectionsAndExpenses(
+    id: string,
+    includeAllStatuses?: boolean,
+  ): Promise<ProjectWithSectionsAndExpenses> {
+    const result = await this.cpSvc.getProjectWithSectionsAndExpenses(id, { includeAllStatuses });
     if (!result) throw new NotFoundException(`Project ${id} not found`);
     return result;
   }

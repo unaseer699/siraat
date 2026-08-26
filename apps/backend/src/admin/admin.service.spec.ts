@@ -147,6 +147,9 @@ const EXPENSE_RESULT = {
   linked_supplier_id: null,
   amount: 45000,
   record_type: 'FACT' as const,
+  status: 'ACTIVE' as const,
+  supersedes_id: null,
+  void_reason: null,
 };
 
 const PROJECT_WITH_SECTIONS_RESULT = {
@@ -232,6 +235,8 @@ describe('AdminService', () => {
   let createSectionMock: jest.Mock;
   let findSectionByIdMock: jest.Mock;
   let createExpenseMock: jest.Mock;
+  let editExpenseMock: jest.Mock;
+  let voidExpenseMock: jest.Mock;
   let getProjectWithSectionsAndExpensesMock: jest.Mock;
 
   beforeEach(async () => {
@@ -272,6 +277,8 @@ describe('AdminService', () => {
     createSectionMock          = jest.fn().mockResolvedValue(SECTION_RESULT);
     findSectionByIdMock        = jest.fn().mockResolvedValue(SECTION_RESULT);
     createExpenseMock          = jest.fn().mockResolvedValue(EXPENSE_RESULT);
+    editExpenseMock            = jest.fn().mockResolvedValue({ ...EXPENSE_RESULT, id: 'exp-uuid-0002', supersedes_id: EXPENSE_RESULT.id });
+    voidExpenseMock            = jest.fn().mockResolvedValue({ ...EXPENSE_RESULT, status: 'VOID', void_reason: 'Duplicate entry' });
     getProjectWithSectionsAndExpensesMock = jest.fn().mockResolvedValue(PROJECT_WITH_SECTIONS_RESULT);
 
     const module = await Test.createTestingModule({
@@ -332,6 +339,8 @@ describe('AdminService', () => {
             createSection: createSectionMock,
             findSectionById: findSectionByIdMock,
             createExpense: createExpenseMock,
+            editExpense: editExpenseMock,
+            voidExpense: voidExpenseMock,
             getProjectWithSectionsAndExpenses: getProjectWithSectionsAndExpensesMock,
           },
         },
@@ -1028,12 +1037,74 @@ describe('AdminService', () => {
     expect(createExpenseMock).not.toHaveBeenCalled();
   });
 
+  // ─── EXPENSE EDIT/DELETE Chunk 1 ───────────────────────────────────────────
+
+  it('editProjectExpense delegates after confirming the project exists', async () => {
+    const input = {
+      expense_date: '2026-01-20',
+      description: 'Cupboards (corrected quantity)',
+      vendor_name: 'Malik Woodworks',
+      vendor_contact: null,
+      linked_contractor_id: null,
+      linked_supplier_id: null,
+      amount: 50000,
+    };
+
+    const result = await svc.editProjectExpense(PROJECT_ID, EXPENSE_RESULT.id, input);
+
+    expect(findProjectByIdMock).toHaveBeenCalledWith(PROJECT_ID);
+    expect(editExpenseMock).toHaveBeenCalledWith(PROJECT_ID, EXPENSE_RESULT.id, input);
+    expect(result.supersedes_id).toBe(EXPENSE_RESULT.id);
+  });
+
+  it('editProjectExpense throws NotFoundException when the project does not exist', async () => {
+    findProjectByIdMock.mockResolvedValue(null);
+
+    await expect(
+      svc.editProjectExpense('non-existent-uuid', EXPENSE_RESULT.id, {
+        expense_date: '2026-01-20',
+        description: 'Cupboards',
+        vendor_name: 'Malik Woodworks',
+        vendor_contact: null,
+        linked_contractor_id: null,
+        linked_supplier_id: null,
+        amount: 45000,
+      }),
+    ).rejects.toThrow(NotFoundException);
+    expect(editExpenseMock).not.toHaveBeenCalled();
+  });
+
+  it('voidProjectExpense delegates after confirming the project exists', async () => {
+    const result = await svc.voidProjectExpense(PROJECT_ID, EXPENSE_RESULT.id, 'Duplicate entry');
+
+    expect(findProjectByIdMock).toHaveBeenCalledWith(PROJECT_ID);
+    expect(voidExpenseMock).toHaveBeenCalledWith(PROJECT_ID, EXPENSE_RESULT.id, 'Duplicate entry');
+    expect(result.status).toBe('VOID');
+    expect(result.void_reason).toBe('Duplicate entry');
+  });
+
+  it('voidProjectExpense throws NotFoundException when the project does not exist', async () => {
+    findProjectByIdMock.mockResolvedValue(null);
+
+    await expect(
+      svc.voidProjectExpense('non-existent-uuid', EXPENSE_RESULT.id, 'Duplicate entry'),
+    ).rejects.toThrow(NotFoundException);
+    expect(voidExpenseMock).not.toHaveBeenCalled();
+  });
+
   it('getProjectWithSectionsAndExpenses delegates to ConstructionProjectService', async () => {
     const result = await svc.getProjectWithSectionsAndExpenses(PROJECT_ID);
 
-    expect(getProjectWithSectionsAndExpensesMock).toHaveBeenCalledWith(PROJECT_ID);
+    expect(getProjectWithSectionsAndExpensesMock).toHaveBeenCalledWith(PROJECT_ID, { includeAllStatuses: undefined });
     expect(result).toBe(PROJECT_WITH_SECTIONS_RESULT);
     expect(result.total).toBe(45000);
+  });
+
+  // EXPENSE EDIT/DELETE Chunk 2 — admin-only history reveal.
+  it('getProjectWithSectionsAndExpenses passes includeAllStatuses through to ConstructionProjectService', async () => {
+    await svc.getProjectWithSectionsAndExpenses(PROJECT_ID, true);
+
+    expect(getProjectWithSectionsAndExpensesMock).toHaveBeenCalledWith(PROJECT_ID, { includeAllStatuses: true });
   });
 
   it('getProjectWithSectionsAndExpenses throws NotFoundException when the project does not exist', async () => {

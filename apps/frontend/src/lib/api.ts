@@ -691,6 +691,8 @@ export async function createProjectSection(
   });
 }
 
+export type ExpenseStatus = 'ACTIVE' | 'CORRECTED' | 'VOID';
+
 export interface ExpenseResult {
   id: string;
   section_ref: string;
@@ -702,11 +704,16 @@ export interface ExpenseResult {
   linked_supplier_id: string | null;
   amount: number;
   record_type: 'FACT';
+  status: ExpenseStatus;
+  supersedes_id: string | null;
+  void_reason: string | null;
 }
 
 // May be negative — a correction to a prior expense is a new row with a
 // negative amount, never an edit to the original (Law 3: FACT records are
-// immutable). No updateExpense function exists here, deliberately.
+// immutable). Same field shape submitted for editProjectExpense below — an
+// edit is the full replacement content for a new superseding row, not a
+// partial diff.
 export interface CreateExpenseBody {
   expense_date: string;
   description: string;
@@ -727,6 +734,33 @@ export async function createSectionExpense(
   });
 }
 
+// EXPENSE EDIT/DELETE Chunk 2 — NOT a field update server-side: creates a new
+// ACTIVE row (supersedes_id -> the original) and flips the original to
+// CORRECTED. See ConstructionProjectService.editExpense.
+export async function editProjectExpense(
+  projectId: string,
+  expenseId: string,
+  data: CreateExpenseBody,
+): Promise<ExpenseResult> {
+  return apiFetch(`/v1/admin/projects/${projectId}/expenses/${expenseId}`, {
+    method: 'PATCH',
+    body: JSON.stringify(data),
+  });
+}
+
+// Voids the row (status = VOID, void_reason set) — never deletes it. See
+// ConstructionProjectService.voidExpense.
+export async function voidProjectExpense(
+  projectId: string,
+  expenseId: string,
+  reason: string,
+): Promise<ExpenseResult> {
+  return apiFetch(`/v1/admin/projects/${projectId}/expenses/${expenseId}`, {
+    method: 'DELETE',
+    body: JSON.stringify({ reason }),
+  });
+}
+
 export interface SectionWithExpenses extends SectionResult {
   expenses: ExpenseResult[];
   subtotal: number;
@@ -739,8 +773,17 @@ export interface ProjectWithSectionsAndExpenses extends ProjectResult {
 
 // Admin-route fetch — used by the admin management page
 // (admin/project/[id]/page.tsx), which legitimately belongs under /admin.
-export async function fetchProject(id: string): Promise<ProjectWithSectionsAndExpenses> {
-  return apiFetch(`/v1/admin/projects/${id}`);
+// includeAllStatuses (EXPENSE EDIT/DELETE Chunk 2) additionally returns
+// CORRECTED/VOID rows per section for the admin's collapsed-by-default
+// history reveal — subtotal/total are always ACTIVE-only regardless (see
+// ConstructionProjectService). Admin-only: fetchProjectDashboard below has
+// no equivalent option.
+export async function fetchProject(
+  id: string,
+  opts?: { includeAllStatuses?: boolean },
+): Promise<ProjectWithSectionsAndExpenses> {
+  const qs = opts?.includeAllStatuses ? '?include_all_statuses=true' : '';
+  return apiFetch(`/v1/admin/projects/${id}${qs}`);
 }
 
 // PROJECT COST TRACKER Chunk 2 fix — a genuinely public route
