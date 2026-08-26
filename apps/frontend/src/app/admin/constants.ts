@@ -47,3 +47,12 @@ export const fieldGroupStyle: CSSProperties = {
   flexDirection: 'column',
   gap: '6px',
 };
+
+// Inline per-field validation message, shown under an input — same red used
+// by the generic error banner (var(--error)) but sized/weighted for a
+// one-line caption rather than a boxed alert.
+export const errorTextStyle: CSSProperties = {
+  fontSize: '12px',
+  color: 'var(--error)',
+  fontWeight: 500,
+};

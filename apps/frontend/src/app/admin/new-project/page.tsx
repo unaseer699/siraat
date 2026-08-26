@@ -1,13 +1,18 @@
 'use client';
 
-import { useState, type CSSProperties, type FormEvent } from 'react';
+import { useState, type FormEvent } from 'react';
 import { useRouter } from 'next/navigation';
 import type { ConstructionProjectStatus } from '@/lib/api';
-import { createProject } from '@/lib/api';
+import { ApiError, createProject } from '@/lib/api';
 import { AdminNav } from '../AdminNav';
-import { fieldGroupStyle, inputStyle, labelStyle } from '../constants';
+import { errorTextStyle, fieldGroupStyle, inputStyle, labelStyle } from '../constants';
 
 const STATUS_OPTIONS: ConstructionProjectStatus[] = ['ACTIVE', 'COMPLETE', 'ON_HOLD'];
+
+// Same shape zod's .uuid() accepts server-side (any RFC 4122 variant, not just v4) —
+// a client-side pre-check so an operator finds out about a bad property_ref
+// immediately instead of via a server round-trip.
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 function todayIso(): string {
   return new Date().toISOString().slice(0, 10);
@@ -24,14 +29,26 @@ export default function NewProjectPage() {
 
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Keyed by the backend's zod path (name / property_ref / owner_contact /
+  // start_date / status) — matches ApiErrorDetail.path exactly, so a
+  // server-side rejection can be dropped straight onto the field it's about.
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
 
-  const canSubmit = name.trim().length > 0 && ownerContact.trim().length > 0 && startDate.trim().length > 0;
+  const propertyRefTrimmed = propertyRef.trim();
+  const propertyRefValid = propertyRefTrimmed.length === 0 || UUID_RE.test(propertyRefTrimmed);
+
+  const canSubmit =
+    name.trim().length > 0 &&
+    ownerContact.trim().length > 0 &&
+    startDate.trim().length > 0 &&
+    propertyRefValid;
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
     if (!canSubmit) return;
     setSubmitting(true);
     setError(null);
+    setFieldErrors({});
     try {
       const project = await createProject({
         name: name.trim(),
@@ -45,7 +62,14 @@ export default function NewProjectPage() {
       // does is start adding sections/expenses.
       router.push(`/admin/project/${project.id}`);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Submission failed');
+      if (err instanceof ApiError && err.details?.length) {
+        setFieldErrors(Object.fromEntries(err.details.map((d) => [d.path, d.message])));
+        // Field captions carry the specifics; the banner just says something
+        // needs fixing rather than repeating "Validation failed" verbatim.
+        setError('Fix the highlighted field(s) below.');
+      } else {
+        setError(err instanceof Error ? err.message : 'Submission failed');
+      }
       setSubmitting(false);
     }
   }
@@ -83,11 +107,15 @@ export default function NewProjectPage() {
             <input
               type="text"
               value={name}
-              onChange={(e) => setName(e.target.value)}
+              onChange={(e) => {
+                setName(e.target.value);
+                if (fieldErrors.name) setFieldErrors((f) => ({ ...f, name: '' }));
+              }}
               placeholder='e.g. "Bahria 1180"'
               required
-              style={inputStyle}
+              style={fieldErrors.name ? { ...inputStyle, borderColor: 'var(--error)' } : inputStyle}
             />
+            {fieldErrors.name && <p style={errorTextStyle}>{fieldErrors.name}</p>}
           </div>
 
           <div style={fieldGroupStyle}>
@@ -95,13 +123,28 @@ export default function NewProjectPage() {
             <input
               type="text"
               value={propertyRef}
-              onChange={(e) => setPropertyRef(e.target.value)}
-              placeholder="Society/Property UUID, if this project has one"
-              style={inputStyle}
+              onChange={(e) => {
+                setPropertyRef(e.target.value);
+                if (fieldErrors.property_ref) setFieldErrors((f) => ({ ...f, property_ref: '' }));
+              }}
+              placeholder="Full UUID only — leave blank if unknown"
+              style={
+                fieldErrors.property_ref || !propertyRefValid
+                  ? { ...inputStyle, borderColor: 'var(--error)' }
+                  : inputStyle
+              }
             />
-            <p style={{ fontSize: '12px', color: 'var(--muted)' }}>
-              Leave blank — most private renovations won&apos;t have one.
-            </p>
+            {fieldErrors.property_ref ? (
+              <p style={errorTextStyle}>{fieldErrors.property_ref}</p>
+            ) : !propertyRefValid ? (
+              <p style={errorTextStyle}>
+                Must be a full UUID, e.g. 8f14e45f-ceea-4b3e-9c2a-1a2b3c4d5e6f.
+              </p>
+            ) : (
+              <p style={{ fontSize: '12px', color: 'var(--muted)' }}>
+                Leave blank — most private renovations won&apos;t have one.
+              </p>
+            )}
           </div>
 
           <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
@@ -110,33 +153,49 @@ export default function NewProjectPage() {
               <input
                 type="text"
                 value={ownerContact}
-                onChange={(e) => setOwnerContact(e.target.value)}
+                onChange={(e) => {
+                  setOwnerContact(e.target.value);
+                  if (fieldErrors.owner_contact) setFieldErrors((f) => ({ ...f, owner_contact: '' }));
+                }}
                 placeholder="e.g. 0300-1234567"
                 required
-                style={inputStyle}
+                style={fieldErrors.owner_contact ? { ...inputStyle, borderColor: 'var(--error)' } : inputStyle}
               />
+              {fieldErrors.owner_contact && <p style={errorTextStyle}>{fieldErrors.owner_contact}</p>}
             </div>
             <div style={{ ...fieldGroupStyle, flex: 1, minWidth: '160px' }}>
               <label style={labelStyle}>Start date</label>
               <input
                 type="date"
                 value={startDate}
-                onChange={(e) => setStartDate(e.target.value)}
+                onChange={(e) => {
+                  setStartDate(e.target.value);
+                  if (fieldErrors.start_date) setFieldErrors((f) => ({ ...f, start_date: '' }));
+                }}
                 required
-                style={inputStyle}
+                style={fieldErrors.start_date ? { ...inputStyle, borderColor: 'var(--error)' } : inputStyle}
               />
+              {fieldErrors.start_date && <p style={errorTextStyle}>{fieldErrors.start_date}</p>}
             </div>
           </div>
 
           <div style={fieldGroupStyle}>
             <label style={labelStyle}>Status</label>
-            <select value={status} onChange={(e) => setStatus(e.target.value as ConstructionProjectStatus)} style={inputStyle}>
+            <select
+              value={status}
+              onChange={(e) => {
+                setStatus(e.target.value as ConstructionProjectStatus);
+                if (fieldErrors.status) setFieldErrors((f) => ({ ...f, status: '' }));
+              }}
+              style={fieldErrors.status ? { ...inputStyle, borderColor: 'var(--error)' } : inputStyle}
+            >
               {STATUS_OPTIONS.map((s) => (
                 <option key={s} value={s}>
                   {s.replace('_', ' ')}
                 </option>
               ))}
             </select>
+            {fieldErrors.status && <p style={errorTextStyle}>{fieldErrors.status}</p>}
           </div>
 
           {error && (

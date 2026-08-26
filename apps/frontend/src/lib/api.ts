@@ -30,6 +30,36 @@ export type { MaterialRateItem, CreateMaterialRateBody };
 
 const BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001';
 
+// Field-level detail from ZodValidationPipe (apps/backend/src/common/zod-validation.pipe.ts):
+// { error_code: 'VALIDATION_ERROR', message, details: [{ path, message }] }.
+export interface ApiErrorDetail {
+  path: string;
+  message: string;
+}
+
+// Extends Error (not a bare object) so every existing `err instanceof Error`
+// catch block keeps working unchanged — callers that want field-level detail
+// can additionally check `err instanceof ApiError`.
+export class ApiError extends Error {
+  status: number;
+  errorCode?: string;
+  details?: ApiErrorDetail[];
+
+  constructor(status: number, bodyText: string) {
+    let parsed: { error_code?: string; message?: string; details?: ApiErrorDetail[] } | null = null;
+    try {
+      parsed = JSON.parse(bodyText);
+    } catch {
+      // Body wasn't JSON (e.g. a proxy/500 HTML page) — fall through to raw text below.
+    }
+    super(parsed?.message ? `API error ${status}: ${parsed.message}` : `API error ${status}: ${bodyText}`);
+    this.name = 'ApiError';
+    this.status = status;
+    this.errorCode = parsed?.error_code;
+    this.details = parsed?.details;
+  }
+}
+
 async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(`${BASE_URL}${path}`, {
     // All Siraat endpoints reflect live database state — never serve from Next.js Data Cache
@@ -44,7 +74,7 @@ async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
   });
   if (!res.ok) {
     const text = await res.text();
-    throw new Error(`API error ${res.status}: ${text}`);
+    throw new ApiError(res.status, text);
   }
   // ADMIN CRUD PHASE 1 Chunk 2 — first callers to hit a 204 No Content
   // response (the new DELETE routes). res.json() throws on an empty body,
