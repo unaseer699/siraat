@@ -198,9 +198,10 @@ type CreateSectionBody = z.infer<typeof CreateSectionBodySchema>;
 
 // --- POST /v1/admin/sections/:id/expenses ---
 // amount is deliberately NOT constrained to positive — a correction to a
-// prior expense is a new row with a negative amount (Law 3: FACT records are
-// immutable, never edited in place). No PATCH/PUT route exists for expenses
-// in this chunk, and none should be added later without revisiting that rule.
+// prior expense is a new row with a negative amount, OR (EXPENSE EDIT/DELETE
+// Chunk 1) via PATCH below, which supersedes rather than edits in place —
+// see ConstructionProjectService.editExpense. Law 3 still holds: no route
+// anywhere overwrites amount/description/date/etc. on an existing row.
 
 const CreateExpenseBodySchema = z.object({
   expense_date: z.string().min(1),
@@ -212,6 +213,20 @@ const CreateExpenseBodySchema = z.object({
   amount: z.number(),
 });
 type CreateExpenseBody = z.infer<typeof CreateExpenseBodySchema>;
+
+// --- PATCH /v1/admin/projects/:projectId/expenses/:id (EXPENSE EDIT/DELETE Chunk 1) ---
+// Same field shape as create — this isn't a partial update, it's the full
+// replacement content for the new superseding row (see editExpense).
+const EditExpenseBodySchema = CreateExpenseBodySchema;
+type EditExpenseBody = z.infer<typeof EditExpenseBodySchema>;
+
+// --- DELETE /v1/admin/projects/:projectId/expenses/:id (EXPENSE EDIT/DELETE Chunk 1) ---
+// Voids the row (status = VOID) rather than deleting it — reason is
+// mandatory so void_reason is never blank.
+const VoidExpenseBodySchema = z.object({
+  reason: z.string().min(1),
+});
+type VoidExpenseBody = z.infer<typeof VoidExpenseBodySchema>;
 
 // --- Controller ---
 
@@ -466,6 +481,29 @@ export class AdminController {
     @Body(new ZodValidationPipe(CreateExpenseBodySchema)) body: CreateExpenseBody,
   ) {
     return this.adminSvc.createSectionExpense(id, body);
+  }
+
+  // EXPENSE EDIT/DELETE Chunk 1 — NOT a field update. Creates a new ACTIVE
+  // row (supersedes_id -> the original) and flips the original to CORRECTED.
+  // See ConstructionProjectService.editExpense.
+  @Patch('projects/:projectId/expenses/:id')
+  editProjectExpense(
+    @Param('projectId') projectId: string,
+    @Param('id') id: string,
+    @Body(new ZodValidationPipe(EditExpenseBodySchema)) body: EditExpenseBody,
+  ) {
+    return this.adminSvc.editProjectExpense(projectId, id, body);
+  }
+
+  // Voids the row (status = VOID, void_reason set) — never a hard delete.
+  // See ConstructionProjectService.voidExpense.
+  @Delete('projects/:projectId/expenses/:id')
+  deleteProjectExpense(
+    @Param('projectId') projectId: string,
+    @Param('id') id: string,
+    @Body(new ZodValidationPipe(VoidExpenseBodySchema)) body: VoidExpenseBody,
+  ) {
+    return this.adminSvc.voidProjectExpense(projectId, id, body.reason);
   }
 
   // Full nested view (project → sections → expenses) for the admin to review

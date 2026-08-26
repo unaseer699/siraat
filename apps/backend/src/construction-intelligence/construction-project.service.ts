@@ -1,10 +1,11 @@
-import { Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { In, Repository } from 'typeorm';
 import type { TradeCategory } from '@siraat/shared-types';
 import { ConstructionProjectEntity, type ConstructionProjectStatus } from './entities/construction-project.entity';
 import { ProjectSectionEntity } from './entities/project-section.entity';
-import { ProjectExpenseEntity } from './entities/project-expense.entity';
+import { ProjectExpenseEntity, type ProjectExpenseStatus } from './entities/project-expense.entity';
+import { ConstructionIntelligenceService } from './construction-intelligence.service';
 
 // PROJECT COST TRACKER Chunk 1 — Project/Section/Expense are closely related
 // (a nested read is the primary use case) and this is enough surface to
@@ -79,6 +80,11 @@ export interface CreateExpenseInput {
   amount: number;
 }
 
+// EXPENSE EDIT/DELETE Chunk 1 — same field shape as create; a PATCH submits
+// the full replacement content for the new superseding row, not a partial
+// diff (see editExpense).
+export type EditExpenseInput = CreateExpenseInput;
+
 export interface ExpenseResult {
   id: string;
   section_ref: string;
@@ -90,6 +96,9 @@ export interface ExpenseResult {
   linked_supplier_id: string | null;
   amount: number;
   record_type: 'FACT';
+  status: ProjectExpenseStatus;
+  supersedes_id: string | null;
+  void_reason: string | null;
 }
 
 // amount is a `decimal` column, which pg/TypeORM returns as a string — same
@@ -107,7 +116,35 @@ function toExpenseResult(e: ProjectExpenseEntity): ExpenseResult {
     linked_supplier_id: e.linked_supplier_id,
     amount: Number(e.amount),
     record_type: e.record_type,
+    status: e.status,
+    supersedes_id: e.supersedes_id,
+    void_reason: e.void_reason,
   };
+}
+
+// Comparable snapshot of the fields an edit can actually change — used for
+// the Observation's old_value/new_value (see editExpense). Excludes
+// id/section_ref/record_type/status/supersedes_id/void_reason: those are
+// either identity/lifecycle metadata, not "the expense," or (section_ref)
+// never changes on an edit.
+function expenseValueSnapshot(e: {
+  expense_date: string;
+  description: string;
+  vendor_name: string;
+  vendor_contact: string | null;
+  linked_contractor_id: string | null;
+  linked_supplier_id: string | null;
+  amount: number | string;
+}): string {
+  return JSON.stringify({
+    expense_date: e.expense_date,
+    description: e.description,
+    vendor_name: e.vendor_name,
+    vendor_contact: e.vendor_contact,
+    linked_contractor_id: e.linked_contractor_id,
+    linked_supplier_id: e.linked_supplier_id,
+    amount: Number(e.amount),
+  });
 }
 
 export interface SectionWithExpenses extends SectionResult {
@@ -129,6 +166,13 @@ export class ConstructionProjectService {
     private readonly sectionRepo: Repository<ProjectSectionEntity>,
     @InjectRepository(ProjectExpenseEntity)
     private readonly expenseRepo: Repository<ProjectExpenseEntity>,
+    // Reused for logObservation only — same public-API-call pattern
+    // ScoringService uses to call PropertyIntelligenceService.logObservation
+    // cross-module; here it's intra-module (both providers live in
+    // ConstructionIntelligenceModule) but the principle is the same: call
+    // the existing public method rather than duplicating an Observation
+    // repo/helper a third time in this schema.
+    private readonly ciSvc: ConstructionIntelligenceService,
   ) {}
 
   async createProject(data: CreateProjectInput): Promise<ProjectResult> {
@@ -153,18 +197,124 @@ export class ConstructionProjectService {
     return entity ? toSectionResult(entity) : null;
   }
 
-  // No updateExpense/deleteExpense method exists here, deliberately — Law 3
-  // (FACT records are immutable). Corrections are a new createExpense call.
   async createExpense(sectionId: string, data: CreateExpenseInput): Promise<ExpenseResult> {
-    const entity = this.expenseRepo.create({ ...data, section_ref: sectionId, record_type: 'FACT' });
+    // status/supersedes_id/void_reason set explicitly rather than relying on
+    // the column defaults — same reason record_type is passed explicitly
+    // below even though its column also has a DB default: TypeORM doesn't
+    // reflect plain `default:` values back into the returned JS entity after
+    // save(), so toExpenseResult(saved) would otherwise report status as
+    // undefined instead of 'ACTIVE'.
+    const entity = this.expenseRepo.create({
+      ...data,
+      section_ref: sectionId,
+      record_type: 'FACT',
+      status: 'ACTIVE',
+      supersedes_id: null,
+      void_reason: null,
+    });
     const saved = await this.expenseRepo.save(entity);
     return toExpenseResult(saved);
+  }
+
+  // EXPENSE EDIT/DELETE Chunk 1 — resolves an expense and confirms it
+  // actually belongs to `projectId` (via its section), not just that the id
+  // exists somewhere. Shared by editExpense/voidExpense below.
+  private async findExpenseInProject(projectId: string, expenseId: string): Promise<ProjectExpenseEntity> {
+    const expense = await this.expenseRepo.findOneBy({ id: expenseId });
+    if (!expense) throw new NotFoundException(`Expense ${expenseId} not found`);
+
+    const section = await this.sectionRepo.findOneBy({ id: expense.section_ref });
+    if (!section || section.project_ref !== projectId) {
+      throw new NotFoundException(`Expense ${expenseId} not found in project ${projectId}`);
+    }
+    return expense;
+  }
+
+  private assertActive(expense: ProjectExpenseEntity, action: 'edited' | 'deleted'): void {
+    if (expense.status !== 'ACTIVE') {
+      throw new BadRequestException(
+        `Expense ${expense.id} cannot be ${action} — it is already ${expense.status}. ` +
+          'Corrections and voids only apply to the current ACTIVE version of an expense.',
+      );
+    }
+  }
+
+  // Edit is NOT a field update (Law 3: FACT records are immutable — no
+  // column on an existing row is ever mutated to reflect a correction).
+  // Instead: a new ACTIVE row is created with the submitted values
+  // (supersedes_id -> the original), and the original flips to CORRECTED.
+  // Both writes happen in one transaction so a crash between them can never
+  // leave two ACTIVE rows (or zero) for the same logical expense.
+  async editExpense(projectId: string, expenseId: string, data: EditExpenseInput): Promise<ExpenseResult> {
+    const original = await this.findExpenseInProject(projectId, expenseId);
+    this.assertActive(original, 'edited');
+
+    const replacement = await this.expenseRepo.manager.transaction(async (manager) => {
+      const newRow = manager.create(ProjectExpenseEntity, {
+        ...data,
+        section_ref: original.section_ref,
+        record_type: 'FACT',
+        status: 'ACTIVE',
+        supersedes_id: original.id,
+        void_reason: null,
+      });
+      const saved = await manager.save(newRow);
+
+      // Partial update — only status changes on the original row. Nothing
+      // else about it is ever touched.
+      await manager.update(ProjectExpenseEntity, { id: original.id }, { status: 'CORRECTED' });
+
+      return saved;
+    });
+
+    // Fire-and-forget, reusing the existing helper Score/Verification/
+    // Material rate Observations already go through — never blocks or fails
+    // the edit itself (logObservation swallows its own write failures).
+    void this.ciSvc.logObservation({
+      entity_ref: original.id,
+      metric: 'project_expense_correction',
+      old_value: expenseValueSnapshot(original),
+      new_value: expenseValueSnapshot(data),
+      source_ref: `Correction of expense ${original.id}`,
+    });
+
+    return toExpenseResult(replacement);
+  }
+
+  // Delete never removes a row (Law 3) — it voids it in place. void_reason
+  // is mandatory (enforced by VoidExpenseBodySchema at the controller, not
+  // re-validated here). A targeted update() rather than save(original) —
+  // the SQL only ever touches status/void_reason here, never re-writing
+  // amount/description/etc. even as a no-op.
+  async voidExpense(projectId: string, expenseId: string, reason: string): Promise<ExpenseResult> {
+    const original = await this.findExpenseInProject(projectId, expenseId);
+    this.assertActive(original, 'deleted');
+
+    await this.expenseRepo.update({ id: original.id }, { status: 'VOID', void_reason: reason });
+
+    void this.ciSvc.logObservation({
+      entity_ref: original.id,
+      metric: 'project_expense_void',
+      old_value: 'ACTIVE',
+      new_value: 'VOID',
+      source_ref: reason,
+    });
+
+    return toExpenseResult({ ...original, status: 'VOID', void_reason: reason });
   }
 
   // The full nested view: project → sections (ordered by display_order) →
   // expenses (ordered by expense_date), with a computed total and per-section
   // subtotals. Two queries total (sections, then all their expenses in one
   // IN() call) rather than one query per section.
+  //
+  // status: 'ACTIVE' is the one and only place expenses get read for
+  // totals/listing in this service — every section subtotal and the project
+  // total below are derived from this same filtered list, so CORRECTED/VOID
+  // rows never double-count or linger in a sum. This is also the query the
+  // public project page (ConstructionProjectController) and the admin
+  // dashboard (AdminController.getProject) both go through — there is no
+  // second read path for expenses to have missed.
   async getProjectWithSectionsAndExpenses(projectId: string): Promise<ProjectWithSectionsAndExpenses | null> {
     const project = await this.projectRepo.findOneBy({ id: projectId });
     if (!project) return null;
@@ -178,7 +328,7 @@ export class ConstructionProjectService {
     const expenses =
       sectionIds.length > 0
         ? await this.expenseRepo.find({
-            where: { section_ref: In(sectionIds) },
+            where: { section_ref: In(sectionIds), status: 'ACTIVE' },
             order: { expense_date: 'ASC' },
           })
         : [];
