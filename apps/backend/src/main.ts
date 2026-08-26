@@ -16,6 +16,14 @@ async function bootstrap() {
   app.enableCors({
     origin: process.env.FRONTEND_URL ?? 'http://localhost:3000',
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+    // allowedHeaders was previously unset. 'x-siraat-country-code' is sent
+    // on every frontend request (apiFetch, lib/api.ts) but was never added
+    // here — a non-simple request (any POST/PATCH/DELETE, or one carrying
+    // this custom header) fails CORS preflight unless the header is
+    // explicitly allowlisted. Explicit list rather than relying on default
+    // reflection behavior, so this doesn't silently break again if the
+    // underlying CORS defaults ever change.
+    allowedHeaders: ['Authorization', 'Content-Type', 'x-siraat-country-code'],
   });
 
   const port = parseInt(process.env.PORT ?? '3001', 10);
