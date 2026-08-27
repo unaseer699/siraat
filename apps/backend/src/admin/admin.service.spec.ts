@@ -128,6 +128,13 @@ const PROJECT_RESULT = {
   record_type: 'FACT' as const,
 };
 
+const PROJECT_LIST_RESPONSE = {
+  projects: [{ id: PROJECT_ID, name: 'Bahria 1180', status: 'ACTIVE' as const, start_date: '2026-01-15', total: 170000 }],
+  total_count: 1,
+  page: 1,
+  total_pages: 1,
+};
+
 const SECTION_RESULT = {
   id: SECTION_ID,
   project_ref: PROJECT_ID,
@@ -231,6 +238,7 @@ describe('AdminService', () => {
 
   // ConstructionProjectService mocks
   let createProjectMock: jest.Mock;
+  let listProjectsMock: jest.Mock;
   let findProjectByIdMock: jest.Mock;
   let createSectionMock: jest.Mock;
   let findSectionByIdMock: jest.Mock;
@@ -273,6 +281,7 @@ describe('AdminService', () => {
     createMaterialRateMock     = jest.fn().mockResolvedValue(MATERIAL_RATE_RESULT);
     listMaterialRatesMock      = jest.fn().mockResolvedValue([MATERIAL_RATE_RESULT]);
     createProjectMock          = jest.fn().mockResolvedValue(PROJECT_RESULT);
+    listProjectsMock           = jest.fn().mockResolvedValue(PROJECT_LIST_RESPONSE);
     findProjectByIdMock        = jest.fn().mockResolvedValue(PROJECT_RESULT);
     createSectionMock          = jest.fn().mockResolvedValue(SECTION_RESULT);
     findSectionByIdMock        = jest.fn().mockResolvedValue(SECTION_RESULT);
@@ -335,6 +344,7 @@ describe('AdminService', () => {
           provide: ConstructionProjectService,
           useValue: {
             createProject: createProjectMock,
+            listProjects: listProjectsMock,
             findProjectById: findProjectByIdMock,
             createSection: createSectionMock,
             findSectionById: findSectionByIdMock,
@@ -981,6 +991,14 @@ describe('AdminService', () => {
 
     expect(createProjectMock).toHaveBeenCalledWith(input);
     expect(result).toBe(PROJECT_RESULT);
+  });
+
+  // ADMIN PROJECTS LIST
+  it('listProjects delegates to ConstructionProjectService.listProjects', async () => {
+    const result = await svc.listProjects({ page: 2, limit: 10 });
+
+    expect(listProjectsMock).toHaveBeenCalledWith({ page: 2, limit: 10 });
+    expect(result).toBe(PROJECT_LIST_RESPONSE);
   });
 
   it('createProjectSection delegates after confirming the project exists', async () => {

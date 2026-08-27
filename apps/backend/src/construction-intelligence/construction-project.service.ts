@@ -13,6 +13,10 @@ import { ConstructionIntelligenceService } from './construction-intelligence.ser
 // (which stays material-rates/estimates-focused). Both live in the same
 // construction_intelligence module/schema.
 
+// ADMIN PROJECTS LIST — same default page size as
+// PropertyIntelligenceService's DEFAULT_CONTRACTOR_PAGE_SIZE / house-plans.
+const DEFAULT_PROJECT_PAGE_SIZE = 20;
+
 export interface CreateProjectInput {
   name: string;
   property_ref: string | null;
@@ -41,6 +45,26 @@ function toProjectResult(e: ConstructionProjectEntity): ProjectResult {
     status: e.status,
     record_type: e.record_type,
   };
+}
+
+// ADMIN PROJECTS LIST — a lighter-weight row than ProjectResult: no
+// property_ref/owner_contact/record_type (not shown in a list table), plus
+// `total` — the same ACTIVE-only expense sum getProjectWithSectionsAndExpenses
+// computes per-project, aggregated here across every section without needing
+// the full nested sections/expenses tree per row.
+export interface ProjectListItem {
+  id: string;
+  name: string;
+  status: ConstructionProjectStatus;
+  start_date: string;
+  total: number;
+}
+
+export interface ProjectListResponse {
+  projects: ProjectListItem[];
+  total_count: number;
+  page: number;
+  total_pages: number;
 }
 
 export interface CreateSectionInput {
@@ -184,6 +208,58 @@ export class ConstructionProjectService {
   async findProjectById(id: string): Promise<ProjectResult | null> {
     const entity = await this.projectRepo.findOneBy({ id });
     return entity ? toProjectResult(entity) : null;
+  }
+
+  // ADMIN PROJECTS LIST — GET /v1/admin/projects. Same pagination pattern as
+  // PropertyIntelligenceService.searchContractors/searchSuppliers (page/limit
+  // params, getManyAndCount, total_pages = ceil(total_count/limit)). Newest
+  // first, matching an admin's "what am I actively tracking" use case.
+  //
+  // Two queries total (paginated projects, then one grouped SUM over their
+  // expenses) rather than N+1 — same "two queries, not one per row" shape as
+  // getProjectWithSectionsAndExpenses's sections->expenses IN() call. The sum
+  // is ACTIVE-only via the same status filter as that method, computed with
+  // a join to ProjectSectionEntity since ProjectExpenseEntity has no direct
+  // project_ref (only section_ref) — no SQL FK either way (Law 2), this is a
+  // plain query-time join, not a TypeORM relation.
+  async listProjects(params: { page?: number; limit?: number }): Promise<ProjectListResponse> {
+    const page = params.page && params.page > 0 ? params.page : 1;
+    const limit = params.limit && params.limit > 0 ? params.limit : DEFAULT_PROJECT_PAGE_SIZE;
+
+    const [projects, total_count] = await this.projectRepo
+      .createQueryBuilder('p')
+      .orderBy('p.created_at', 'DESC')
+      .skip((page - 1) * limit)
+      .take(limit)
+      .getManyAndCount();
+
+    const projectIds = projects.map((p) => p.id);
+    const sums =
+      projectIds.length > 0
+        ? await this.expenseRepo
+            .createQueryBuilder('e')
+            .innerJoin(ProjectSectionEntity, 's', 's.id = e.section_ref')
+            .select('s.project_ref', 'project_id')
+            .addSelect('COALESCE(SUM(e.amount), 0)', 'total')
+            .where('e.status = :status', { status: 'ACTIVE' })
+            .andWhere('s.project_ref IN (:...projectIds)', { projectIds })
+            .groupBy('s.project_ref')
+            .getRawMany<{ project_id: string; total: string }>()
+        : [];
+    const totalByProjectId = new Map(sums.map((s) => [s.project_id, Number(s.total)]));
+
+    return {
+      projects: projects.map((p) => ({
+        id: p.id,
+        name: p.name,
+        status: p.status,
+        start_date: p.start_date,
+        total: totalByProjectId.get(p.id) ?? 0,
+      })),
+      total_count,
+      page,
+      total_pages: Math.ceil(total_count / limit),
+    };
   }
 
   async createSection(projectId: string, data: CreateSectionInput): Promise<SectionResult> {

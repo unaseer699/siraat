@@ -35,10 +35,54 @@ describe('ConstructionProjectService', () => {
 
   let logObservationMock: jest.Mock;
 
+  // ADMIN PROJECTS LIST — same chainable-mock shape as
+  // PropertyIntelligenceService.spec.ts's qbMocks/contractorQbMocks.
+  let projectQbMocks: {
+    orderBy: jest.Mock;
+    skip: jest.Mock;
+    take: jest.Mock;
+    getManyAndCount: jest.Mock;
+  };
+  let expenseSumQbMocks: {
+    innerJoin: jest.Mock;
+    select: jest.Mock;
+    addSelect: jest.Mock;
+    where: jest.Mock;
+    andWhere: jest.Mock;
+    groupBy: jest.Mock;
+    getRawMany: jest.Mock;
+  };
+
   beforeEach(async () => {
     projectCreateMock = jest.fn((data) => data);
     projectSaveMock = jest.fn((entity) => Promise.resolve({ id: 'proj-new-uuid', ...entity }));
     projectFindOneByMock = jest.fn().mockResolvedValue(null);
+
+    projectQbMocks = {
+      orderBy: jest.fn(),
+      skip: jest.fn(),
+      take: jest.fn(),
+      getManyAndCount: jest.fn().mockResolvedValue([[], 0]),
+    };
+    projectQbMocks.orderBy.mockReturnValue(projectQbMocks);
+    projectQbMocks.skip.mockReturnValue(projectQbMocks);
+    projectQbMocks.take.mockReturnValue(projectQbMocks);
+
+    expenseSumQbMocks = {
+      innerJoin: jest.fn(),
+      select: jest.fn(),
+      addSelect: jest.fn(),
+      where: jest.fn(),
+      andWhere: jest.fn(),
+      groupBy: jest.fn(),
+      getRawMany: jest.fn().mockResolvedValue([]),
+    };
+    expenseSumQbMocks.innerJoin.mockReturnValue(expenseSumQbMocks);
+    expenseSumQbMocks.select.mockReturnValue(expenseSumQbMocks);
+    expenseSumQbMocks.addSelect.mockReturnValue(expenseSumQbMocks);
+    expenseSumQbMocks.where.mockReturnValue(expenseSumQbMocks);
+    expenseSumQbMocks.andWhere.mockReturnValue(expenseSumQbMocks);
+    expenseSumQbMocks.groupBy.mockReturnValue(expenseSumQbMocks);
 
     sectionCreateMock = jest.fn((data) => data);
     sectionSaveMock = jest.fn((entity) => Promise.resolve({ id: 'sec-new-uuid', ...entity }));
@@ -66,6 +110,7 @@ describe('ConstructionProjectService', () => {
             create: projectCreateMock,
             save: projectSaveMock,
             findOneBy: projectFindOneByMock,
+            createQueryBuilder: jest.fn(() => projectQbMocks),
           },
         },
         {
@@ -85,6 +130,7 @@ describe('ConstructionProjectService', () => {
             find: expenseFindMock,
             findOneBy: expenseFindOneByMock,
             update: expenseUpdateMock,
+            createQueryBuilder: jest.fn(() => expenseSumQbMocks),
             manager: {
               transaction: jest.fn(async (cb: (manager: unknown) => Promise<unknown>) =>
                 cb({
@@ -154,6 +200,79 @@ describe('ConstructionProjectService', () => {
       const result = await service.findProjectById('non-existent-uuid');
 
       expect(result).toBeNull();
+    });
+  });
+
+  // ADMIN PROJECTS LIST
+  describe('listProjects', () => {
+    const PROJECT_A = { id: 'proj-a-uuid', name: 'Bahria 1180', status: 'ACTIVE', start_date: '2026-01-15', property_ref: null, owner_contact: '+92 300 1112222', record_type: 'FACT' };
+    const PROJECT_B = { id: 'proj-b-uuid', name: 'DHA Renovation', status: 'COMPLETE', start_date: '2026-02-01', property_ref: null, owner_contact: '+92 300 5556666', record_type: 'FACT' };
+
+    it('returns paginated projects with defaults (page 1, limit 20)', async () => {
+      projectQbMocks.getManyAndCount.mockResolvedValue([[PROJECT_A, PROJECT_B], 2]);
+
+      const result = await service.listProjects({});
+
+      expect(projectQbMocks.skip).toHaveBeenCalledWith(0);
+      expect(projectQbMocks.take).toHaveBeenCalledWith(20);
+      expect(result.page).toBe(1);
+      expect(result.total_count).toBe(2);
+      expect(result.total_pages).toBe(1);
+      expect(result.projects).toHaveLength(2);
+    });
+
+    it('orders newest-first', async () => {
+      await service.listProjects({});
+      expect(projectQbMocks.orderBy).toHaveBeenCalledWith('p.created_at', 'DESC');
+    });
+
+    it('respects explicit page/limit', async () => {
+      projectQbMocks.getManyAndCount.mockResolvedValue([[PROJECT_A], 21]);
+
+      const result = await service.listProjects({ page: 2, limit: 10 });
+
+      expect(projectQbMocks.skip).toHaveBeenCalledWith(10);
+      expect(projectQbMocks.take).toHaveBeenCalledWith(10);
+      expect(result.page).toBe(2);
+      expect(result.total_pages).toBe(3); // ceil(21 / 10)
+    });
+
+    it('maps each project to id/name/status/start_date/total, without querying expenses when there are no projects', async () => {
+      projectQbMocks.getManyAndCount.mockResolvedValue([[], 0]);
+
+      const result = await service.listProjects({});
+
+      expect(result.projects).toEqual([]);
+      expect(expenseSumQbMocks.getRawMany).not.toHaveBeenCalled();
+    });
+
+    it('attaches the ACTIVE-only expense sum per project, defaulting to 0 for a project with none', async () => {
+      projectQbMocks.getManyAndCount.mockResolvedValue([[PROJECT_A, PROJECT_B], 2]);
+      // Only PROJECT_A has a row in the grouped sum result — PROJECT_B has no expenses at all.
+      expenseSumQbMocks.getRawMany.mockResolvedValue([{ project_id: 'proj-a-uuid', total: '170000.00' }]);
+
+      const result = await service.listProjects({});
+
+      const a = result.projects.find((p) => p.id === 'proj-a-uuid')!;
+      const b = result.projects.find((p) => p.id === 'proj-b-uuid')!;
+      expect(a.total).toBe(170000);
+      expect(typeof a.total).toBe('number');
+      expect(b.total).toBe(0);
+      expect(a.name).toBe('Bahria 1180');
+      expect(a.status).toBe('ACTIVE');
+      expect(a.start_date).toBe('2026-01-15');
+    });
+
+    it('filters the sum to status: ACTIVE and scopes it to the current page’s project ids', async () => {
+      projectQbMocks.getManyAndCount.mockResolvedValue([[PROJECT_A, PROJECT_B], 2]);
+
+      await service.listProjects({});
+
+      expect(expenseSumQbMocks.where).toHaveBeenCalledWith('e.status = :status', { status: 'ACTIVE' });
+      expect(expenseSumQbMocks.andWhere).toHaveBeenCalledWith('s.project_ref IN (:...projectIds)', {
+        projectIds: ['proj-a-uuid', 'proj-b-uuid'],
+      });
+      expect(expenseSumQbMocks.groupBy).toHaveBeenCalledWith('s.project_ref');
     });
   });
 

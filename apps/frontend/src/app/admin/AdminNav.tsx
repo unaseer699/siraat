@@ -17,11 +17,11 @@ const SECTIONS: { key: AdminSection; href: string; label: string }[] = [
   // straight into the create form; that form is still reachable via the
   // list page's "+ Add New" button.
   { key: 'house-plans', href: '/admin/house-plans', label: 'House Plans' },
-  // PROJECT COST TRACKER Chunk 2 — same no-standalone-list-page pattern as
-  // Contractors/Suppliers: likely 1-3 real projects to start, so this opens
-  // straight into the create form. A list page is a reasonable future
-  // addition if that count grows.
-  { key: 'projects', href: '/admin/new-project', label: 'Projects' },
+  // ADMIN PROJECTS LIST — now has a real list page (admin/projects/page.tsx),
+  // same fix House Plans already got in ADMIN CRUD PHASE 1 Chunk 2; this tab
+  // points there instead of straight into the create form. That form is
+  // still reachable via the list page's "+ New Project" button.
+  { key: 'projects', href: '/admin/projects', label: 'Projects' },
 ];
 
 // Shared nav row so the admin tools are reachable from one another instead of
