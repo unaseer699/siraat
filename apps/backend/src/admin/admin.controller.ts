@@ -465,6 +465,16 @@ export class AdminController {
     return this.adminSvc.createProject(body);
   }
 
+  // ADMIN PROJECTS LIST — list view, same pagination pattern as GET
+  // /contractors / GET /suppliers / GET /house-plans above.
+  @Get('projects')
+  listProjects(@Query('page') page?: string, @Query('limit') limit?: string) {
+    return this.adminSvc.listProjects({
+      page: page !== undefined ? Number(page) : undefined,
+      limit: limit !== undefined ? Number(limit) : undefined,
+    });
+  }
+
   @Post('projects/:id/sections')
   @HttpCode(201)
   createProjectSection(

@@ -23,6 +23,7 @@ import {
   ConstructionProjectService,
   type CreateProjectInput,
   type ProjectResult,
+  type ProjectListResponse,
   type CreateSectionInput,
   type SectionResult,
   type CreateExpenseInput,
@@ -36,6 +37,7 @@ export type { CreateMaterialRateInput, MaterialRateResult };
 export type {
   CreateProjectInput,
   ProjectResult,
+  ProjectListResponse,
   CreateSectionInput,
   SectionResult,
   CreateExpenseInput,
@@ -463,6 +465,13 @@ export class AdminService {
   // POST /v1/admin/projects — no existence check needed, this is the create path.
   async createProject(data: CreateProjectInput): Promise<ProjectResult> {
     return this.cpSvc.createProject(data);
+  }
+
+  // GET /v1/admin/projects — admin projects list. Same plain-passthrough
+  // delegation as searchContractors/searchSuppliers above (no existence
+  // check needed, this is the list path).
+  async listProjects(params: { page?: number; limit?: number }): Promise<ProjectListResponse> {
+    return this.cpSvc.listProjects(params);
   }
 
   // POST /v1/admin/projects/:id/sections — existence-checked here (not in

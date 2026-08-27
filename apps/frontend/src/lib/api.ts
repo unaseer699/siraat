@@ -668,6 +668,33 @@ export async function createProject(data: CreateProjectBody): Promise<ProjectRes
   });
 }
 
+// ADMIN PROJECTS LIST — a lighter-weight row than ProjectResult (no
+// property_ref/owner_contact/record_type), plus `total`: the ACTIVE-only
+// expense sum across every section, same figure the project detail page's
+// running total shows.
+export interface ProjectListItem {
+  id: string;
+  name: string;
+  status: ConstructionProjectStatus;
+  start_date: string;
+  total: number;
+}
+
+export interface ProjectListResponse {
+  projects: ProjectListItem[];
+  total_count: number;
+  page: number;
+  total_pages: number;
+}
+
+export async function fetchAdminProjects(params?: { page?: number; limit?: number }): Promise<ProjectListResponse> {
+  const qs = new URLSearchParams();
+  if (params?.page) qs.set('page', String(params.page));
+  if (params?.limit) qs.set('limit', String(params.limit));
+  const suffix = qs.toString() ? `?${qs.toString()}` : '';
+  return apiFetch(`/v1/admin/projects${suffix}`);
+}
+
 export interface SectionResult {
   id: string;
   project_ref: string;
