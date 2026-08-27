@@ -11,9 +11,11 @@ import {
   voidProjectExpense,
   searchContractorsByName,
   searchSuppliers,
+  EXPENSE_UNIT_OPTIONS,
   type ProjectWithSectionsAndExpenses,
   type ExpenseResult,
   type ExpenseStatus,
+  type ExpenseUnit,
   type CreateExpenseBody,
 } from '@/lib/api';
 import { TRADE_CATEGORY_OPTIONS } from '@/lib/tradeCategories';
@@ -32,6 +34,18 @@ function todayIso(): string {
 
 function formatPKR(n: number): string {
   return `PKR ${n.toLocaleString()}`;
+}
+
+// EXPENSE QUANTITY/RATE Chunk 2 — "100 PCS × Rs 21.3 = Rs 2,130" when both
+// quantity and rate are present (unit optional); "500 KG" when only
+// quantity/unit were saved (rate null — a valid, independent combination);
+// null (show amount alone, as before) when quantity itself is absent.
+function formatQtyRateBreakdown(expense: ExpenseResult): string | null {
+  if (expense.quantity == null) return null;
+  const qty = expense.quantity.toLocaleString();
+  const unitLabel = expense.unit ? ` ${expense.unit}` : '';
+  if (expense.rate == null) return `${qty}${unitLabel}`;
+  return `${qty}${unitLabel} × Rs ${expense.rate.toLocaleString()} = ${formatPKR(Math.abs(expense.amount))}`;
 }
 
 function tradeLabel(value: string): string {
@@ -170,6 +184,11 @@ interface ExpenseDraft {
   vendor_name: string;
   vendor_contact: string;
   amount: string;
+  // EXPENSE QUANTITY/RATE Chunk 2 — all optional, independent controlled
+  // inputs (empty string = not filled, same convention as `amount`).
+  quantity: string;
+  unit: ExpenseUnit | '';
+  rate: string;
   // Only populated when opening Edit on a row that already has a directory
   // link — Add/Correction always start unlinked. linkQuery is deliberately
   // left blank even when linkedId is set: the expense only carries the
@@ -203,14 +222,32 @@ function ExpenseForm({
   const [linkQuery, setLinkQuery] = useState(initial.linkQuery ?? '');
   const [linkedId, setLinkedId] = useState<string | null>(initial.linkedId ?? null);
 
-  const amountNum = Number(draft.amount);
-  const amountValid = draft.amount.trim().length > 0 && Number.isFinite(amountNum);
+  // EXPENSE QUANTITY/RATE Chunk 2 — quantity/rate drive a client-side
+  // preview only (requirement #2); the server is the single source of truth
+  // for what actually gets saved (resolveActualCost, requirement #3) — see
+  // handleSubmit below, which sends amount: null whenever both are present
+  // rather than the value computed here.
+  const quantityNum = draft.quantity.trim() ? Number(draft.quantity) : null;
+  const rateNum = draft.rate.trim() ? Number(draft.rate) : null;
+  const bothQtyRatePresent =
+    quantityNum != null && Number.isFinite(quantityNum) && rateNum != null && Number.isFinite(rateNum);
+  const computedAmount = bothQtyRatePresent ? Math.round(quantityNum! * rateNum!) : null;
+  const displayAmount = bothQtyRatePresent ? String(computedAmount) : draft.amount;
+
+  // No amount/quantity/rate check here, deliberately (requirement #3): the
+  // "amount required unless quantity+rate both present" rule is the
+  // server's alone to enforce (ConstructionProjectService.resolveActualCost)
+  // — duplicating it here would mean this form silently blocks combinations
+  // the server would actually accept, or vice versa. Only description/
+  // vendor_name/expense_date stay required client-side; a submission the
+  // server rejects surfaces its 400 message below instead.
   const canSubmit =
-    draft.description.trim().length > 0 && draft.vendor_name.trim().length > 0 && draft.expense_date.length > 0 && amountValid;
+    draft.description.trim().length > 0 && draft.vendor_name.trim().length > 0 && draft.expense_date.length > 0;
 
   function handleSubmit(e: FormEvent) {
     e.preventDefault();
     if (!canSubmit) return;
+    const amountNum = draft.amount.trim() ? Number(draft.amount) : null;
     onSubmit({
       expense_date: draft.expense_date,
       description: draft.description.trim(),
@@ -218,7 +255,13 @@ function ExpenseForm({
       vendor_contact: draft.vendor_contact.trim() || null,
       linked_contractor_id: linkType === 'CONTRACTOR' ? linkedId : null,
       linked_supplier_id: linkType === 'SUPPLIER' ? linkedId : null,
-      amount: amountNum,
+      // Never the client-computed preview — when both are present the
+      // server recomputes amount itself; sending null here makes that
+      // explicit instead of trusting/forwarding this form's own math.
+      amount: bothQtyRatePresent ? null : amountNum,
+      quantity: quantityNum,
+      unit: draft.unit || null,
+      rate: rateNum,
     });
   }
 
@@ -264,14 +307,61 @@ function ExpenseForm({
           <input
             type="number"
             step="any"
-            value={draft.amount}
+            value={displayAmount}
             onChange={(e) => setDraft({ ...draft, amount: e.target.value })}
             placeholder={mode === 'CORRECT' ? 'e.g. -5000' : 'e.g. 45000'}
-            required
+            readOnly={bothQtyRatePresent}
+            style={bothQtyRatePresent ? { ...inputStyle, background: '#f3f4f6', color: 'var(--muted)' } : inputStyle}
+          />
+        </div>
+      </div>
+
+      <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+        <div style={{ ...fieldGroupStyle, flex: 1, minWidth: '110px' }}>
+          <label style={labelStyle}>Quantity (optional)</label>
+          <input
+            type="number"
+            step="any"
+            value={draft.quantity}
+            onChange={(e) => setDraft({ ...draft, quantity: e.target.value })}
+            placeholder="e.g. 1000"
+            style={inputStyle}
+          />
+        </div>
+        <div style={{ ...fieldGroupStyle, flex: 1, minWidth: '100px' }}>
+          <label style={labelStyle}>Unit</label>
+          <select
+            value={draft.unit}
+            onChange={(e) => setDraft({ ...draft, unit: e.target.value as ExpenseUnit | '' })}
+            style={inputStyle}
+          >
+            <option value="">—</option>
+            {EXPENSE_UNIT_OPTIONS.map((u) => (
+              <option key={u} value={u}>
+                {u}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div style={{ ...fieldGroupStyle, flex: 1, minWidth: '120px' }}>
+          <label style={labelStyle}>Rate (PKR, optional)</label>
+          <input
+            type="number"
+            step="any"
+            value={draft.rate}
+            onChange={(e) => setDraft({ ...draft, rate: e.target.value })}
+            placeholder="e.g. 12.5"
             style={inputStyle}
           />
         </div>
       </div>
+      {bothQtyRatePresent && (
+        <p style={{ fontSize: '12px', color: 'var(--muted)', margin: 0 }}>
+          Amount computed: {draft.quantity}
+          {draft.unit ? ` ${draft.unit}` : ''} × Rs {draft.rate} = {formatPKR(computedAmount!)} — the server
+          recalculates this on save, not the preview shown here.
+        </p>
+      )}
 
       <div style={fieldGroupStyle}>
         <label style={labelStyle}>Description</label>
@@ -373,9 +463,16 @@ function ExpenseRow({
           <span style={{ fontSize: '11px', color: TRUST_GREEN, marginLeft: '6px' }}>✓ linked</span>
         )}
       </td>
-      <td style={{ ...tdStyle, textAlign: 'right', fontWeight: 700, color: isCorrection ? 'var(--error)' : 'var(--text)' }}>
-        {isCorrection ? '−' : ''}
-        {formatPKR(Math.abs(expense.amount))}
+      <td style={{ ...tdStyle, textAlign: 'right' }}>
+        <div style={{ fontWeight: 700, color: isCorrection ? 'var(--error)' : 'var(--text)' }}>
+          {isCorrection ? '−' : ''}
+          {formatPKR(Math.abs(expense.amount))}
+        </div>
+        {formatQtyRateBreakdown(expense) && (
+          <div style={{ fontSize: '11px', color: 'var(--muted)', fontWeight: 400 }}>
+            {formatQtyRateBreakdown(expense)}
+          </div>
+        )}
       </td>
       <td style={tdStyle}>
         <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
@@ -403,9 +500,14 @@ function HistoryExpenseRow({ expense }: { expense: ExpenseResult }) {
       <td style={tdStyle}>{expense.expense_date}</td>
       <td style={{ ...tdStyle, textDecoration: 'line-through' }}>{expense.description}</td>
       <td style={tdStyle}>{expense.vendor_name}</td>
-      <td style={{ ...tdStyle, textAlign: 'right', textDecoration: 'line-through' }}>
-        {expense.amount < 0 ? '−' : ''}
-        {formatPKR(Math.abs(expense.amount))}
+      <td style={{ ...tdStyle, textAlign: 'right' }}>
+        <div style={{ textDecoration: 'line-through' }}>
+          {expense.amount < 0 ? '−' : ''}
+          {formatPKR(Math.abs(expense.amount))}
+        </div>
+        {formatQtyRateBreakdown(expense) && (
+          <div style={{ fontSize: '11px', textDecoration: 'line-through' }}>{formatQtyRateBreakdown(expense)}</div>
+        )}
       </td>
       <td style={tdStyle}>
         <span style={historyBadgeStyle(expense.status)}>{expense.status}</span>
@@ -636,7 +738,16 @@ export default function AdminProjectPage({ params }: Props) {
       expenseId: null,
       mode: 'ADD',
       formKey: `add-${sectionId}`,
-      initial: { expense_date: todayIso(), description: '', vendor_name: '', vendor_contact: '', amount: '' },
+      initial: {
+        expense_date: todayIso(),
+        description: '',
+        vendor_name: '',
+        vendor_contact: '',
+        amount: '',
+        quantity: '',
+        unit: '',
+        rate: '',
+      },
     });
   }
 
@@ -654,6 +765,11 @@ export default function AdminProjectPage({ params }: Props) {
         vendor_name: expense.vendor_name,
         vendor_contact: expense.vendor_contact ?? '',
         amount: '',
+        // A correction is a fresh entry, not a copy of the original's
+        // quantity/rate — those start blank same as amount does.
+        quantity: '',
+        unit: '',
+        rate: '',
       },
     });
   }
@@ -672,6 +788,11 @@ export default function AdminProjectPage({ params }: Props) {
         vendor_name: expense.vendor_name,
         vendor_contact: expense.vendor_contact ?? '',
         amount: String(expense.amount),
+        // EXPENSE QUANTITY/RATE Chunk 2 — pre-filled from the row exactly
+        // like amount is, above.
+        quantity: expense.quantity != null ? String(expense.quantity) : '',
+        unit: expense.unit ?? '',
+        rate: expense.rate != null ? String(expense.rate) : '',
         linkType: expense.linked_contractor_id ? 'CONTRACTOR' : expense.linked_supplier_id ? 'SUPPLIER' : 'NONE',
         linkedId: expense.linked_contractor_id ?? expense.linked_supplier_id ?? null,
       },
