@@ -4,7 +4,7 @@ import { In, Repository } from 'typeorm';
 import type { TradeCategory } from '@siraat/shared-types';
 import { ConstructionProjectEntity, type ConstructionProjectStatus } from './entities/construction-project.entity';
 import { ProjectSectionEntity } from './entities/project-section.entity';
-import { ProjectExpenseEntity, type ProjectExpenseStatus } from './entities/project-expense.entity';
+import { ProjectExpenseEntity, type ProjectExpenseStatus, type ExpenseUnit } from './entities/project-expense.entity';
 import { ConstructionIntelligenceService } from './construction-intelligence.service';
 
 // PROJECT COST TRACKER Chunk 1 — Project/Section/Expense are closely related
@@ -97,11 +97,22 @@ export interface CreateExpenseInput {
   vendor_contact: string | null;
   linked_contractor_id: string | null;
   linked_supplier_id: string | null;
-  // May be negative — a correction to a prior expense is a new row with a
-  // negative amount (or an explicit note in `description`), never an edit to
-  // the original (Law 3: FACT records are immutable). See
-  // ProjectExpenseEntity's comment.
-  amount: number;
+  // "actual_cost" in the founder's brief — see ProjectExpenseEntity's
+  // comment on why the column stays named `amount`. Optional (null) when
+  // quantity+rate are both provided — resolveActualCost then computes it,
+  // overriding whatever's sent here. Required otherwise; resolveActualCost
+  // rejects the request (BadRequestException) if it's also missing. May
+  // still be negative when explicitly typed — a correction to a prior
+  // expense is a new row with a negative amount (Law 3: FACT records are
+  // immutable). See ProjectExpenseEntity's comment.
+  amount: number | null;
+  // EXPENSE QUANTITY/RATE Chunk 1 — independent of each other and of
+  // `amount`: quantity/unit may be saved alone (rate null) alongside a typed
+  // amount; rate is never required just because quantity is present. See
+  // resolveActualCost for the one rule that ties these together.
+  quantity: number | null;
+  unit: ExpenseUnit | null;
+  rate: number | null;
 }
 
 // EXPENSE EDIT/DELETE Chunk 1 — same field shape as create; a PATCH submits
@@ -119,15 +130,41 @@ export interface ExpenseResult {
   linked_contractor_id: string | null;
   linked_supplier_id: string | null;
   amount: number;
+  quantity: number | null;
+  unit: ExpenseUnit | null;
+  rate: number | null;
   record_type: 'FACT';
   status: ProjectExpenseStatus;
   supersedes_id: string | null;
   void_reason: string | null;
 }
 
-// amount is a `decimal` column, which pg/TypeORM returns as a string — same
-// Number() conversion MaterialRateEntity.price goes through in
-// ConstructionIntelligenceService's toResult.
+// EXPENSE QUANTITY/RATE Chunk 1 — the one place `amount` is required vs.
+// computed is decided (single source of truth, no frontend duplication):
+//   - quantity AND rate present -> amount = round(quantity * rate),
+//     overriding whatever `amount` the client sent (even if non-null).
+//   - either missing -> `amount` must come from the client as before;
+//     rejected if that's also missing.
+//   - quantity/unit may still be saved with rate null (and vice versa) —
+//     this function only decides what `amount` resolves to, it doesn't
+//     touch quantity/unit on the entity at all.
+function resolveActualCost(input: { amount: number | null; quantity: number | null; rate: number | null }): number {
+  if (input.quantity != null && input.rate != null) {
+    return Math.round(input.quantity * input.rate);
+  }
+  if (input.amount == null) {
+    throw new BadRequestException(
+      'amount is required unless both quantity and rate are provided (amount = quantity × rate)',
+    );
+  }
+  return input.amount;
+}
+
+// amount/quantity/rate are `decimal` columns, which pg/TypeORM returns as
+// strings — same Number() conversion MaterialRateEntity.price goes through
+// in ConstructionIntelligenceService's toResult. quantity/rate stay null
+// rather than becoming 0 when the column is null (Number(null) is 0, which
+// would be wrong here).
 function toExpenseResult(e: ProjectExpenseEntity): ExpenseResult {
   return {
     id: e.id,
@@ -139,6 +176,9 @@ function toExpenseResult(e: ProjectExpenseEntity): ExpenseResult {
     linked_contractor_id: e.linked_contractor_id,
     linked_supplier_id: e.linked_supplier_id,
     amount: Number(e.amount),
+    quantity: e.quantity != null ? Number(e.quantity) : null,
+    unit: e.unit,
+    rate: e.rate != null ? Number(e.rate) : null,
     record_type: e.record_type,
     status: e.status,
     supersedes_id: e.supersedes_id,
@@ -150,7 +190,9 @@ function toExpenseResult(e: ProjectExpenseEntity): ExpenseResult {
 // the Observation's old_value/new_value (see editExpense). Excludes
 // id/section_ref/record_type/status/supersedes_id/void_reason: those are
 // either identity/lifecycle metadata, not "the expense," or (section_ref)
-// never changes on an edit.
+// never changes on an edit. `amount` here must always be the *resolved*
+// cost — callers pass the already-computed value, never the raw (possibly
+// null) client input.
 function expenseValueSnapshot(e: {
   expense_date: string;
   description: string;
@@ -159,6 +201,9 @@ function expenseValueSnapshot(e: {
   linked_contractor_id: string | null;
   linked_supplier_id: string | null;
   amount: number | string;
+  quantity: number | string | null;
+  unit: ExpenseUnit | null;
+  rate: number | string | null;
 }): string {
   return JSON.stringify({
     expense_date: e.expense_date,
@@ -168,6 +213,9 @@ function expenseValueSnapshot(e: {
     linked_contractor_id: e.linked_contractor_id,
     linked_supplier_id: e.linked_supplier_id,
     amount: Number(e.amount),
+    quantity: e.quantity != null ? Number(e.quantity) : null,
+    unit: e.unit,
+    rate: e.rate != null ? Number(e.rate) : null,
   });
 }
 
@@ -274,6 +322,9 @@ export class ConstructionProjectService {
   }
 
   async createExpense(sectionId: string, data: CreateExpenseInput): Promise<ExpenseResult> {
+    // Resolved (and validated) before touching the repo at all — see
+    // resolveActualCost. Overrides data.amount, which may be null on input.
+    const amount = resolveActualCost(data);
     // status/supersedes_id/void_reason set explicitly rather than relying on
     // the column defaults — same reason record_type is passed explicitly
     // below even though its column also has a DB default: TypeORM doesn't
@@ -282,6 +333,7 @@ export class ConstructionProjectService {
     // undefined instead of 'ACTIVE'.
     const entity = this.expenseRepo.create({
       ...data,
+      amount,
       section_ref: sectionId,
       record_type: 'FACT',
       status: 'ACTIVE',
@@ -325,9 +377,15 @@ export class ConstructionProjectService {
     const original = await this.findExpenseInProject(projectId, expenseId);
     this.assertActive(original, 'edited');
 
+    // Resolved (and validated) before opening the transaction — same
+    // resolveActualCost rule as createExpense (requirement #3: edit
+    // recomputes amount exactly like a fresh create would).
+    const amount = resolveActualCost(data);
+
     const replacement = await this.expenseRepo.manager.transaction(async (manager) => {
       const newRow = manager.create(ProjectExpenseEntity, {
         ...data,
+        amount,
         section_ref: original.section_ref,
         record_type: 'FACT',
         status: 'ACTIVE',
@@ -350,7 +408,7 @@ export class ConstructionProjectService {
       entity_ref: original.id,
       metric: 'project_expense_correction',
       old_value: expenseValueSnapshot(original),
-      new_value: expenseValueSnapshot(data),
+      new_value: expenseValueSnapshot({ ...data, amount }),
       source_ref: `Correction of expense ${original.id}`,
     });
 

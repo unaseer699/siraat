@@ -153,6 +153,9 @@ const EXPENSE_RESULT = {
   linked_contractor_id: null,
   linked_supplier_id: null,
   amount: 45000,
+  quantity: null,
+  unit: null,
+  rate: null,
   record_type: 'FACT' as const,
   status: 'ACTIVE' as const,
   supersedes_id: null,
@@ -1029,6 +1032,9 @@ describe('AdminService', () => {
       linked_contractor_id: null,
       linked_supplier_id: null,
       amount: 45000,
+      quantity: null,
+      unit: null,
+      rate: null,
     };
 
     const result = await svc.createSectionExpense(SECTION_ID, input);
@@ -1050,6 +1056,9 @@ describe('AdminService', () => {
         linked_contractor_id: null,
         linked_supplier_id: null,
         amount: 45000,
+        quantity: null,
+        unit: null,
+        rate: null,
       }),
     ).rejects.toThrow(NotFoundException);
     expect(createExpenseMock).not.toHaveBeenCalled();
@@ -1066,6 +1075,9 @@ describe('AdminService', () => {
       linked_contractor_id: null,
       linked_supplier_id: null,
       amount: 50000,
+      quantity: null,
+      unit: null,
+      rate: null,
     };
 
     const result = await svc.editProjectExpense(PROJECT_ID, EXPENSE_RESULT.id, input);
@@ -1087,6 +1099,9 @@ describe('AdminService', () => {
         linked_contractor_id: null,
         linked_supplier_id: null,
         amount: 45000,
+        quantity: null,
+        unit: null,
+        rate: null,
       }),
     ).rejects.toThrow(NotFoundException);
     expect(editExpenseMock).not.toHaveBeenCalled();

@@ -202,6 +202,15 @@ type CreateSectionBody = z.infer<typeof CreateSectionBodySchema>;
 // Chunk 1) via PATCH below, which supersedes rather than edits in place —
 // see ConstructionProjectService.editExpense. Law 3 still holds: no route
 // anywhere overwrites amount/description/date/etc. on an existing row.
+//
+// EXPENSE QUANTITY/RATE Chunk 1 — amount is now nullable/optional here: the
+// "amount required unless quantity+rate both present" rule is enforced in
+// ConstructionProjectService.resolveActualCost, not here — Zod's job is
+// shaping individual fields, not that cross-field business rule (single
+// source of truth, no duplicated validation between layers). unit is a
+// closed enum, never free-text.
+
+const EXPENSE_UNITS = ['PCS', 'KG', 'TON', 'BAG', 'CFT', 'SFT', 'RFT', 'LTR'] as const;
 
 const CreateExpenseBodySchema = z.object({
   expense_date: z.string().min(1),
@@ -210,7 +219,10 @@ const CreateExpenseBodySchema = z.object({
   vendor_contact: z.string().nullable().default(null),
   linked_contractor_id: z.string().uuid().nullable().default(null),
   linked_supplier_id: z.string().uuid().nullable().default(null),
-  amount: z.number(),
+  amount: z.number().nullable().default(null),
+  quantity: z.number().nullable().default(null),
+  unit: z.enum(EXPENSE_UNITS).nullable().default(null),
+  rate: z.number().nullable().default(null),
 });
 type CreateExpenseBody = z.infer<typeof CreateExpenseBodySchema>;
 

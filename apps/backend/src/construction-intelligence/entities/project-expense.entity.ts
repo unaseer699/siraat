@@ -2,6 +2,10 @@ import { Entity, Column, PrimaryGeneratedColumn, CreateDateColumn } from 'typeor
 
 export type ProjectExpenseStatus = 'ACTIVE' | 'CORRECTED' | 'VOID';
 
+// EXPENSE QUANTITY/RATE Chunk 1 — enum, not free-text, same discipline
+// TradeCategory/MaterialCategory already follow elsewhere in this schema.
+export type ExpenseUnit = 'PCS' | 'KG' | 'TON' | 'BAG' | 'CFT' | 'SFT' | 'RFT' | 'LTR';
+
 // PROJECT COST TRACKER Chunk 1 — a single dated line item within a
 // ProjectSection (e.g. one Wood Work invoice). IMMUTABLE — the one hard rule
 // for this entity: no column is ever mutated in place after creation.
@@ -50,8 +54,32 @@ export class ProjectExpenseEntity {
   @Column({ type: 'uuid', nullable: true })
   linked_supplier_id: string | null;
 
+  // "actual_cost" in the founder's brief — kept as `amount`, the name this
+  // column has had since Chunk 1, rather than renaming every call site for
+  // no functional gain. Always resolved to a definite number before save —
+  // see ConstructionProjectService.resolveActualCost — never null in a
+  // persisted row, even though the client may submit it as null when
+  // quantity+rate are both present instead.
   @Column({ type: 'decimal', precision: 12, scale: 2 })
   amount: number;
+
+  // EXPENSE QUANTITY/RATE Chunk 1 — optional structured cost inputs. Real
+  // B-17 data showed material costs (bricks/steel/cement/sand/crush) are
+  // naturally qty×rate, and hand-typed `amount` totals are error-prone; when
+  // both are present, `amount` is computed from them instead of typed (see
+  // resolveActualCost). All three independent/nullable — no DB-level
+  // all-or-nothing constraint; quantity/unit may be saved alone (rate null)
+  // alongside a typed `amount`. The cross-field "amount required unless
+  // quantity+rate both present" rule is enforced in the service layer only,
+  // so it can evolve without a migration.
+  @Column({ type: 'decimal', precision: 12, scale: 3, nullable: true })
+  quantity: number | null;
+
+  @Column({ type: 'varchar', length: 10, nullable: true })
+  unit: ExpenseUnit | null;
+
+  @Column({ type: 'decimal', precision: 12, scale: 2, nullable: true })
+  rate: number | null;
 
   @Column({ type: 'varchar', length: 10, default: 'FACT' })
   record_type: 'FACT';
