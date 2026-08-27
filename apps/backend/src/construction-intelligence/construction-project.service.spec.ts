@@ -331,6 +331,9 @@ describe('ConstructionProjectService', () => {
       linked_contractor_id: null,
       linked_supplier_id: null,
       amount: 45000,
+      quantity: null,
+      unit: null,
+      rate: null,
       ...overrides,
     };
   }
@@ -402,6 +405,69 @@ describe('ConstructionProjectService', () => {
     });
   });
 
+  // EXPENSE QUANTITY/RATE Chunk 1
+  describe('resolveActualCost — quantity × rate computation (via createExpense)', () => {
+    it('quantity + rate present: computes amount = round(quantity * rate), overriding any client-sent amount', async () => {
+      const result = await service.createExpense(
+        'sec-a-uuid',
+        buildExpenseInput({ amount: 999999, quantity: 1000, unit: 'PCS', rate: 12.5 }),
+      );
+
+      expect(result.amount).toBe(12500); // round(1000 * 12.5) — NOT the sent 999999
+      expect(result.quantity).toBe(1000);
+      expect(result.unit).toBe('PCS');
+      expect(result.rate).toBe(12.5);
+    });
+
+    it('rounds a fractional quantity*rate result', async () => {
+      const result = await service.createExpense(
+        'sec-a-uuid',
+        buildExpenseInput({ amount: null, quantity: 3, unit: 'BAG', rate: 1333.33 }),
+      );
+
+      expect(result.amount).toBe(Math.round(3 * 1333.33));
+    });
+
+    it('amount only, no quantity/rate: unchanged behavior — amount used exactly as typed', async () => {
+      const result = await service.createExpense('sec-a-uuid', buildExpenseInput({ amount: 45000 }));
+
+      expect(result.amount).toBe(45000);
+      expect(result.quantity).toBeNull();
+      expect(result.unit).toBeNull();
+      expect(result.rate).toBeNull();
+    });
+
+    it('quantity + unit + typed amount, no rate: rate stays null, amount used as typed — rate is never required just because quantity is present', async () => {
+      const result = await service.createExpense(
+        'sec-a-uuid',
+        buildExpenseInput({ amount: 45000, quantity: 500, unit: 'KG', rate: null }),
+      );
+
+      expect(result.amount).toBe(45000);
+      expect(result.quantity).toBe(500);
+      expect(result.unit).toBe('KG');
+      expect(result.rate).toBeNull();
+    });
+
+    it('only quantity (no rate, no amount): rejected with a clear validation error', async () => {
+      await expect(
+        service.createExpense('sec-a-uuid', buildExpenseInput({ amount: null, quantity: 500, unit: 'KG', rate: null })),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('only rate (no quantity, no amount): rejected with a clear validation error', async () => {
+      await expect(
+        service.createExpense('sec-a-uuid', buildExpenseInput({ amount: null, quantity: null, unit: null, rate: 12.5 })),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('neither amount nor quantity/rate: rejected', async () => {
+      await expect(
+        service.createExpense('sec-a-uuid', buildExpenseInput({ amount: null, quantity: null, unit: null, rate: null })),
+      ).rejects.toThrow(BadRequestException);
+    });
+  });
+
   // EXPENSE EDIT/DELETE Chunk 1 revised this invariant. Law 3 was never
   // "no edit method may exist" — it's "no existing row's value columns are
   // ever overwritten." editExpense/voidExpense both exist now (tested
@@ -428,6 +494,9 @@ describe('ConstructionProjectService', () => {
       linked_contractor_id: null,
       linked_supplier_id: null,
       amount: '45000.00',
+      quantity: null,
+      unit: null,
+      rate: null,
       record_type: 'FACT' as const,
       status: 'ACTIVE' as const,
       supersedes_id: null,
@@ -475,6 +544,41 @@ describe('ConstructionProjectService', () => {
       expect(result.amount).toBe(50000);
       expect(result.supersedes_id).toBe('exp-1');
       expect(result.status).toBe('ACTIVE');
+    });
+
+    // EXPENSE QUANTITY/RATE Chunk 1, requirement #3: edit recomputes amount
+    // exactly like a fresh create would (same resolveActualCost rule).
+    it('recomputes amount from quantity × rate on edit, overriding the sent amount, same as create', async () => {
+      expenseFindOneByMock.mockResolvedValue(buildExistingExpense({ amount: '45000.00' }));
+      sectionFindOneByMock.mockResolvedValue(EXISTING_SECTION);
+
+      const edit = buildExpenseInput({ amount: 1, quantity: 2000, unit: 'PCS', rate: 15 });
+      const result = await service.editExpense('proj-a-uuid', 'exp-1', edit);
+
+      expect(result.amount).toBe(30000); // round(2000 * 15) — not the sent 1
+      expect(managerCreateMock).toHaveBeenCalledWith(
+        ProjectExpenseEntity,
+        expect.objectContaining({ amount: 30000, quantity: 2000, unit: 'PCS', rate: 15, supersedes_id: 'exp-1' }),
+      );
+      expect(managerUpdateMock).toHaveBeenCalledWith(ProjectExpenseEntity, { id: 'exp-1' }, { status: 'CORRECTED' });
+
+      const call = logObservationMock.mock.calls[0][0] as { new_value: string };
+      expect(JSON.parse(call.new_value).amount).toBe(30000);
+    });
+
+    it('rejects an edit that omits amount without providing both quantity and rate — never opens the transaction', async () => {
+      expenseFindOneByMock.mockResolvedValue(buildExistingExpense());
+      sectionFindOneByMock.mockResolvedValue(EXISTING_SECTION);
+
+      await expect(
+        service.editExpense(
+          'proj-a-uuid',
+          'exp-1',
+          buildExpenseInput({ amount: null, quantity: 5, unit: 'BAG', rate: null }),
+        ),
+      ).rejects.toThrow(BadRequestException);
+      expect(managerCreateMock).not.toHaveBeenCalled();
+      expect(managerUpdateMock).not.toHaveBeenCalled();
     });
 
     it('fires an Observation recording old value -> new value (fire-and-forget, via ConstructionIntelligenceService.logObservation)', async () => {
@@ -614,6 +718,57 @@ describe('ConstructionProjectService', () => {
       expect(result!.sections).toEqual([]);
       expect(result!.total).toBe(0);
       expect(expenseFindMock).not.toHaveBeenCalled();
+    });
+
+    // EXPENSE QUANTITY/RATE Chunk 1, requirement: pre-existing null
+    // quantity/unit/rate rows (from before this chunk shipped) still read
+    // and total correctly alongside a new quantity×rate-computed row.
+    it('pre-existing rows with null quantity/unit/rate still read and sum correctly', async () => {
+      projectFindOneByMock.mockResolvedValue({ id: 'proj-a-uuid', ...buildProjectInput(), record_type: 'FACT' });
+      sectionFindMock.mockResolvedValue([
+        { id: 'sec-a-uuid', project_ref: 'proj-a-uuid', category: 'WOODWORK_CARPENTER', display_order: 1, record_type: 'FACT' },
+      ]);
+      expenseFindMock.mockResolvedValue([
+        // Pre-existing row from before this chunk shipped. TypeORM's ALTER
+        // TABLE ADD COLUMN (synchronize) leaves the new nullable columns as
+        // actual SQL NULLs on every existing row — never "missing" — so the
+        // realistic legacy shape is explicit nulls, not absent keys.
+        {
+          id: 'exp-legacy',
+          section_ref: 'sec-a-uuid',
+          expense_date: '2026-01-20',
+          description: 'Legacy hand-typed expense',
+          vendor_name: 'Malik Woodworks',
+          vendor_contact: null,
+          linked_contractor_id: null,
+          linked_supplier_id: null,
+          amount: '45000.00',
+          quantity: null,
+          unit: null,
+          rate: null,
+          record_type: 'FACT',
+          status: 'ACTIVE',
+        },
+        // New quantity×rate-computed row.
+        buildExistingExpense({ id: 'exp-2', amount: '30000.00', quantity: '2000.000', unit: 'PCS', rate: '15.00' }),
+      ]);
+
+      const result = await service.getProjectWithSectionsAndExpenses('proj-a-uuid');
+
+      const section = result!.sections[0];
+      const legacy = section.expenses.find((e) => e.id === 'exp-legacy')!;
+      const computed = section.expenses.find((e) => e.id === 'exp-2')!;
+
+      expect(legacy.quantity).toBeNull();
+      expect(legacy.unit).toBeNull();
+      expect(legacy.rate).toBeNull();
+      expect(computed.quantity).toBe(2000);
+      expect(computed.unit).toBe('PCS');
+      expect(computed.rate).toBe(15);
+
+      // Sum is unaffected by the new columns either way.
+      expect(section.subtotal).toBe(75000); // 45000 + 30000
+      expect(result!.total).toBe(75000);
     });
 
     // ─── Bahria 1180-shaped fixture: multiple sections, multiple expenses each ───
