@@ -720,6 +720,11 @@ export async function createProjectSection(
 
 export type ExpenseStatus = 'ACTIVE' | 'CORRECTED' | 'VOID';
 
+// EXPENSE QUANTITY/RATE Chunk 2 — closed enum, no free-text, matches the
+// backend's EXPENSE_UNITS exactly (admin.controller.ts).
+export type ExpenseUnit = 'PCS' | 'KG' | 'TON' | 'BAG' | 'CFT' | 'SFT' | 'RFT' | 'LTR';
+export const EXPENSE_UNIT_OPTIONS: ExpenseUnit[] = ['PCS', 'KG', 'TON', 'BAG', 'CFT', 'SFT', 'RFT', 'LTR'];
+
 export interface ExpenseResult {
   id: string;
   section_ref: string;
@@ -730,6 +735,9 @@ export interface ExpenseResult {
   linked_contractor_id: string | null;
   linked_supplier_id: string | null;
   amount: number;
+  quantity: number | null;
+  unit: ExpenseUnit | null;
+  rate: number | null;
   record_type: 'FACT';
   status: ExpenseStatus;
   supersedes_id: string | null;
@@ -741,6 +749,13 @@ export interface ExpenseResult {
 // immutable). Same field shape submitted for editProjectExpense below — an
 // edit is the full replacement content for a new superseding row, not a
 // partial diff.
+//
+// EXPENSE QUANTITY/RATE Chunk 2 — amount is nullable: the server computes it
+// when quantity+rate are both present (ConstructionProjectService.
+// resolveActualCost), overriding whatever's sent here. The cross-field "one
+// or the other is required" rule is NOT re-validated client-side beyond
+// disabling the amount input (see ExpenseForm) — the server is the single
+// enforcement point; its 400 surfaces directly if violated some other way.
 export interface CreateExpenseBody {
   expense_date: string;
   description: string;
@@ -748,7 +763,10 @@ export interface CreateExpenseBody {
   vendor_contact: string | null;
   linked_contractor_id: string | null;
   linked_supplier_id: string | null;
-  amount: number;
+  amount: number | null;
+  quantity: number | null;
+  unit: ExpenseUnit | null;
+  rate: number | null;
 }
 
 export async function createSectionExpense(
