@@ -326,6 +326,18 @@ export class AdminService {
     return this.piSvc.searchDevelopers(query);
   }
 
+  // DUPLICATE SOCIETY PREVENTION — GET /v1/admin/societies/search?name=&city=
+  // Live-check powering new-society/page.tsx's warning, before the operator
+  // ever submits. Wraps PropertyIntelligenceService.findSocietyByNameAndCity
+  // (the same exact-match rule createSociety's hard block uses) into the
+  // array shape every other admin search-as-you-type endpoint returns
+  // (searchDevelopers/searchContractorsByName/searchSuppliersByName) —
+  // 0 or 1 entries in practice, since name+city is effectively unique here.
+  async searchSocieties(name: string, city: string): Promise<{ id: string; name: string; city: string }[]> {
+    const match = await this.piSvc.findSocietyByNameAndCity(name, city);
+    return match ? [{ id: match.id, name: match.name, city: match.city }] : [];
+  }
+
   // CONTRACTOR DIRECTORY Chunk 2 — POST /v1/admin/contractors
   async createContractor(data: CreateContractorInput): Promise<ContractorSummary> {
     return this.piSvc.createContractor(data);

@@ -280,6 +280,13 @@ export class AdminController {
     return this.adminSvc.deleteCandidateSociety(id);
   }
 
+  // DUPLICATE SOCIETY PREVENTION — powers new-society/page.tsx's live
+  // name+city duplicate-check, before the operator ever submits.
+  @Get('societies/search')
+  searchSocieties(@Query('name') name?: string, @Query('city') city?: string) {
+    return this.adminSvc.searchSocieties(name ?? '', city ?? '');
+  }
+
   @Post('societies')
   @HttpCode(201)
   createSociety(

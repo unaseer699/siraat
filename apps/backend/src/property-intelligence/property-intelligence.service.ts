@@ -219,6 +219,25 @@ export class PropertyIntelligenceService {
     }
   }
 
+  // DUPLICATE SOCIETY PREVENTION — exact case-insensitive name+city match.
+  // The single source of truth for "would this be considered a duplicate,"
+  // used both by createSociety's hard block below and (wrapped into a list
+  // by AdminService) the admin's live duplicate-check search endpoint —
+  // one rule, not reimplemented per call site. Returns null (never throws)
+  // when either input is blank: an incomplete pair can't be a real match.
+  async findSocietyByNameAndCity(name: string, city: string): Promise<SocietyResult | null> {
+    const trimmedName = name.trim();
+    const trimmedCity = city.trim();
+    if (!trimmedName || !trimmedCity) return null;
+
+    const entity = await this.societyRepo
+      .createQueryBuilder('s')
+      .where('LOWER(s.name) = LOWER(:name)', { name: trimmedName })
+      .andWhere('LOWER(s.city) = LOWER(:city)', { city: trimmedCity })
+      .getOne();
+    return entity ? toSocietyResult(entity) : null;
+  }
+
   async createSociety(data: {
     name: string;
     city: string;
@@ -236,6 +255,18 @@ export class PropertyIntelligenceService {
     // Never required; a plain UUID reference, no SQL FK per Law 2.
     developer_id: string | null;
   }): Promise<SocietyResult> {
+    // DUPLICATE SOCIETY PREVENTION — two identical "AGOCHS, Phase-II" rows
+    // were once accidentally created 5 minutes apart via this exact form,
+    // splitting real evidence across two disconnected records. City is part
+    // of the match deliberately: a name like "Park View City" can plausibly
+    // exist in two different cities, and that is not a duplicate.
+    const existing = await this.findSocietyByNameAndCity(data.name, data.city);
+    if (existing) {
+      throw new BadRequestException(
+        `A society named "${data.name}" already exists in ${data.city} (id: ${existing.id}). Use Add Claim on the existing record instead of creating a new one.`,
+      );
+    }
+
     const entity = this.societyRepo.create({
       ...data,
       source_document_ids: [],

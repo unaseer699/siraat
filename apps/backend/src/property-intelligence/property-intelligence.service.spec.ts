@@ -19,12 +19,14 @@ describe('PropertyIntelligenceService', () => {
   let service: PropertyIntelligenceService;
   let qbMocks: {
     select: jest.Mock;
+    where: jest.Mock;
     andWhere: jest.Mock;
     orderBy: jest.Mock;
     skip: jest.Mock;
     take: jest.Mock;
     getRawMany: jest.Mock;
     getManyAndCount: jest.Mock;
+    getOne: jest.Mock;
   };
   let contractorQbMocks: {
     andWhere: jest.Mock;
@@ -82,14 +84,20 @@ describe('PropertyIntelligenceService', () => {
   beforeEach(async () => {
     qbMocks = {
       select: jest.fn(),
+      where: jest.fn(),
       andWhere: jest.fn(),
       orderBy: jest.fn(),
       skip: jest.fn(),
       take: jest.fn(),
       getRawMany: jest.fn().mockResolvedValue([]),
       getManyAndCount: jest.fn().mockResolvedValue([[], 0]),
+      // DUPLICATE SOCIETY PREVENTION — findSocietyByNameAndCity's .getOne();
+      // defaults to "no match" so every pre-existing createSociety test
+      // (which doesn't care about duplicate-checking) keeps passing.
+      getOne: jest.fn().mockResolvedValue(null),
     };
     qbMocks.select.mockReturnValue(qbMocks);
+    qbMocks.where.mockReturnValue(qbMocks);
     qbMocks.andWhere.mockReturnValue(qbMocks);
     qbMocks.orderBy.mockReturnValue(qbMocks);
     qbMocks.skip.mockReturnValue(qbMocks);
@@ -406,6 +414,138 @@ describe('PropertyIntelligenceService', () => {
         expect.objectContaining({ developer_id: null }),
       );
       expect(result.developer_id).toBeNull();
+    });
+
+    // DUPLICATE SOCIETY PREVENTION — two identical "AGOCHS, Phase-II" rows
+    // were once accidentally created 5 minutes apart via this exact form.
+    describe('duplicate name+city rejection', () => {
+      it('rejects an exact name+city match (case-insensitive) with a clear error identifying the existing record', async () => {
+        qbMocks.getOne.mockResolvedValue({
+          id: 'soc-existing-uuid',
+          name: 'AGOCHS, Phase-II',
+          city: 'Islamabad',
+          min_price: null,
+          max_price: null,
+          min_area_marla: null,
+          max_area_marla: null,
+          property_types: ['PLOT'],
+          noc_approved: false,
+          base_confidence: 0.5,
+          is_siraat_affiliated: false,
+          affiliation_disclosure: null,
+          noc_summary: null,
+          source_document_ids: [],
+          is_stale: false,
+          staleness_threshold_days: 30,
+          record_type: 'FACT',
+        });
+
+        let caught: unknown;
+        try {
+          // Different case on both fields — still the same society.
+          await service.createSociety(buildInput({ name: 'agochs, phase-ii', city: 'ISLAMABAD' }));
+        } catch (err) {
+          caught = err;
+        }
+
+        expect(caught).toBeInstanceOf(BadRequestException);
+        const message = (caught as BadRequestException).message;
+        expect(message).toContain('agochs, phase-ii');
+        expect(message).toContain('ISLAMABAD');
+        expect(message).toContain('soc-existing-uuid');
+        expect(message).toContain('Add Claim');
+        // Never reaches the actual insert.
+        expect(societyCreateMock).not.toHaveBeenCalled();
+      });
+
+      it('checks LOWER(name)/LOWER(city) equality — not a substring or fuzzy match', async () => {
+        qbMocks.getOne.mockResolvedValue(null);
+
+        await service.createSociety(buildInput({ name: 'AGOCHS, Phase-II', city: 'Islamabad' }));
+
+        expect(qbMocks.where).toHaveBeenCalledWith('LOWER(s.name) = LOWER(:name)', { name: 'AGOCHS, Phase-II' });
+        expect(qbMocks.andWhere).toHaveBeenCalledWith('LOWER(s.city) = LOWER(:city)', { city: 'Islamabad' });
+      });
+
+      it('does not false-positive on a different name in the same city', async () => {
+        qbMocks.getOne.mockResolvedValue(null);
+
+        const result = await service.createSociety(buildInput({ name: 'A Totally Different Society', city: 'Islamabad' }));
+
+        expect(societyCreateMock).toHaveBeenCalled();
+        expect(result).toBeDefined();
+      });
+
+      // "Park View City" could plausibly exist in two different cities —
+      // city is part of the match deliberately so this is never over-blocked.
+      it('does not false-positive on the same name in a different city', async () => {
+        qbMocks.getOne.mockResolvedValue(null);
+
+        await service.createSociety(buildInput({ name: 'Park View City', city: 'Lahore' }));
+
+        expect(qbMocks.andWhere).toHaveBeenCalledWith('LOWER(s.city) = LOWER(:city)', { city: 'Lahore' });
+        expect(societyCreateMock).toHaveBeenCalled();
+      });
+    });
+  });
+
+  describe('findSocietyByNameAndCity', () => {
+    it('returns null when no match exists', async () => {
+      qbMocks.getOne.mockResolvedValue(null);
+
+      const result = await service.findSocietyByNameAndCity('Park View City', 'Islamabad');
+
+      expect(result).toBeNull();
+    });
+
+    it('returns the matching society, case-insensitively, when one exists', async () => {
+      qbMocks.getOne.mockResolvedValue({
+        id: 'soc-existing-uuid',
+        name: 'Park View City',
+        city: 'Islamabad',
+        min_price: null,
+        max_price: null,
+        min_area_marla: null,
+        max_area_marla: null,
+        property_types: ['PLOT'],
+        noc_approved: false,
+        base_confidence: 0.5,
+        is_siraat_affiliated: false,
+        affiliation_disclosure: null,
+        noc_summary: null,
+        source_document_ids: [],
+        is_stale: false,
+        staleness_threshold_days: 30,
+        record_type: 'FACT',
+      });
+
+      const result = await service.findSocietyByNameAndCity('park view city', 'ISLAMABAD');
+
+      expect(result).not.toBeNull();
+      expect(result!.id).toBe('soc-existing-uuid');
+    });
+
+    it('returns null without querying when name is blank', async () => {
+      const result = await service.findSocietyByNameAndCity('  ', 'Islamabad');
+
+      expect(result).toBeNull();
+      expect(qbMocks.where).not.toHaveBeenCalled();
+    });
+
+    it('returns null without querying when city is blank', async () => {
+      const result = await service.findSocietyByNameAndCity('Park View City', '  ');
+
+      expect(result).toBeNull();
+      expect(qbMocks.where).not.toHaveBeenCalled();
+    });
+
+    it('trims whitespace before matching', async () => {
+      qbMocks.getOne.mockResolvedValue(null);
+
+      await service.findSocietyByNameAndCity('  Park View City  ', '  Islamabad  ');
+
+      expect(qbMocks.where).toHaveBeenCalledWith('LOWER(s.name) = LOWER(:name)', { name: 'Park View City' });
+      expect(qbMocks.andWhere).toHaveBeenCalledWith('LOWER(s.city) = LOWER(:city)', { city: 'Islamabad' });
     });
   });
 
