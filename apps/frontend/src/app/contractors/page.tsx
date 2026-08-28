@@ -7,7 +7,16 @@ import type { ContractorListResponse, SocietyVerificationStatus } from '@siraat/
 import { fetchContractors, fetchPlatformStats } from '@/lib/api';
 import { TRADE_CATEGORY_OPTIONS } from '@/lib/tradeCategories';
 import { BackLink } from '@/components/BackLink';
-import { TRUST_GREEN, WARNING_AMBER, DANGER_RED, NEUTRAL_GRAY, RADIUS } from '@/styles/tokens';
+import {
+  TRUST_GREEN,
+  WARNING_AMBER,
+  DANGER_RED,
+  NEUTRAL_GRAY,
+  REVOKED_SLATE,
+  REVOKED_SLATE_BG,
+  REVOKED_SLATE_BORDER,
+  RADIUS,
+} from '@/styles/tokens';
 
 const PAGE_SIZE = 20;
 
@@ -16,13 +25,15 @@ const PAGE_SIZE = 20;
 // just derived from a Contractor's claims instead (TrustService, reused).
 const STATUS_META: Record<
   SocietyVerificationStatus,
-  { color: string; bg: string; border: string; icon: string }
+  { color: string; bg: string; border: string; icon: string; label: string }
 > = {
-  VERIFIED: { color: TRUST_GREEN, bg: '#f0fdf4', border: `${TRUST_GREEN}40`, icon: '✓' },
-  DISPUTED: { color: DANGER_RED, bg: '#fef2f2', border: `${DANGER_RED}40`, icon: '⚠' },
-  CANCELLED: { color: DANGER_RED, bg: '#fef2f2', border: `${DANGER_RED}40`, icon: '✕' },
-  PARTIAL: { color: WARNING_AMBER, bg: '#fffbeb', border: `${WARNING_AMBER}40`, icon: '…' },
-  PENDING: { color: NEUTRAL_GRAY, bg: '#f9fafb', border: `${NEUTRAL_GRAY}40`, icon: '○' },
+  VERIFIED: { color: TRUST_GREEN, bg: '#f0fdf4', border: `${TRUST_GREEN}40`, icon: '✓', label: 'Verified' },
+  DISPUTED: { color: DANGER_RED, bg: '#fef2f2', border: `${DANGER_RED}40`, icon: '⚠', label: 'Disputed' },
+  // EVIDENCE DOCUMENT MODEL Chunk 2 — see browse/page.tsx's STATUS_META for
+  // why CANCELLED gets its own REVOKED_SLATE tone rather than DANGER_RED.
+  CANCELLED: { color: REVOKED_SLATE, bg: REVOKED_SLATE_BG, border: REVOKED_SLATE_BORDER, icon: '✕', label: 'Cancelled' },
+  PARTIAL: { color: WARNING_AMBER, bg: '#fffbeb', border: `${WARNING_AMBER}40`, icon: '…', label: 'Partial' },
+  PENDING: { color: NEUTRAL_GRAY, bg: '#f9fafb', border: `${NEUTRAL_GRAY}40`, icon: '○', label: 'Pending' },
 };
 
 function StatusBadge({ status }: { status: SocietyVerificationStatus }) {
@@ -43,7 +54,7 @@ function StatusBadge({ status }: { status: SocietyVerificationStatus }) {
         whiteSpace: 'nowrap',
       }}
     >
-      {meta.icon} {status}
+      {meta.icon} {meta.label}
     </span>
   );
 }

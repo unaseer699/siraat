@@ -5,7 +5,7 @@ import { CopyLinkButton } from '@/components/CopyLinkButton';
 import { BackLink } from '@/components/BackLink';
 import StatCard from '@/components/StatCard';
 import { TRADE_CATEGORY_OPTIONS } from '@/lib/tradeCategories';
-import { TRUST_GREEN, WARNING_AMBER, DANGER_RED, NEUTRAL_GRAY } from '@/styles/tokens';
+import { TRUST_GREEN, WARNING_AMBER, DANGER_RED, NEUTRAL_GRAY, REVOKED_SLATE, REVOKED_SLATE_BG, REVOKED_SLATE_BORDER } from '@/styles/tokens';
 import type { VerificationResponse, SocietyVerificationStatus } from '@siraat/shared-types';
 
 interface Props {
@@ -15,18 +15,25 @@ interface Props {
 // Same claim-status badge meta as society/[id]/page.tsx.
 const STATUS_META: Record<
   'VERIFIED' | 'DISPUTED' | 'PENDING' | 'CANCELLED',
-  { color: string; bg: string; border: string; tone: 'success' | 'danger' | 'warning'; icon: string }
+  { color: string; bg: string; border: string; tone: 'success' | 'danger' | 'warning' | 'revoked'; icon: string; label: string }
 > = {
-  VERIFIED: { color: TRUST_GREEN, bg: '#f0fdf4', border: `${TRUST_GREEN}40`, tone: 'success', icon: '✓' },
-  DISPUTED: { color: DANGER_RED, bg: '#fef2f2', border: `${DANGER_RED}40`, tone: 'danger', icon: '⚠' },
-  // EVIDENCE DOCUMENT MODEL Chunk 1 — see STATUS_META in society/[id]/page.tsx
-  // for why this reuses DISPUTED's tone/color with a distinct icon.
-  CANCELLED: { color: DANGER_RED, bg: '#fef2f2', border: `${DANGER_RED}40`, tone: 'danger', icon: '✕' },
-  PENDING: { color: WARNING_AMBER, bg: '#fffbeb', border: `${WARNING_AMBER}40`, tone: 'warning', icon: '…' },
+  VERIFIED: { color: TRUST_GREEN, bg: '#f0fdf4', border: `${TRUST_GREEN}40`, tone: 'success', icon: '✓', label: 'Verified' },
+  DISPUTED: { color: DANGER_RED, bg: '#fef2f2', border: `${DANGER_RED}40`, tone: 'danger', icon: '⚠', label: 'Disputed' },
+  // EVIDENCE DOCUMENT MODEL Chunk 2 — see STATUS_META in society/[id]/page.tsx
+  // for why CANCELLED gets its own REVOKED_SLATE tone rather than DANGER_RED.
+  CANCELLED: {
+    color: REVOKED_SLATE,
+    bg: REVOKED_SLATE_BG,
+    border: REVOKED_SLATE_BORDER,
+    tone: 'revoked',
+    icon: '✕',
+    label: 'Cancelled',
+  },
+  PENDING: { color: WARNING_AMBER, bg: '#fffbeb', border: `${WARNING_AMBER}40`, tone: 'warning', icon: '…', label: 'Pending' },
 };
 
 function StatusBadge({ status }: { status: 'VERIFIED' | 'DISPUTED' | 'PENDING' | 'CANCELLED' }) {
-  const { color, bg, border, icon } = STATUS_META[status] ?? STATUS_META.PENDING;
+  const { color, bg, border, icon, label } = STATUS_META[status] ?? STATUS_META.PENDING;
   return (
     <span
       style={{
@@ -42,7 +49,7 @@ function StatusBadge({ status }: { status: 'VERIFIED' | 'DISPUTED' | 'PENDING' |
         gap: '4px',
       }}
     >
-      {icon} {status}
+      {icon} {label}
     </span>
   );
 }
@@ -52,13 +59,13 @@ function StatusBadge({ status }: { status: 'VERIFIED' | 'DISPUTED' | 'PENDING' |
 // per-claim StatusBadge above.
 const OVERALL_STATUS_META: Record<
   SocietyVerificationStatus,
-  { color: string; bg: string; border: string; icon: string }
+  { color: string; bg: string; border: string; icon: string; label: string }
 > = {
-  VERIFIED: { color: TRUST_GREEN, bg: '#f0fdf4', border: `${TRUST_GREEN}40`, icon: '✓' },
-  DISPUTED: { color: DANGER_RED, bg: '#fef2f2', border: `${DANGER_RED}40`, icon: '⚠' },
-  CANCELLED: { color: DANGER_RED, bg: '#fef2f2', border: `${DANGER_RED}40`, icon: '✕' },
-  PARTIAL: { color: WARNING_AMBER, bg: '#fffbeb', border: `${WARNING_AMBER}40`, icon: '…' },
-  PENDING: { color: NEUTRAL_GRAY, bg: '#f9fafb', border: `${NEUTRAL_GRAY}40`, icon: '○' },
+  VERIFIED: { color: TRUST_GREEN, bg: '#f0fdf4', border: `${TRUST_GREEN}40`, icon: '✓', label: 'Verified' },
+  DISPUTED: { color: DANGER_RED, bg: '#fef2f2', border: `${DANGER_RED}40`, icon: '⚠', label: 'Disputed' },
+  CANCELLED: { color: REVOKED_SLATE, bg: REVOKED_SLATE_BG, border: REVOKED_SLATE_BORDER, icon: '✕', label: 'Cancelled' },
+  PARTIAL: { color: WARNING_AMBER, bg: '#fffbeb', border: `${WARNING_AMBER}40`, icon: '…', label: 'Partial' },
+  PENDING: { color: NEUTRAL_GRAY, bg: '#f9fafb', border: `${NEUTRAL_GRAY}40`, icon: '○', label: 'Pending' },
 };
 
 function OverallStatusBadge({ status }: { status: SocietyVerificationStatus }) {
@@ -78,7 +85,7 @@ function OverallStatusBadge({ status }: { status: SocietyVerificationStatus }) {
         gap: '4px',
       }}
     >
-      {meta.icon} {status}
+      {meta.icon} {meta.label}
     </span>
   );
 }

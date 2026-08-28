@@ -1,5 +1,5 @@
 import type { CSSProperties } from 'react';
-import type { ClaimType, EvidenceType } from '@/lib/api';
+import type { ClaimType, EvidenceType, DocumentType } from '@/lib/api';
 import { TRADE_CATEGORY_OPTIONS } from '@/lib/tradeCategories';
 import { MATERIAL_CATEGORY_OPTIONS } from '@/lib/materialCategories';
 
@@ -23,6 +23,21 @@ export const EVIDENCE_TYPE_OPTIONS: { value: EvidenceType; label: string }[] = [
   { value: 'photo', label: 'Photo' },
   { value: 'receipt', label: 'Receipt' },
   { value: 'inspection_report', label: 'Inspection Report' },
+];
+
+// EVIDENCE DOCUMENT MODEL Chunk 2 — mirrors DocumentTypeSchema in
+// @siraat/shared-types (trust.ts), distinct from claim_type above: one
+// claim (e.g. NOC) can have multiple document types tied to it over its
+// lifetime, e.g. both a "NOC" document and a later "NOC Cancellation" one.
+export const DOCUMENT_TYPE_OPTIONS: { value: DocumentType; label: string }[] = [
+  { value: 'LOP_APPROVAL', label: 'LOP Approval' },
+  { value: 'LOP_LETTER', label: 'LOP Letter' },
+  { value: 'NOC', label: 'NOC' },
+  { value: 'NOC_CANCELLATION', label: 'NOC Cancellation' },
+  { value: 'SHOW_CAUSE_NOTICE', label: 'Show Cause Notice' },
+  { value: 'MORTGAGE_DEED', label: 'Mortgage Deed' },
+  { value: 'TRANSFER_DEED', label: 'Transfer Deed' },
+  { value: 'OTHER', label: 'Other' },
 ];
 
 export const PROPERTY_TYPE_OPTIONS = ['PLOT', 'HOUSE', 'APARTMENT', 'COMMERCIAL'];
