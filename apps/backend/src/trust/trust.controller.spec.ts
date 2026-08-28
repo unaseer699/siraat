@@ -16,6 +16,8 @@ const EVIDENCE_NOC: EvidenceEntity = {
   type: 'document',
   file_ref: 'trust/cda/noc-224kanal.pdf',
   source_ref: 'CDA Portal',
+  document_date: null,
+  document_type: null,
   record_type: 'FACT',
   created_at: new Date('2026-01-10'),
 };
@@ -25,6 +27,8 @@ const EVIDENCE_NOTICE: EvidenceEntity = {
   type: 'document',
   file_ref: 'trust/lda/show-cause.pdf',
   source_ref: 'LDA Portal',
+  document_date: null,
+  document_type: null,
   record_type: 'FACT',
   created_at: new Date('2026-03-01'),
 };

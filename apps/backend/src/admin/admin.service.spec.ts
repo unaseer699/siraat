@@ -1,5 +1,6 @@
 import { Test } from '@nestjs/testing';
 import { BadRequestException, NotFoundException } from '@nestjs/common';
+import type { DocumentType } from '@siraat/shared-types';
 import {
   AdminService,
   type CreateContractorInput,
@@ -54,6 +55,8 @@ const EVIDENCE_ITEM = {
   type: 'document' as const,
   file_ref: 'trust/pvc/noc.pdf',
   source_ref: 'CDA Portal — NOC No. 123',
+  document_date: null,
+  document_type: null,
 };
 
 const EVIDENCE_ENTITY = { id: EVI_ID, record_type: 'FACT', ...EVIDENCE_ITEM, created_at: new Date() };
@@ -188,7 +191,13 @@ function buildSocietyInput(overrides: object = {}) {
     claim: 'NOC Approved by CDA',
     claim_type: 'NOC' as const,
     target_status: 'PENDING' as const,
-    evidence: [] as Array<{ type: 'document' | 'photo' | 'receipt' | 'inspection_report'; file_ref: string; source_ref: string }>,
+    evidence: [] as Array<{
+      type: 'document' | 'photo' | 'receipt' | 'inspection_report';
+      file_ref: string;
+      source_ref: string;
+      document_date: string | null;
+      document_type: DocumentType | null;
+    }>,
     ...overrides,
   };
 }

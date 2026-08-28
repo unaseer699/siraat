@@ -9,6 +9,7 @@ import type {
   SupplierListResponse,
   HousePlanSummary,
   HousePlanListResponse,
+  DocumentType,
 } from '@siraat/shared-types';
 import { PropertyIntelligenceService } from '../property-intelligence/property-intelligence.service';
 import { TrustService, ClaimType } from '../trust/trust.service';
@@ -57,6 +58,10 @@ export interface EvidenceInput {
   type: 'document' | 'photo' | 'receipt' | 'inspection_report';
   file_ref: string;
   source_ref: string;
+  // EVIDENCE DOCUMENT MODEL Chunk 1 — see TrustService.createEvidenceRecord/
+  // createAndLinkEvidence.
+  document_date: string | null;
+  document_type: DocumentType | null;
 }
 
 export interface CreateSocietyInput {
@@ -89,7 +94,7 @@ export interface AddClaimInput {
   subject_id: string;
   claim: string;
   claim_type: ClaimType;
-  target_status: 'VERIFIED' | 'DISPUTED' | 'PENDING';
+  target_status: 'VERIFIED' | 'DISPUTED' | 'PENDING' | 'CANCELLED';
   evidence: EvidenceInput[];
 }
 

@@ -14,6 +14,9 @@ function serializeEvidence(e: EvidenceEntity) {
     source_ref: e.source_ref,
     record_type: e.record_type,
     created_at: e.created_at.toISOString(),
+    // EVIDENCE DOCUMENT MODEL Chunk 1 — both nullable, see EvidenceEntity.
+    document_date: e.document_date,
+    document_type: e.document_type,
   };
 }
 

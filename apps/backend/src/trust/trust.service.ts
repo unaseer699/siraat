@@ -1,11 +1,27 @@
 import { Injectable, BadRequestException, Logger, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, In, MoreThan } from 'typeorm';
-import type { SocietyVerificationStatus } from '@siraat/shared-types';
+import type { SocietyVerificationStatus, DocumentType } from '@siraat/shared-types';
 import { VerificationEntity, type VerificationSubjectType } from './entities/verification.entity';
 import { EvidenceEntity } from './entities/evidence.entity';
 import { EvidenceSubmissionEntity } from './entities/evidence-submission.entity';
 import { ObservationEntity } from './entities/observation.entity';
+
+// EVIDENCE DOCUMENT MODEL Chunk 1 — the one shared sort rule for every
+// Evidence-listing method (requirement: "one shared sorting rule, not
+// reimplemented per call site"). Most recent document_date first; when
+// document_date is null (pre-existing rows from before this chunk), falls
+// back to created_at DESC instead of sorting arbitrarily. Compares actual
+// timestamps (not raw date/ISO strings) so a bare 'YYYY-MM-DD' document_date
+// never mis-sorts against a same-day created_at timestamp due to string
+// length differences.
+function evidenceSortKey(e: EvidenceEntity): number {
+  return new Date(e.document_date ?? e.created_at).getTime();
+}
+
+function sortEvidenceByDocumentDate(evidence: EvidenceEntity[]): EvidenceEntity[] {
+  return [...evidence].sort((a, b) => evidenceSortKey(b) - evidenceSortKey(a));
+}
 
 export type ClaimType =
   | 'NOC'
@@ -87,7 +103,9 @@ export class TrustService {
           verification.evidence_refs.length > 0
             ? await this.eviRepo.findBy({ id: In(verification.evidence_refs) })
             : [];
-        return { verification, evidence };
+        // findBy() gives no ordering guarantee — most-recent-document-first
+        // is the shared rule (see sortEvidenceByDocumentDate above).
+        return { verification, evidence: sortEvidenceByDocumentDate(evidence) };
       }),
     );
   }
@@ -115,9 +133,16 @@ export class TrustService {
   /**
    * Derives a single overall verification_status from every claim on a subject.
    * Reused by Browse Societies (property-intelligence) — the one place this precedence
-   * should live; do not re-derive it inline elsewhere. Order matters: an unresolved
-   * adverse claim (DISPUTED SHOW_CAUSE_NOTICE / ILLEGAL_SCHEME_NOTICE) always wins over
-   * an otherwise-VERIFIED primary claim.
+   * should live; do not re-derive it inline elsewhere.
+   *
+   * Precedence, most to least severe: CANCELLED > DISPUTED > VERIFIED > PARTIAL/PENDING.
+   *   - CANCELLED: the primary claim itself has been cancelled — the approval no
+   *     longer exists at all. This is checked FIRST and outranks even an active
+   *     dispute on a different claim (EVIDENCE DOCUMENT MODEL Chunk 1) — a
+   *     cancelled NOC is the most severe finding possible for that claim,
+   *     strictly worse than a merely-contested (DISPUTED) one.
+   *   - DISPUTED: an unresolved adverse claim (DISPUTED SHOW_CAUSE_NOTICE /
+   *     ILLEGAL_SCHEME_NOTICE) always wins over an otherwise-VERIFIED primary claim.
    */
   async deriveVerificationStatus(
     subjectType: VerificationSubjectType,
@@ -126,18 +151,20 @@ export class TrustService {
     const all = await this.getVerifications(subjectType, subjectId);
     if (all.length === 0) return 'PENDING';
 
-    const hasDisputedAdverseClaim = all.some(
-      (r) =>
-        ADVERSE_CLAIM_TYPES.includes(r.verification.claim_type) && r.verification.status === 'DISPUTED',
-    );
-    if (hasDisputedAdverseClaim) return 'DISPUTED';
-
     // Primary claim: NOC or PLANNING_APPROVAL first, else the first record (same
     // precedence as the deprecated getVerification() and ScoringService.computeAndSave()).
     const primaryClaim =
       all.find(
         (r) => r.verification.claim_type === 'NOC' || r.verification.claim_type === 'PLANNING_APPROVAL',
       ) ?? all[0];
+
+    if (primaryClaim.verification.status === 'CANCELLED') return 'CANCELLED';
+
+    const hasDisputedAdverseClaim = all.some(
+      (r) =>
+        ADVERSE_CLAIM_TYPES.includes(r.verification.claim_type) && r.verification.status === 'DISPUTED',
+    );
+    if (hasDisputedAdverseClaim) return 'DISPUTED';
 
     return primaryClaim.verification.status === 'VERIFIED' ? 'VERIFIED' : 'PARTIAL';
   }
@@ -162,7 +189,8 @@ export class TrustService {
 
   async findEvidenceByIds(ids: string[]): Promise<EvidenceEntity[]> {
     if (ids.length === 0) return [];
-    return this.eviRepo.findBy({ id: In(ids) });
+    // Same shared sort rule as getVerifications() above.
+    return sortEvidenceByDocumentDate(await this.eviRepo.findBy({ id: In(ids) }));
   }
 
   // Used internally and in tests; no public POST endpoint this capability
@@ -174,7 +202,7 @@ export class TrustService {
     subject_id: string;
     claim: string;
     claim_type: ClaimType;
-    status: 'VERIFIED' | 'DISPUTED' | 'PENDING';
+    status: 'VERIFIED' | 'DISPUTED' | 'PENDING' | 'CANCELLED';
     evidence_refs: string[];
   }): Promise<VerificationEntity> {
     if (!data.claim_type) {
@@ -265,12 +293,27 @@ export class TrustService {
 
   // Creates a standalone FACT Evidence row without linking it to any Verification.
   // Used by admin scripts that collect evidence IDs before calling createVerification().
+  // EVIDENCE DOCUMENT MODEL Chunk 1 — document_date/document_type both
+  // optional: the admin form (EvidenceEditor.tsx) doesn't collect them yet
+  // (that's a follow-up chunk), and old callers that only ever sent
+  // type/file_ref/source_ref must keep compiling and behaving identically.
+  // Explicitly defaulted to null here (not left to the column's own
+  // nullable default) — same reason record_type is always passed
+  // explicitly elsewhere in this codebase: TypeORM doesn't reflect plain
+  // column defaults back into the returned JS entity after save().
   async createEvidenceRecord(data: {
     type: 'document' | 'photo' | 'receipt' | 'inspection_report';
     file_ref: string;
     source_ref: string;
+    document_date?: string | null;
+    document_type?: DocumentType | null;
   }): Promise<EvidenceEntity> {
-    const evidence = this.eviRepo.create({ ...data, record_type: 'FACT' });
+    const evidence = this.eviRepo.create({
+      ...data,
+      document_date: data.document_date ?? null,
+      document_type: data.document_type ?? null,
+      record_type: 'FACT',
+    });
     return this.eviRepo.save(evidence);
   }
 
@@ -282,9 +325,16 @@ export class TrustService {
       type: 'document' | 'photo' | 'receipt' | 'inspection_report';
       file_ref: string;
       source_ref: string;
+      document_date?: string | null;
+      document_type?: DocumentType | null;
     },
   ): Promise<EvidenceEntity> {
-    const evidence = this.eviRepo.create({ ...data, record_type: 'FACT' });
+    const evidence = this.eviRepo.create({
+      ...data,
+      document_date: data.document_date ?? null,
+      document_type: data.document_type ?? null,
+      record_type: 'FACT',
+    });
     const saved = await this.eviRepo.save(evidence);
 
     const verification = await this.verRepo.findOne({

@@ -14,15 +14,18 @@ interface Props {
 
 // Same claim-status badge meta as society/[id]/page.tsx.
 const STATUS_META: Record<
-  'VERIFIED' | 'DISPUTED' | 'PENDING',
+  'VERIFIED' | 'DISPUTED' | 'PENDING' | 'CANCELLED',
   { color: string; bg: string; border: string; tone: 'success' | 'danger' | 'warning'; icon: string }
 > = {
   VERIFIED: { color: TRUST_GREEN, bg: '#f0fdf4', border: `${TRUST_GREEN}40`, tone: 'success', icon: '✓' },
   DISPUTED: { color: DANGER_RED, bg: '#fef2f2', border: `${DANGER_RED}40`, tone: 'danger', icon: '⚠' },
+  // EVIDENCE DOCUMENT MODEL Chunk 1 — see STATUS_META in society/[id]/page.tsx
+  // for why this reuses DISPUTED's tone/color with a distinct icon.
+  CANCELLED: { color: DANGER_RED, bg: '#fef2f2', border: `${DANGER_RED}40`, tone: 'danger', icon: '✕' },
   PENDING: { color: WARNING_AMBER, bg: '#fffbeb', border: `${WARNING_AMBER}40`, tone: 'warning', icon: '…' },
 };
 
-function StatusBadge({ status }: { status: 'VERIFIED' | 'DISPUTED' | 'PENDING' }) {
+function StatusBadge({ status }: { status: 'VERIFIED' | 'DISPUTED' | 'PENDING' | 'CANCELLED' }) {
   const { color, bg, border, icon } = STATUS_META[status] ?? STATUS_META.PENDING;
   return (
     <span
@@ -53,6 +56,7 @@ const OVERALL_STATUS_META: Record<
 > = {
   VERIFIED: { color: TRUST_GREEN, bg: '#f0fdf4', border: `${TRUST_GREEN}40`, icon: '✓' },
   DISPUTED: { color: DANGER_RED, bg: '#fef2f2', border: `${DANGER_RED}40`, icon: '⚠' },
+  CANCELLED: { color: DANGER_RED, bg: '#fef2f2', border: `${DANGER_RED}40`, icon: '✕' },
   PARTIAL: { color: WARNING_AMBER, bg: '#fffbeb', border: `${WARNING_AMBER}40`, icon: '…' },
   PENDING: { color: NEUTRAL_GRAY, bg: '#f9fafb', border: `${NEUTRAL_GRAY}40`, icon: '○' },
 };
