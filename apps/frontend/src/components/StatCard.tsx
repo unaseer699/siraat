@@ -1,16 +1,19 @@
-import { TRUST_GREEN, WARNING_AMBER, DANGER_RED, NEUTRAL_GRAY } from '../styles/tokens';
+import { TRUST_GREEN, WARNING_AMBER, DANGER_RED, NEUTRAL_GRAY, REVOKED_SLATE } from '../styles/tokens';
 
 const BORDER_COLOR: Record<string, string> = {
   success: TRUST_GREEN,
   warning: WARNING_AMBER,
   danger: DANGER_RED,
   neutral: NEUTRAL_GRAY,
+  // EVIDENCE DOCUMENT MODEL Chunk 2 — a cancelled/revoked claim's own tone,
+  // distinct from 'danger' (an active dispute). See REVOKED_SLATE in tokens.ts.
+  revoked: REVOKED_SLATE,
 };
 
 interface StatCardProps {
   value: string | number;
   label: string;
-  tone: 'success' | 'warning' | 'danger' | 'neutral';
+  tone: 'success' | 'warning' | 'danger' | 'neutral' | 'revoked';
   icon?: React.ReactNode;
 }
 

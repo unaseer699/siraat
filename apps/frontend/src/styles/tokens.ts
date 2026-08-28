@@ -19,6 +19,20 @@ export const TRUST_GREEN_BG = '#f0fdf4';
 export const TRUST_GREEN_BORDER = '#bbf7d0';
 export const TRUST_GREEN_TEXT = '#166534';
 
+// EVIDENCE DOCUMENT MODEL Chunk 2 — CANCELLED's own tone, deliberately NOT
+// DANGER_RED. DISPUTED (DANGER_RED, a vivid alarm red) means "actively
+// contested" — an ongoing conflict that could still resolve either way.
+// CANCELLED means "this no longer exists at all" — a settled, final
+// absence, not an alarm. A muted, desaturated red-slate reads as
+// faded/dead rather than urgent, which is the visual distinction the two
+// states need — same color family (still legibly "in the adverse group"
+// alongside DISPUTED) but a different register within it. Named as a
+// bg/border/text trio, same pattern as TRUST_GREEN_BG/BORDER/TEXT above —
+// CANCELLED appears in the same six status-badge files VERIFIED does.
+export const REVOKED_SLATE = '#6b4a4a';
+export const REVOKED_SLATE_BG = '#f5f1f1';
+export const REVOKED_SLATE_BORDER = '#d6c8c8';
+
 export const SPACING = {
   xs: '4px',
   sm: '8px',

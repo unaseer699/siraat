@@ -8,7 +8,7 @@ import { BackLink } from '@/components/BackLink';
 import StatCard from '@/components/StatCard';
 import { ConfidenceGauge } from '@/components/ConfidenceGauge';
 import { ScoreBreakdown } from '@/components/ScoreBreakdown';
-import { TRUST_GREEN, WARNING_AMBER, DANGER_RED } from '@/styles/tokens';
+import { TRUST_GREEN, WARNING_AMBER, DANGER_RED, REVOKED_SLATE, REVOKED_SLATE_BG, REVOKED_SLATE_BORDER } from '@/styles/tokens';
 import type { VerificationResponse, SocietyScoreResponse } from '@siraat/shared-types';
 
 interface Props {
@@ -17,21 +17,28 @@ interface Props {
 
 const STATUS_META: Record<
   'VERIFIED' | 'DISPUTED' | 'PENDING' | 'CANCELLED',
-  { color: string; bg: string; border: string; tone: 'success' | 'danger' | 'warning'; icon: string }
+  { color: string; bg: string; border: string; tone: 'success' | 'danger' | 'warning' | 'revoked'; icon: string; label: string }
 > = {
-  VERIFIED: { color: TRUST_GREEN, bg: '#f0fdf4', border: `${TRUST_GREEN}40`, tone: 'success', icon: '✓' },
-  DISPUTED: { color: DANGER_RED, bg: '#fef2f2', border: `${DANGER_RED}40`, tone: 'danger', icon: '⚠' },
-  // EVIDENCE DOCUMENT MODEL Chunk 1 — same red/danger family as DISPUTED
-  // (both adverse), distinct icon: a cancelled approval no longer exists at
-  // all, strictly more severe than a merely-contested one. Minimal
-  // placeholder treatment to keep this Record exhaustive and the build
-  // green — full CANCELLED UI/copy is frontend follow-up work.
-  CANCELLED: { color: DANGER_RED, bg: '#fef2f2', border: `${DANGER_RED}40`, tone: 'danger', icon: '✕' },
-  PENDING: { color: WARNING_AMBER, bg: '#fffbeb', border: `${WARNING_AMBER}40`, tone: 'warning', icon: '…' },
+  VERIFIED: { color: TRUST_GREEN, bg: '#f0fdf4', border: `${TRUST_GREEN}40`, tone: 'success', icon: '✓', label: 'Verified' },
+  DISPUTED: { color: DANGER_RED, bg: '#fef2f2', border: `${DANGER_RED}40`, tone: 'danger', icon: '⚠', label: 'Disputed' },
+  // EVIDENCE DOCUMENT MODEL Chunk 2 — real CANCELLED treatment (replaces
+  // Chunk 1's DANGER_RED placeholder). Its own tone (REVOKED_SLATE, see
+  // tokens.ts): DISPUTED is an active, ongoing conflict; CANCELLED is a
+  // settled, final absence — visually distinct registers, not just a
+  // different icon on the same alarm-red.
+  CANCELLED: {
+    color: REVOKED_SLATE,
+    bg: REVOKED_SLATE_BG,
+    border: REVOKED_SLATE_BORDER,
+    tone: 'revoked',
+    icon: '✕',
+    label: 'Cancelled',
+  },
+  PENDING: { color: WARNING_AMBER, bg: '#fffbeb', border: `${WARNING_AMBER}40`, tone: 'warning', icon: '…', label: 'Pending' },
 };
 
 function StatusBadge({ status }: { status: 'VERIFIED' | 'DISPUTED' | 'PENDING' | 'CANCELLED' }) {
-  const { color, bg, border, icon } = STATUS_META[status] ?? STATUS_META.PENDING;
+  const { color, bg, border, icon, label } = STATUS_META[status] ?? STATUS_META.PENDING;
   return (
     <span
       style={{
@@ -47,7 +54,7 @@ function StatusBadge({ status }: { status: 'VERIFIED' | 'DISPUTED' | 'PENDING' |
         gap: '4px',
       }}
     >
-      {icon} {status}
+      {icon} {label}
     </span>
   );
 }

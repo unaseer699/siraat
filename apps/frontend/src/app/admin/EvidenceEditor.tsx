@@ -1,7 +1,7 @@
 'use client';
 
-import type { AdminEvidenceItem, EvidenceType } from '@/lib/api';
-import { EVIDENCE_TYPE_OPTIONS, fieldGroupStyle, inputStyle, labelStyle } from './constants';
+import type { AdminEvidenceItem, EvidenceType, DocumentType } from '@/lib/api';
+import { EVIDENCE_TYPE_OPTIONS, DOCUMENT_TYPE_OPTIONS, fieldGroupStyle, inputStyle, labelStyle } from './constants';
 
 /**
  * Dynamic list editor for evidence items, mirroring the `collectEvidence` /
@@ -17,7 +17,10 @@ export function EvidenceEditor({
   required: boolean;
 }) {
   function addItem() {
-    onChange([...items, { type: 'document', file_ref: '', source_ref: '' }]);
+    onChange([
+      ...items,
+      { type: 'document', file_ref: '', source_ref: '', document_date: null, document_type: null },
+    ]);
   }
 
   function updateItem(index: number, patch: Partial<AdminEvidenceItem>) {
@@ -105,6 +108,35 @@ export function EvidenceEditor({
               placeholder="e.g. CDA Portal — NOC No. X"
               style={inputStyle}
             />
+          </div>
+
+          <div style={fieldGroupStyle}>
+            <label style={labelStyle}>Document type (optional)</label>
+            <select
+              value={item.document_type ?? ''}
+              onChange={(e) => updateItem(i, { document_type: (e.target.value || null) as DocumentType | null })}
+              style={inputStyle}
+            >
+              <option value="">—</option>
+              {DOCUMENT_TYPE_OPTIONS.map((t) => (
+                <option key={t.value} value={t.value}>
+                  {t.label}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div style={fieldGroupStyle}>
+            <label style={labelStyle}>Document date (optional)</label>
+            <input
+              type="date"
+              value={item.document_date ?? ''}
+              onChange={(e) => updateItem(i, { document_date: e.target.value || null })}
+              style={inputStyle}
+            />
+            <p style={{ fontSize: '12px', color: 'var(--muted)', margin: 0 }}>
+              The date on the document itself, not today&apos;s date.
+            </p>
           </div>
         </div>
       ))}

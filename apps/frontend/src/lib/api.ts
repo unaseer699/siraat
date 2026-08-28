@@ -24,7 +24,10 @@ import type {
   SupplierListResponse,
   HousePlanSummary,
   HousePlanListResponse,
+  DocumentType,
 } from '@siraat/shared-types';
+
+export type { DocumentType };
 
 export type { MaterialRateItem, CreateMaterialRateBody };
 
@@ -330,6 +333,13 @@ export interface AdminEvidenceItem {
   type: EvidenceType;
   file_ref: string;
   source_ref: string;
+  // EVIDENCE DOCUMENT MODEL Chunk 2 — both optional/nullable: the real-world
+  // document date (distinct from created_at, when it was entered into
+  // Siraat) and its type (distinct from claim_type — one claim can have
+  // multiple document types tied to it, e.g. both "NOC" and a later "NOC
+  // Cancellation" document). See EvidenceEditor.tsx.
+  document_date: string | null;
+  document_type: DocumentType | null;
 }
 
 export interface CreateSocietyBody {

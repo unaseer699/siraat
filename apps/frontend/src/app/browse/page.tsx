@@ -6,7 +6,16 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import type { SocietyListResponse, SocietyBrowseSummary } from '@siraat/shared-types';
 import { fetchSocieties, fetchPlatformStats } from '@/lib/api';
 import { BackLink } from '@/components/BackLink';
-import { TRUST_GREEN, WARNING_AMBER, DANGER_RED, NEUTRAL_GRAY, RADIUS } from '@/styles/tokens';
+import {
+  TRUST_GREEN,
+  WARNING_AMBER,
+  DANGER_RED,
+  NEUTRAL_GRAY,
+  REVOKED_SLATE,
+  REVOKED_SLATE_BG,
+  REVOKED_SLATE_BORDER,
+  RADIUS,
+} from '@/styles/tokens';
 
 const PAGE_SIZE = 20;
 
@@ -29,18 +38,18 @@ function formatRange(range: { min: number | null; max: number | null }): string 
 // society with no claims yet from one with a claim still under review.
 const STATUS_META: Record<
   SocietyBrowseSummary['verification_status'],
-  { color: string; bg: string; border: string; icon: string }
+  { color: string; bg: string; border: string; icon: string; label: string }
 > = {
-  VERIFIED: { color: TRUST_GREEN, bg: '#f0fdf4', border: `${TRUST_GREEN}40`, icon: '✓' },
-  DISPUTED: { color: DANGER_RED, bg: '#fef2f2', border: `${DANGER_RED}40`, icon: '⚠' },
-  // EVIDENCE DOCUMENT MODEL Chunk 1 — same red family as DISPUTED (both
-  // adverse), distinct icon: a cancelled approval no longer exists at all,
-  // strictly more severe than a merely-contested one. Minimal placeholder
-  // treatment to keep this Record exhaustive and the build green — full
-  // CANCELLED UI/copy is frontend follow-up work, not this chunk's scope.
-  CANCELLED: { color: DANGER_RED, bg: '#fef2f2', border: `${DANGER_RED}40`, icon: '✕' },
-  PARTIAL: { color: WARNING_AMBER, bg: '#fffbeb', border: `${WARNING_AMBER}40`, icon: '…' },
-  PENDING: { color: NEUTRAL_GRAY, bg: '#f9fafb', border: `${NEUTRAL_GRAY}40`, icon: '○' },
+  VERIFIED: { color: TRUST_GREEN, bg: '#f0fdf4', border: `${TRUST_GREEN}40`, icon: '✓', label: 'Verified' },
+  DISPUTED: { color: DANGER_RED, bg: '#fef2f2', border: `${DANGER_RED}40`, icon: '⚠', label: 'Disputed' },
+  // EVIDENCE DOCUMENT MODEL Chunk 2 — real CANCELLED treatment (replaces
+  // Chunk 1's DANGER_RED placeholder). Its own tone (REVOKED_SLATE, see
+  // tokens.ts): DISPUTED is an active, ongoing conflict; CANCELLED is a
+  // settled, final absence — visually distinct registers, not just a
+  // different icon on the same alarm-red.
+  CANCELLED: { color: REVOKED_SLATE, bg: REVOKED_SLATE_BG, border: REVOKED_SLATE_BORDER, icon: '✕', label: 'Cancelled' },
+  PARTIAL: { color: WARNING_AMBER, bg: '#fffbeb', border: `${WARNING_AMBER}40`, icon: '…', label: 'Partial' },
+  PENDING: { color: NEUTRAL_GRAY, bg: '#f9fafb', border: `${NEUTRAL_GRAY}40`, icon: '○', label: 'Pending' },
 };
 
 function StatusBadge({ status }: { status: SocietyBrowseSummary['verification_status'] }) {
@@ -61,7 +70,7 @@ function StatusBadge({ status }: { status: SocietyBrowseSummary['verification_st
         whiteSpace: 'nowrap',
       }}
     >
-      {meta.icon} {status}
+      {meta.icon} {meta.label}
     </span>
   );
 }
