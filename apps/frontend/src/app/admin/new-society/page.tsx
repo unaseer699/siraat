@@ -3,7 +3,15 @@
 import { Suspense, useEffect, useRef, useState, type CSSProperties, type FormEvent } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
-import { createSociety, searchDevelopers, type AdminEvidenceItem, type ClaimType, type DeveloperSearchResult } from '@/lib/api';
+import {
+  createSociety,
+  searchDevelopers,
+  searchSocieties,
+  type AdminEvidenceItem,
+  type ClaimType,
+  type DeveloperSearchResult,
+  type SocietySearchResult,
+} from '@/lib/api';
 import { EvidenceEditor } from '../EvidenceEditor';
 import {
   CLAIM_TYPE_OPTIONS,
@@ -188,6 +196,36 @@ function NewSocietyForm() {
     candidate_marked_onboarded: boolean;
   } | null>(null);
 
+  // DUPLICATE SOCIETY PREVENTION — live name+city check as the operator
+  // types, same debounce/stale-response-guard pattern as DeveloperSearchField
+  // above (300ms + a request-id ref), catching the mistake before the
+  // wasted round-trip a submit-then-fail would cost. Fires once BOTH fields
+  // have something in them — an incomplete pair can't be a real duplicate,
+  // same guard PropertyIntelligenceService.findSocietyByNameAndCity uses.
+  const [duplicateMatch, setDuplicateMatch] = useState<SocietySearchResult | null>(null);
+  const duplicateRequestId = useRef(0);
+
+  useEffect(() => {
+    const trimmedName = name.trim();
+    const trimmedCity = city.trim();
+    if (!trimmedName || !trimmedCity) {
+      setDuplicateMatch(null);
+      return;
+    }
+    const id = ++duplicateRequestId.current;
+    const timer = setTimeout(async () => {
+      try {
+        const found = await searchSocieties(trimmedName, trimmedCity);
+        if (id === duplicateRequestId.current) setDuplicateMatch(found[0] ?? null);
+      } catch {
+        // A failed check shouldn't block the operator — the server's own
+        // hard block on submit is still the real enforcement point.
+        if (id === duplicateRequestId.current) setDuplicateMatch(null);
+      }
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [name, city]);
+
   function toggleType(t: string) {
     setPropertyTypes((prev) => (prev.includes(t) ? prev.filter((x) => x !== t) : [...prev, t]));
   }
@@ -197,7 +235,7 @@ function NewSocietyForm() {
   const evidenceOk = targetStatus !== 'VERIFIED' || evidence.length > 0;
   const affiliationOk = !isAffiliated || affiliationDisclosure.trim().length > 0;
   const canSubmit =
-    name.trim() && city.trim() && claim.trim() && confidenceValid && evidenceOk && affiliationOk;
+    name.trim() && city.trim() && claim.trim() && confidenceValid && evidenceOk && affiliationOk && !duplicateMatch;
 
   function handleDeveloperSelect(r: DeveloperSearchResult) {
     setDeveloperId(r.id);
@@ -311,6 +349,29 @@ function NewSocietyForm() {
                 <label style={labelStyle}>City</label>
                 <input type="text" value={city} onChange={(e) => setCity(e.target.value)} required style={inputStyle} />
               </div>
+
+              {duplicateMatch && (
+                <div
+                  style={{
+                    padding: '10px 14px',
+                    background: '#fffbeb',
+                    border: '1px solid #f59e0b',
+                    borderRadius: 'var(--radius)',
+                    color: '#92400e',
+                    fontSize: '13px',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '4px',
+                  }}
+                >
+                  <span>
+                    ⚠ A society named &ldquo;{duplicateMatch.name}&rdquo; already exists in {duplicateMatch.city}.
+                  </span>
+                  <Link href={`/admin/society/${duplicateMatch.id}/add-claim`} style={{ fontWeight: 600, color: '#92400e' }}>
+                    Add a claim to it instead →
+                  </Link>
+                </div>
+              )}
 
               <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
                 <div style={{ ...fieldGroupStyle, flex: 1 }}>

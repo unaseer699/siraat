@@ -410,6 +410,21 @@ export async function searchDevelopers(query: string): Promise<DeveloperSearchRe
   return apiFetch(`/v1/admin/developers?search=${encodeURIComponent(query)}`);
 }
 
+export interface SocietySearchResult {
+  id: string;
+  name: string;
+  city: string;
+}
+
+// DUPLICATE SOCIETY PREVENTION — powers new-society/page.tsx's live
+// name+city duplicate-check, before the operator ever submits. Exact
+// case-insensitive match, same rule PropertyIntelligenceService.createSociety
+// enforces server-side — 0 or 1 results in practice.
+export async function searchSocieties(name: string, city: string): Promise<SocietySearchResult[]> {
+  const qs = new URLSearchParams({ name, city });
+  return apiFetch(`/v1/admin/societies/search?${qs.toString()}`);
+}
+
 export async function createSociety(
   data: CreateSocietyBody,
 ): Promise<{ society_id: string; verification_id: string; candidate_marked_onboarded: boolean }> {

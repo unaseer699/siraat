@@ -210,6 +210,7 @@ describe('AdminService', () => {
   // PropertyIntelligenceService mocks
   let createSocietyMock: jest.Mock;
   let findSocietyByIdMock: jest.Mock;
+  let findSocietyByNameAndCityMock: jest.Mock;
   let searchDevelopersMock: jest.Mock;
   let findContractorByIdMock: jest.Mock;
   let createContractorMock: jest.Mock;
@@ -262,6 +263,7 @@ describe('AdminService', () => {
   beforeEach(async () => {
     createSocietyMock          = jest.fn().mockResolvedValue(SOCIETY_RESULT);
     findSocietyByIdMock        = jest.fn().mockResolvedValue(SOCIETY_RESULT);
+    findSocietyByNameAndCityMock = jest.fn().mockResolvedValue(null);
     searchDevelopersMock       = jest.fn().mockResolvedValue([]);
     findContractorByIdMock    = jest.fn().mockResolvedValue(null);
     createContractorMock      = jest.fn().mockResolvedValue(CONTRACTOR_RESULT);
@@ -310,6 +312,7 @@ describe('AdminService', () => {
           useValue: {
             createSociety:     createSocietyMock,
             findSocietyById:   findSocietyByIdMock,
+            findSocietyByNameAndCity: findSocietyByNameAndCityMock,
             searchDevelopers:  searchDevelopersMock,
             findContractorById: findContractorByIdMock,
             createContractor:   createContractorMock,
@@ -742,6 +745,29 @@ describe('AdminService', () => {
 
     expect(searchDevelopersMock).toHaveBeenCalledWith('zameen');
     expect(result).toEqual([{ id: 'dev-a-uuid', name: 'Zameen Developers' }]);
+  });
+
+  // ─── DUPLICATE SOCIETY PREVENTION ───────────────────────────────────────────
+
+  it('searchSocieties wraps a PropertyIntelligenceService.findSocietyByNameAndCity match into a single-item array', async () => {
+    findSocietyByNameAndCityMock.mockResolvedValue({
+      id: 'soc-existing-uuid',
+      name: 'AGOCHS, Phase-II',
+      city: 'Islamabad',
+    });
+
+    const result = await svc.searchSocieties('AGOCHS, Phase-II', 'Islamabad');
+
+    expect(findSocietyByNameAndCityMock).toHaveBeenCalledWith('AGOCHS, Phase-II', 'Islamabad');
+    expect(result).toEqual([{ id: 'soc-existing-uuid', name: 'AGOCHS, Phase-II', city: 'Islamabad' }]);
+  });
+
+  it('searchSocieties returns [] when no match is found', async () => {
+    findSocietyByNameAndCityMock.mockResolvedValue(null);
+
+    const result = await svc.searchSocieties('Some New Society', 'Karachi');
+
+    expect(result).toEqual([]);
   });
 
   // ─── CONTRACTOR DIRECTORY Chunk 2 ──────────────────────────────────────────
