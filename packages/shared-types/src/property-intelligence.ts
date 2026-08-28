@@ -28,8 +28,11 @@ export interface DeveloperProfile {
 }
 
 // Overall claim-derived status for Browse Societies — distinct from the per-claim
-// VERIFIED | DISPUTED | PENDING status stored on a single Verification record.
-export type SocietyVerificationStatus = 'VERIFIED' | 'PARTIAL' | 'PENDING' | 'DISPUTED';
+// VERIFIED | DISPUTED | PENDING | CANCELLED status stored on a single Verification
+// record (EVIDENCE DOCUMENT MODEL Chunk 1 added CANCELLED to both — a cancelled
+// approval no longer exists at all, a genuinely more severe state than a merely
+// contested (DISPUTED) one — see TrustService.deriveVerificationStatus).
+export type SocietyVerificationStatus = 'VERIFIED' | 'PARTIAL' | 'PENDING' | 'DISPUTED' | 'CANCELLED';
 
 export interface SocietyBrowseSummary {
   id: string;

@@ -33,6 +33,12 @@ const STATUS_META: Record<
 > = {
   VERIFIED: { color: TRUST_GREEN, bg: '#f0fdf4', border: `${TRUST_GREEN}40`, icon: '✓' },
   DISPUTED: { color: DANGER_RED, bg: '#fef2f2', border: `${DANGER_RED}40`, icon: '⚠' },
+  // EVIDENCE DOCUMENT MODEL Chunk 1 — same red family as DISPUTED (both
+  // adverse), distinct icon: a cancelled approval no longer exists at all,
+  // strictly more severe than a merely-contested one. Minimal placeholder
+  // treatment to keep this Record exhaustive and the build green — full
+  // CANCELLED UI/copy is frontend follow-up work, not this chunk's scope.
+  CANCELLED: { color: DANGER_RED, bg: '#fef2f2', border: `${DANGER_RED}40`, icon: '✕' },
   PARTIAL: { color: WARNING_AMBER, bg: '#fffbeb', border: `${WARNING_AMBER}40`, icon: '…' },
   PENDING: { color: NEUTRAL_GRAY, bg: '#f9fafb', border: `${NEUTRAL_GRAY}40`, icon: '○' },
 };

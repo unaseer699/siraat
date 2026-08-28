@@ -27,8 +27,12 @@ export class VerificationEntity {
             | 'SHOW_CAUSE_NOTICE' | 'ILLEGAL_SCHEME_NOTICE'
             | 'TRANSFER_DEED' | 'MORTGAGE_DEED' | 'OTHER';
 
+  // EVIDENCE DOCUMENT MODEL Chunk 1 — added CANCELLED: a genuinely more
+  // severe state than DISPUTED. A cancelled approval no longer exists at
+  // all, vs. a disputed one being merely contested. See
+  // TrustService.deriveVerificationStatus for the precedence this implies.
   @Column({ type: 'varchar', length: 20 })
-  status: 'VERIFIED' | 'DISPUTED' | 'PENDING';
+  status: 'VERIFIED' | 'DISPUTED' | 'PENDING' | 'CANCELLED';
 
   // Evidence UUIDs — resolved in application code (no cross-schema SQL join, Law 2)
   @Column({ type: 'text', array: true, default: '{}' })

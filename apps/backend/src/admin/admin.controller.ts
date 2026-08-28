@@ -6,6 +6,7 @@ import {
   HousePlanStyleSchema,
   CreateMaterialRateBodySchema,
   type CreateMaterialRateBody,
+  DocumentTypeSchema,
 } from '@siraat/shared-types';
 import { BearerGuard } from '../auth/bearer.guard';
 import { ZodValidationPipe } from '../common/zod-validation.pipe';
@@ -26,10 +27,16 @@ const CLAIM_TYPES = [
 
 const EVIDENCE_TYPES = ['document', 'photo', 'receipt', 'inspection_report'] as const;
 
+// EVIDENCE DOCUMENT MODEL Chunk 1 — document_date/document_type both
+// optional/nullable: EvidenceEditor.tsx doesn't collect them yet (a
+// follow-up chunk), and existing evidence-creation calls that only ever
+// sent type/file_ref/source_ref must keep validating identically.
 const EvidenceItemSchema = z.object({
   type: z.enum(EVIDENCE_TYPES),
   file_ref: z.string().min(1),
   source_ref: z.string().min(1),
+  document_date: z.string().nullable().default(null),
+  document_type: DocumentTypeSchema.nullable().default(null),
 });
 
 // ADMIN CRUD PHASE 1 Chunk 1 — mirrors CandidateSocietyEntity's regulator/status
@@ -68,7 +75,9 @@ type CreateSocietyBody = z.infer<typeof CreateSocietyBodySchema>;
 const AddClaimBodySchema = z.object({
   claim: z.string().min(1),
   claim_type: z.enum(CLAIM_TYPES),
-  target_status: z.enum(['VERIFIED', 'DISPUTED', 'PENDING']),
+  // EVIDENCE DOCUMENT MODEL Chunk 1 — added CANCELLED, matching
+  // VerificationEntity.status's widened union.
+  target_status: z.enum(['VERIFIED', 'DISPUTED', 'PENDING', 'CANCELLED']),
   evidence: z.array(EvidenceItemSchema).default([]),
 });
 type AddClaimBody = z.infer<typeof AddClaimBodySchema>;
@@ -79,6 +88,8 @@ const CreateEvidenceBodySchema = z.object({
   type: z.enum(EVIDENCE_TYPES),
   file_ref: z.string().min(1),
   source_ref: z.string().min(1),
+  document_date: z.string().nullable().default(null),
+  document_type: DocumentTypeSchema.nullable().default(null),
 });
 type CreateEvidenceBody = z.infer<typeof CreateEvidenceBodySchema>;
 

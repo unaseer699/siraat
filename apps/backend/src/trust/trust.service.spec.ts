@@ -2,6 +2,7 @@ import { Test } from '@nestjs/testing';
 import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import { In, MoreThan } from 'typeorm';
+import { DocumentTypeSchema } from '@siraat/shared-types';
 import { TrustService } from './trust.service';
 import { VerificationEntity } from './entities/verification.entity';
 import { EvidenceEntity } from './entities/evidence.entity';
@@ -17,6 +18,8 @@ const EVIDENCE_1: EvidenceEntity = {
   type: 'document',
   file_ref: 'trust/pvc/noc-cda.pdf',
   source_ref: 'CDA Portal',
+  document_date: null,
+  document_type: null,
   record_type: 'FACT',
   created_at: new Date('2026-01-01'),
 };
@@ -26,6 +29,8 @@ const EVIDENCE_2: EvidenceEntity = {
   type: 'document',
   file_ref: 'trust/pvc/layout.pdf',
   source_ref: 'CDA Portal — Layout',
+  document_date: null,
+  document_type: null,
   record_type: 'FACT',
   created_at: new Date('2026-01-02'),
 };
@@ -68,6 +73,8 @@ const DEV_EVIDENCE: EvidenceEntity = {
   type: 'document',
   file_ref: 'trust/dha/registration-cert.pdf',
   source_ref: 'NAPHDA — Developer Registration Certificate',
+  document_date: null,
+  document_type: null,
   record_type: 'FACT',
   created_at: new Date('2026-02-01'),
 };
@@ -204,6 +211,78 @@ describe('TrustService', () => {
     expect(results.map((r) => r.verification.claim_type)).toContain('SHOW_CAUSE_NOTICE');
     expect(results.find((r) => r.verification.claim_type === 'NOC')!.verification.status).toBe('VERIFIED');
     expect(results.find((r) => r.verification.claim_type === 'SHOW_CAUSE_NOTICE')!.verification.status).toBe('DISPUTED');
+  });
+
+  // ─── EVIDENCE DOCUMENT MODEL Chunk 1 — shared evidence sort rule ───────────
+  // Most recent document_date first; null document_date falls back to
+  // created_at DESC. Exercised through getVerifications() (the method the
+  // requirement names explicitly) — sortEvidenceByDocumentDate itself is a
+  // private module-level function, not part of the public surface to test
+  // directly.
+
+  const EVIDENCE_DOC_DATE_OLDER: EvidenceEntity = {
+    id: 'e1b2c3d4-0009-0009-0009-000000000009',
+    type: 'document',
+    file_ref: 'trust/pvc/noc-2025.pdf',
+    source_ref: 'CDA Portal',
+    document_date: '2025-06-01',
+    document_type: 'NOC',
+    record_type: 'FACT',
+    // Entered into Siraat well after the document itself was issued —
+    // proves the sort uses document_date, not created_at, when both exist.
+    created_at: new Date('2026-01-05'),
+  };
+
+  const EVIDENCE_DOC_DATE_NEWER: EvidenceEntity = {
+    id: 'e1b2c3d4-0008-0008-0008-000000000008',
+    type: 'document',
+    file_ref: 'trust/pvc/noc-cancellation-2026.pdf',
+    source_ref: 'CDA Portal',
+    document_date: '2026-06-01',
+    document_type: 'NOC_CANCELLATION',
+    record_type: 'FACT',
+    created_at: new Date('2026-01-01'),
+  };
+
+  it('sorts evidence by document_date DESC when present', async () => {
+    verFindMock.mockResolvedValue([VERIFICATION_NOC]);
+    // Deliberately mocked older-first — proves the service does the
+    // sorting, not merely passing through whatever order the repo returned.
+    eviFindByMock.mockResolvedValue([EVIDENCE_DOC_DATE_OLDER, EVIDENCE_DOC_DATE_NEWER]);
+
+    const results = await svc.getVerifications('SOCIETY', SOCIETY_ID);
+
+    expect(results[0].evidence.map((e) => e.id)).toEqual([
+      EVIDENCE_DOC_DATE_NEWER.id,
+      EVIDENCE_DOC_DATE_OLDER.id,
+    ]);
+  });
+
+  it('falls back to created_at DESC when document_date is null, without crashing or sorting incorrectly', async () => {
+    verFindMock.mockResolvedValue([VERIFICATION_NOC]);
+    // EVIDENCE_1 (created 2026-01-01) and EVIDENCE_2 (created 2026-01-02) —
+    // both null document_date, so order must follow created_at instead.
+    eviFindByMock.mockResolvedValue([EVIDENCE_1, EVIDENCE_2]);
+
+    const results = await svc.getVerifications('SOCIETY', SOCIETY_ID);
+
+    expect(results[0].evidence.map((e) => e.id)).toEqual([EVIDENCE_2.id, EVIDENCE_1.id]);
+  });
+
+  // Explicit regression test: pre-existing (old) Evidence rows with null
+  // document_date, mixed with a newer row that DOES have one, must still
+  // sort into a sensible combined order rather than crashing or grouping
+  // all-null rows arbitrarily at one end regardless of their actual recency.
+  it('mixes null-document_date (legacy) rows with dated rows correctly — regression for pre-existing Evidence', async () => {
+    verFindMock.mockResolvedValue([VERIFICATION_NOC]);
+    // EVIDENCE_1: legacy row, document_date null, created_at 2026-01-01.
+    // EVIDENCE_DOC_DATE_OLDER: document_date 2025-06-01 (earlier than
+    // EVIDENCE_1's created_at fallback) — EVIDENCE_1 must sort first.
+    eviFindByMock.mockResolvedValue([EVIDENCE_DOC_DATE_OLDER, EVIDENCE_1]);
+
+    const results = await svc.getVerifications('SOCIETY', SOCIETY_ID);
+
+    expect(results[0].evidence.map((e) => e.id)).toEqual([EVIDENCE_1.id, EVIDENCE_DOC_DATE_OLDER.id]);
   });
 
   it('getVerifications returns empty array when no verifications exist', async () => {
@@ -785,6 +864,40 @@ describe('TrustService', () => {
       expect(result).toBe('DISPUTED');
     });
 
+    // ─── EVIDENCE DOCUMENT MODEL Chunk 1 — CANCELLED precedence ────────────────
+    // Precedence: CANCELLED > DISPUTED > VERIFIED > PARTIAL/PENDING.
+
+    const VERIFICATION_NOC_CANCELLED: VerificationEntity = {
+      ...VERIFICATION_NOC,
+      id: 'b3b2c3d4-0003-0003-0003-000000000003',
+      status: 'CANCELLED',
+      verified_at: null,
+    };
+
+    it('returns CANCELLED when the primary claim has been cancelled, even with no other adverse claims', async () => {
+      verFindMock.mockResolvedValue([VERIFICATION_NOC_CANCELLED]);
+      eviFindByMock.mockResolvedValue([EVIDENCE_1]);
+
+      const result = await svc.deriveVerificationStatus('SOCIETY', SOCIETY_ID);
+
+      expect(result).toBe('CANCELLED');
+    });
+
+    // Proves the actual precedence ordering (not just that CANCELLED works in
+    // isolation): a cancelled primary claim (NOC) coexists with a separately
+    // DISPUTED adverse claim (SHOW_CAUSE_NOTICE) — same "VERIFIED NOC +
+    // DISPUTED adverse claim" fixture shape as the DISPUTED-wins-over-VERIFIED
+    // test above, but with the primary claim CANCELLED instead of VERIFIED.
+    // CANCELLED must still win overall.
+    it('CANCELLED outranks DISPUTED — a cancelled primary claim wins even alongside a separately disputed adverse claim', async () => {
+      verFindMock.mockResolvedValue([VERIFICATION_NOC_CANCELLED, VERIFICATION_SHOW_CAUSE]);
+      eviFindByMock.mockResolvedValue([EVIDENCE_1]);
+
+      const result = await svc.deriveVerificationStatus('SOCIETY', SOCIETY_ID);
+
+      expect(result).toBe('CANCELLED');
+    });
+
     // ─── CONTRACTOR DIRECTORY Chunk 1 ────────────────────────────────────────
     // Proves the subject-type-agnostic design is actually generic, not
     // accidentally coupled to just SOCIETY/DEVELOPER — same fixtures, same
@@ -929,5 +1042,40 @@ describe('TrustService', () => {
       expect(results[0].verification.status).toBe('VERIFIED');
       expect(results[0].evidence).toEqual([EVIDENCE_1]);
     });
+  });
+});
+
+// EVIDENCE DOCUMENT MODEL Chunk 1 — the schema enforcing document_type at
+// the API boundary (admin.controller.ts's EvidenceItemSchema/
+// CreateEvidenceBodySchema both use this directly, not a re-declared copy).
+// Tested against the shared-types schema itself, same reasoning
+// admin.controller.ts's other Zod schemas aren't unit-tested via a
+// controller spec in this codebase — the schema is the actual contract.
+describe('DocumentTypeSchema (shared-types)', () => {
+  const VALID_DOCUMENT_TYPES = [
+    'LOP_APPROVAL',
+    'LOP_LETTER',
+    'NOC',
+    'NOC_CANCELLATION',
+    'SHOW_CAUSE_NOTICE',
+    'MORTGAGE_DEED',
+    'TRANSFER_DEED',
+    'OTHER',
+  ];
+
+  it.each(VALID_DOCUMENT_TYPES)('accepts %s', (value) => {
+    expect(DocumentTypeSchema.safeParse(value).success).toBe(true);
+  });
+
+  it('rejects a value outside the 8-member enum', () => {
+    const result = DocumentTypeSchema.safeParse('NOC_RENEWAL');
+    expect(result.success).toBe(false);
+  });
+
+  it('rejects a claim_type-shaped value that is not also a valid document_type', () => {
+    // PLANNING_APPROVAL is a real claim_type (ClaimType) but deliberately
+    // not a document_type — the two enums are related but distinct.
+    const result = DocumentTypeSchema.safeParse('PLANNING_APPROVAL');
+    expect(result.success).toBe(false);
   });
 });
