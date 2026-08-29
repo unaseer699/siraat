@@ -130,6 +130,20 @@ describe('TrustController.getSocietyNocStatus', () => {
     expect(response.claims[0].claim_type).toBe('NOC');
   });
 
+  // ADD EVIDENCE TO EXISTING CLAIM — the id every "+ Add Evidence" action
+  // needs to target POST /v1/admin/verifications/:verificationId/evidence.
+  it('includes the Verification\'s own id in every serialized claim', async () => {
+    const mock = jest.fn().mockResolvedValue([
+      { verification: VER_NOC, evidence: [] },
+    ]);
+    const module = await makeModule(mock);
+    const ctrl = module.get(TrustController);
+
+    const response = await ctrl.getSocietyNocStatus(SOCIETY_ID);
+
+    expect(response.claims[0].id).toBe(VER_NOC.id);
+  });
+
   it('throws NotFoundException when no verification records exist', async () => {
     const mock = jest.fn().mockResolvedValue([]);
     const module = await makeModule(mock);

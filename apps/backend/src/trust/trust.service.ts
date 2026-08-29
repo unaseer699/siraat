@@ -348,6 +348,51 @@ export class TrustService {
     return saved;
   }
 
+  // ADD EVIDENCE TO EXISTING CLAIM — admin-only: add a new Evidence item to a
+  // specific Verification (by its own id), appending to evidence_refs.
+  // ID-scoped and subject-type-agnostic, same reasoning
+  // promoteVerificationToVerified(verificationId) has over the deprecated
+  // promoteToVerified(subjectId) below: createAndLinkEvidence above is
+  // subject_id-based and hardcoded to SOCIETY (correct for its own callers —
+  // reviewSubmission and createSocietyWithFirstClaim's evidence loop, both
+  // of which genuinely have a fresh SOCIETY subject_id and no ambiguity) but
+  // would silently link to the wrong record, or no record at all for a
+  // non-SOCIETY subject, if reused here. This is the one admin action
+  // actually exposed for "add a second piece of evidence to a claim that
+  // already exists" — works for any VerificationSubjectType.
+  //
+  // Status is never touched — adding evidence alone must never change
+  // VERIFIED/DISPUTED/PENDING/CANCELLED; that's a separate action
+  // (promoteVerificationToVerified etc.).
+  async addEvidenceToVerification(
+    verificationId: string,
+    data: {
+      type: 'document' | 'photo' | 'receipt' | 'inspection_report';
+      file_ref: string;
+      source_ref: string;
+      document_date?: string | null;
+      document_type?: DocumentType | null;
+    },
+  ): Promise<EvidenceEntity> {
+    const verification = await this.verRepo.findOneBy({ id: verificationId });
+    if (!verification) {
+      throw new NotFoundException(`Verification ${verificationId} not found`);
+    }
+
+    const evidence = this.eviRepo.create({
+      ...data,
+      document_date: data.document_date ?? null,
+      document_type: data.document_type ?? null,
+      record_type: 'FACT',
+    });
+    const saved = await this.eviRepo.save(evidence);
+
+    verification.evidence_refs = [...verification.evidence_refs, saved.id];
+    await this.verRepo.save(verification);
+
+    return saved;
+  }
+
   /**
    * @deprecated Use promoteVerificationToVerified(verificationId) instead. Looks up the
    * first Verification matching subject_id, which can promote the wrong record when a

@@ -28,9 +28,9 @@ const CLAIM_TYPES = [
 const EVIDENCE_TYPES = ['document', 'photo', 'receipt', 'inspection_report'] as const;
 
 // EVIDENCE DOCUMENT MODEL Chunk 1 — document_date/document_type both
-// optional/nullable: EvidenceEditor.tsx doesn't collect them yet (a
-// follow-up chunk), and existing evidence-creation calls that only ever
-// sent type/file_ref/source_ref must keep validating identically.
+// optional/nullable: existing evidence-creation calls that only ever sent
+// type/file_ref/source_ref (from before EvidenceEditor.tsx collected these,
+// Chunk 2) must keep validating identically.
 const EvidenceItemSchema = z.object({
   type: z.enum(EVIDENCE_TYPES),
   file_ref: z.string().min(1),
@@ -38,6 +38,7 @@ const EvidenceItemSchema = z.object({
   document_date: z.string().nullable().default(null),
   document_type: DocumentTypeSchema.nullable().default(null),
 });
+type EvidenceItemBody = z.infer<typeof EvidenceItemSchema>;
 
 // ADMIN CRUD PHASE 1 Chunk 1 — mirrors CandidateSocietyEntity's regulator/status
 // union types (candidate-society.entity.ts).
@@ -333,6 +334,19 @@ export class AdminController {
     @Body(new ZodValidationPipe(CreateEvidenceBodySchema)) body: CreateEvidenceBody,
   ) {
     return this.adminSvc.createEvidence(body);
+  }
+
+  // ADD EVIDENCE TO EXISTING CLAIM — the one admin action for adding a
+  // second (or third...) piece of evidence to a claim that already exists.
+  // Same EvidenceItemSchema every other evidence-item payload uses (society/
+  // contractor/supplier claim forms) — reused, not re-declared.
+  @Post('verifications/:verificationId/evidence')
+  @HttpCode(201)
+  addEvidenceToVerification(
+    @Param('verificationId') verificationId: string,
+    @Body(new ZodValidationPipe(EvidenceItemSchema)) body: EvidenceItemBody,
+  ) {
+    return this.adminSvc.addEvidenceToVerification(verificationId, body);
   }
 
   @Post('material-rates')

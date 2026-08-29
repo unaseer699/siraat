@@ -4,6 +4,7 @@ import type {
   RecommendationDetail,
   SocietyScoreResponse,
   VerificationListResponse,
+  VerificationResponse,
   PropertyDetail,
   DeveloperProfile,
   DeveloperStats,
@@ -27,7 +28,7 @@ import type {
   DocumentType,
 } from '@siraat/shared-types';
 
-export type { DocumentType };
+export type { DocumentType, VerificationResponse };
 
 export type { MaterialRateItem, CreateMaterialRateBody };
 
@@ -340,6 +341,30 @@ export interface AdminEvidenceItem {
   // Cancellation" document). See EvidenceEditor.tsx.
   document_date: string | null;
   document_type: DocumentType | null;
+}
+
+export interface AddedEvidenceResult {
+  id: string;
+  type: EvidenceType;
+  file_ref: string;
+  source_ref: string;
+  document_date: string | null;
+  document_type: DocumentType | null;
+}
+
+// ADD EVIDENCE TO EXISTING CLAIM — the one admin action for adding a second
+// (or third...) piece of evidence to a claim that already exists. Unlike
+// the create-a-claim flows above (which send a whole evidence[] array in
+// one request, looped server-side), this endpoint takes a single item —
+// callers adding several loop client-side, one request per item.
+export async function addEvidenceToVerification(
+  verificationId: string,
+  data: AdminEvidenceItem,
+): Promise<AddedEvidenceResult> {
+  return apiFetch(`/v1/admin/verifications/${verificationId}/evidence`, {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
 }
 
 export interface CreateSocietyBody {

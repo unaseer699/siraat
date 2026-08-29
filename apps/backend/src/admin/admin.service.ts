@@ -297,6 +297,34 @@ export class AdminService {
     return { id: ev.id, type: ev.type, source_ref: ev.source_ref };
   }
 
+  // ADD EVIDENCE TO EXISTING CLAIM — POST
+  // /v1/admin/verifications/:verificationId/evidence. The one admin action
+  // for adding a second (or third...) piece of evidence to a claim that
+  // already exists — until now the only admin path was "create a new claim
+  // with its first evidence" (addClaim above). 404 (via TrustService) if
+  // the verification id doesn't exist; never touches the claim's status.
+  async addEvidenceToVerification(
+    verificationId: string,
+    data: EvidenceInput,
+  ): Promise<{
+    id: string;
+    type: string;
+    file_ref: string;
+    source_ref: string;
+    document_date: string | null;
+    document_type: DocumentType | null;
+  }> {
+    const ev = await this.trustSvc.addEvidenceToVerification(verificationId, data);
+    return {
+      id: ev.id,
+      type: ev.type,
+      file_ref: ev.file_ref,
+      source_ref: ev.source_ref,
+      document_date: ev.document_date,
+      document_type: ev.document_type,
+    };
+  }
+
   async createMaterialRate(data: CreateMaterialRateInput): Promise<MaterialRateResult> {
     return this.ciSvc.createMaterialRate(data);
   }
