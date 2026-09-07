@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { PropertyIntelligenceModule } from '../property-intelligence/property-intelligence.module';
 import { TrustModule } from '../trust/trust.module';
 import { ConstructionIntelligenceModule } from '../construction-intelligence/construction-intelligence.module';
+import { WhatsappModule } from '../whatsapp/whatsapp.module';
 import { AdminService } from './admin.service';
 import { AdminController } from './admin.controller';
 
@@ -15,6 +16,9 @@ import { AdminController } from './admin.controller';
     PropertyIntelligenceModule,
     TrustModule,
     ConstructionIntelligenceModule,
+    // WHATSAPP INTEGRATION Phase 1 — AdminService delegates the
+    // whatsapp-mappings admin routes to WhatsappService.
+    WhatsappModule,
   ],
   controllers: [AdminController],
   providers: [AdminService],

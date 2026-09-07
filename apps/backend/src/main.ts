@@ -8,6 +8,12 @@ async function bootstrap() {
     AppModule,
     // logger: true enables Fastify's built-in pino logger (method, url, status, responseTime)
     new FastifyAdapter({ logger: true }),
+    // WHATSAPP INTEGRATION Phase 1 — rawBody: true populates request.rawBody
+    // (Buffer) alongside normal JSON parsing, needed to verify Meta's
+    // X-Hub-Signature-256 HMAC against the exact bytes it signed. Global
+    // option, but only WhatsappWebhookController reads req.rawBody — every
+    // other route's @Body() parsing is unaffected.
+    { rawBody: true },
   );
 
   // Global filter: ensures all unhandled errors return { error_code, message } — never raw stacks
