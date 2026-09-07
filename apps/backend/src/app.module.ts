@@ -7,6 +7,7 @@ import { MarketIntelligenceModule } from './market-intelligence/market-intellige
 import { TrustModule } from './trust/trust.module';
 import { ConstructionIntelligenceModule } from './construction-intelligence/construction-intelligence.module';
 import { AdminModule } from './admin/admin.module';
+import { WhatsappModule } from './whatsapp/whatsapp.module';
 import { HealthController } from './health.controller';
 
 @Module({
@@ -32,6 +33,11 @@ import { HealthController } from './health.controller';
     TrustModule,
     ConstructionIntelligenceModule,
     AdminModule,
+    // WHATSAPP INTEGRATION Phase 1 — public webhook controller
+    // (WhatsappWebhookController) lives here at the top level; AdminModule
+    // separately imports WhatsappModule too for the whatsapp-mappings
+    // admin routes (module singleton — no duplicate provider instances).
+    WhatsappModule,
   ],
 })
 export class AppModule {}

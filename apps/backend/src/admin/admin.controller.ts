@@ -252,6 +252,17 @@ const VoidExpenseBodySchema = z.object({
 });
 type VoidExpenseBody = z.infer<typeof VoidExpenseBodySchema>;
 
+// --- POST /v1/admin/whatsapp-mappings (WHATSAPP INTEGRATION Phase 1) ---
+// wa_id is Meta's sender identifier: digits only, no '+' (matches what
+// arrives in the webhook payload's messages[].from — see WhatsappService).
+
+const CreateWhatsappMappingBodySchema = z.object({
+  wa_id: z.string().regex(/^\d{6,32}$/, 'wa_id must be digits only (no +, spaces, or dashes)'),
+  project_ref: z.string().uuid(),
+  created_by: z.string().min(1),
+});
+type CreateWhatsappMappingBody = z.infer<typeof CreateWhatsappMappingBodySchema>;
+
 // --- Controller ---
 
 @Controller('v1/admin')
@@ -569,5 +580,31 @@ export class AdminController {
   @Get('projects/:id')
   getProject(@Param('id') id: string, @Query('include_all_statuses') includeAllStatuses?: string) {
     return this.adminSvc.getProjectWithSectionsAndExpenses(id, includeAllStatuses === 'true');
+  }
+
+  // ─── WHATSAPP INTEGRATION Phase 1 ────────────────────────────────────────
+  // How the founder manually links a WhatsApp number to a Project — no
+  // self-service onboarding flow yet. Same BearerGuard as every other admin
+  // route on this controller (@UseGuards(BearerGuard) at the class level).
+
+  @Post('whatsapp-mappings')
+  @HttpCode(201)
+  createWhatsappMapping(
+    @Body(new ZodValidationPipe(CreateWhatsappMappingBodySchema)) body: CreateWhatsappMappingBody,
+  ) {
+    return this.adminSvc.createWhatsappMapping(body);
+  }
+
+  @Get('whatsapp-mappings')
+  listWhatsappMappings() {
+    return this.adminSvc.listWhatsappMappings();
+  }
+
+  // DELETE by the mapping's own id, not wa_id — same ID-scoped reasoning as
+  // every other delete route here (unambiguous target, no lookup-by-value).
+  @Delete('whatsapp-mappings/:id')
+  @HttpCode(204)
+  deleteWhatsappMapping(@Param('id') id: string) {
+    return this.adminSvc.deleteWhatsappMapping(id);
   }
 }

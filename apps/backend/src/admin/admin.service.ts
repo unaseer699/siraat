@@ -32,6 +32,11 @@ import {
   type ExpenseResult,
   type ProjectWithSectionsAndExpenses,
 } from '../construction-intelligence/construction-project.service';
+import {
+  WhatsappService,
+  type CreateMappingInput as WhatsappCreateMappingInput,
+} from '../whatsapp/whatsapp.service';
+import type { WhatsappProjectMappingEntity } from '../whatsapp/entities/whatsapp-project-mapping.entity';
 
 export type { ClaimType };
 export type { CreateMaterialRateInput, MaterialRateResult };
@@ -158,6 +163,10 @@ export interface UpdateHousePlanInput {
   is_siraat_affiliated?: boolean;
 }
 
+// WHATSAPP INTEGRATION Phase 1 — re-exported so callers (admin.controller.ts)
+// don't need to reach into ../whatsapp/whatsapp.service directly.
+export type CreateWhatsappMappingInput = WhatsappCreateMappingInput;
+
 @Injectable()
 export class AdminService {
   private readonly logger = new Logger(AdminService.name);
@@ -168,6 +177,7 @@ export class AdminService {
     private readonly ciSvc: ConstructionIntelligenceService,
     private readonly storageSvc: StorageService,
     private readonly cpSvc: ConstructionProjectService,
+    private readonly waSvc: WhatsappService,
   ) {}
 
   // CLEANUP — was AdminService's own CandidateSocietyEntity repository
@@ -568,5 +578,22 @@ export class AdminService {
     const result = await this.cpSvc.getProjectWithSectionsAndExpenses(id, { includeAllStatuses });
     if (!result) throw new NotFoundException(`Project ${id} not found`);
     return result;
+  }
+
+  // ─── WHATSAPP INTEGRATION Phase 1 ──────────────────────────────────────
+  // Thin delegation, same as addEvidenceToVerification above — WhatsappService
+  // owns the conflict/not-found logic itself (throws ConflictException /
+  // NotFoundException directly), nothing to re-check here.
+
+  async createWhatsappMapping(data: CreateWhatsappMappingInput): Promise<WhatsappProjectMappingEntity> {
+    return this.waSvc.createMapping(data);
+  }
+
+  async listWhatsappMappings(): Promise<WhatsappProjectMappingEntity[]> {
+    return this.waSvc.listMappings();
+  }
+
+  async deleteWhatsappMapping(id: string): Promise<void> {
+    return this.waSvc.deleteMapping(id);
   }
 }
