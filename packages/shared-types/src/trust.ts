@@ -45,6 +45,10 @@ export interface EvidenceItem {
 }
 
 export interface VerificationResponse {
+  // ADD EVIDENCE TO EXISTING CLAIM — previously absent: every consumer had
+  // to display a claim without any way to reference it back to the server
+  // (e.g. to target POST /v1/admin/verifications/:verificationId/evidence).
+  id: string;
   status: 'VERIFIED' | 'DISPUTED' | 'PENDING' | 'CANCELLED';
   claim: string;
   claim_type:

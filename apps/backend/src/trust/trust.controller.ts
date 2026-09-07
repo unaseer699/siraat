@@ -22,6 +22,9 @@ function serializeEvidence(e: EvidenceEntity) {
 
 function serializeClaim({ verification, evidence }: VerificationResult) {
   return {
+    // ADD EVIDENCE TO EXISTING CLAIM — the id every "+ Add Evidence" action
+    // needs to target POST /v1/admin/verifications/:verificationId/evidence.
+    id: verification.id,
     status: verification.status,
     claim: verification.claim,
     claim_type: verification.claim_type,

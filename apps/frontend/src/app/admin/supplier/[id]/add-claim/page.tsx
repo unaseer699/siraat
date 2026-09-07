@@ -1,10 +1,17 @@
 'use client';
 
-import { useState, type FormEvent } from 'react';
+import { useEffect, useState, type FormEvent } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
-import { addClaimToSupplier, type AdminEvidenceItem, type ClaimType } from '@/lib/api';
+import {
+  addClaimToSupplier,
+  fetchSupplierVerifications,
+  type AdminEvidenceItem,
+  type ClaimType,
+  type VerificationResponse,
+} from '@/lib/api';
 import { EvidenceEditor } from '../../../EvidenceEditor';
+import { ExistingClaimsList } from '../../../ExistingClaimsList';
 import { CLAIM_TYPE_OPTIONS, fieldGroupStyle, inputStyle, labelStyle } from '../../../constants';
 
 type TargetStatus = 'VERIFIED' | 'DISPUTED' | 'PENDING';
@@ -21,6 +28,23 @@ export default function AddClaimPage() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<{ verification_id: string } | null>(null);
+
+  // ADD EVIDENCE TO EXISTING CLAIM — see society/[id]/add-claim/page.tsx.
+  const [existingClaims, setExistingClaims] = useState<VerificationResponse[]>([]);
+  const [claimsLoading, setClaimsLoading] = useState(true);
+
+  function loadExistingClaims() {
+    setClaimsLoading(true);
+    fetchSupplierVerifications(supplierId)
+      .then((data) => setExistingClaims(data.claims))
+      .catch(() => setExistingClaims([]))
+      .finally(() => setClaimsLoading(false));
+  }
+
+  useEffect(() => {
+    loadExistingClaims();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [supplierId]);
 
   const evidenceOk = targetStatus !== 'VERIFIED' || evidence.length > 0;
   const canSubmit = claim.trim().length > 0 && evidenceOk;
@@ -40,6 +64,7 @@ export default function AddClaimPage() {
         evidence: showEvidence ? evidence : [],
       });
       setResult(res);
+      loadExistingClaims();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Submission failed');
     } finally {
@@ -63,6 +88,12 @@ export default function AddClaimPage() {
             Adds an additional verification claim to supplier <code>{supplierId}</code>.
           </p>
         </div>
+
+        {claimsLoading ? (
+          <p style={{ fontSize: '13px', color: 'var(--muted)' }}>Loading existing claims…</p>
+        ) : (
+          <ExistingClaimsList claims={existingClaims} onEvidenceAdded={loadExistingClaims} />
+        )}
 
         {result ? (
           <div

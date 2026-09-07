@@ -240,6 +240,7 @@ describe('AdminService', () => {
   let createAndLinkEvidenceMock: jest.Mock;
   let promoteVerificationToVerifiedMock: jest.Mock;
   let createEvidenceRecordMock: jest.Mock;
+  let addEvidenceToVerificationMock: jest.Mock;
 
   // StorageService mocks
   let uploadFileMock: jest.Mock;
@@ -290,6 +291,7 @@ describe('AdminService', () => {
     createAndLinkEvidenceMock  = jest.fn().mockResolvedValue(EVIDENCE_ENTITY);
     promoteVerificationToVerifiedMock = jest.fn().mockResolvedValue(VERIFIED_ENTITY);
     createEvidenceRecordMock   = jest.fn().mockResolvedValue(EVIDENCE_ENTITY);
+    addEvidenceToVerificationMock = jest.fn().mockResolvedValue(EVIDENCE_ENTITY);
     uploadFileMock             = jest.fn().mockResolvedValue(undefined);
     deleteFileMock             = jest.fn().mockResolvedValue(undefined);
     createMaterialRateMock     = jest.fn().mockResolvedValue(MATERIAL_RATE_RESULT);
@@ -342,6 +344,7 @@ describe('AdminService', () => {
             createAndLinkEvidence:          createAndLinkEvidenceMock,
             promoteVerificationToVerified:  promoteVerificationToVerifiedMock,
             createEvidenceRecord:           createEvidenceRecordMock,
+            addEvidenceToVerification:      addEvidenceToVerificationMock,
           },
         },
         {
@@ -672,6 +675,25 @@ describe('AdminService', () => {
     expect(createEvidenceRecordMock).toHaveBeenCalledWith(EVIDENCE_ITEM);
     expect(result.id).toBe(EVI_ID);
     expect(result.type).toBe('document');
+  });
+
+  // ─── ADD EVIDENCE TO EXISTING CLAIM ────────────────────────────────────────
+
+  it('addEvidenceToVerification delegates to TrustService.addEvidenceToVerification', async () => {
+    const result = await svc.addEvidenceToVerification(VER_ID, EVIDENCE_ITEM);
+
+    expect(addEvidenceToVerificationMock).toHaveBeenCalledWith(VER_ID, EVIDENCE_ITEM);
+    expect(result.id).toBe(EVI_ID);
+    expect(result.type).toBe('document');
+    expect(result.file_ref).toBe(EVIDENCE_ITEM.file_ref);
+    expect(result.document_date).toBe(EVIDENCE_ITEM.document_date);
+    expect(result.document_type).toBe(EVIDENCE_ITEM.document_type);
+  });
+
+  it('addEvidenceToVerification propagates NotFoundException for a non-existent verification id', async () => {
+    addEvidenceToVerificationMock.mockRejectedValue(new NotFoundException('Verification missing-uuid not found'));
+
+    await expect(svc.addEvidenceToVerification('missing-uuid', EVIDENCE_ITEM)).rejects.toThrow(NotFoundException);
   });
 
   // ─── Material rates (delegates to ConstructionIntelligenceService) ────────

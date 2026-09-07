@@ -606,6 +606,97 @@ describe('TrustService', () => {
     expect(result!.evidence.map((e) => e.id)).not.toContain('sub-uuid-0001');
   });
 
+  // ─── ADD EVIDENCE TO EXISTING CLAIM (addEvidenceToVerification, ID-scoped) ──────
+
+  it('addEvidenceToVerification creates the Evidence row and appends its id to the Verification\'s evidence_refs', async () => {
+    verFindOneByMock.mockResolvedValue({ ...VERIFICATION_PENDING, id: 'ver-target-uuid', evidence_refs: [EVIDENCE_1.id] });
+    eviSaveMock.mockResolvedValue({ id: 'new-evi-uuid', type: 'document', file_ref: 'trust/x/y.pdf', source_ref: 'CDA Portal', document_date: null, document_type: null, record_type: 'FACT' });
+
+    const result = await svc.addEvidenceToVerification('ver-target-uuid', {
+      type: 'document',
+      file_ref: 'trust/x/y.pdf',
+      source_ref: 'CDA Portal',
+    });
+
+    expect(verFindOneByMock).toHaveBeenCalledWith({ id: 'ver-target-uuid' });
+    expect(eviCreateMock).toHaveBeenCalledWith(
+      expect.objectContaining({ type: 'document', file_ref: 'trust/x/y.pdf', source_ref: 'CDA Portal', record_type: 'FACT' }),
+    );
+    expect(result.id).toBe('new-evi-uuid');
+
+    // The existing evidence_refs entry is preserved, not replaced.
+    const savedVer = verSaveMock.mock.calls.find((call) => call[0].id === 'ver-target-uuid')?.[0];
+    expect(savedVer.evidence_refs).toEqual([EVIDENCE_1.id, 'new-evi-uuid']);
+  });
+
+  it('addEvidenceToVerification passes document_date/document_type through to the Evidence row', async () => {
+    verFindOneByMock.mockResolvedValue({ ...VERIFICATION_PENDING, id: 'ver-target-uuid', evidence_refs: [] });
+
+    await svc.addEvidenceToVerification('ver-target-uuid', {
+      type: 'document',
+      file_ref: 'trust/x/noc-cancellation.pdf',
+      source_ref: 'CDA Portal',
+      document_date: '2026-06-01',
+      document_type: 'NOC_CANCELLATION',
+    });
+
+    expect(eviCreateMock).toHaveBeenCalledWith(
+      expect.objectContaining({ document_date: '2026-06-01', document_type: 'NOC_CANCELLATION' }),
+    );
+  });
+
+  it('addEvidenceToVerification does not change the claim\'s status — adding evidence alone is a separate concern from promoting/disputing/cancelling it', async () => {
+    const target = { ...VERIFICATION_VERIFIED, id: 'ver-target-uuid', evidence_refs: [EVIDENCE_1.id] };
+    verFindOneByMock.mockResolvedValue(target);
+
+    await svc.addEvidenceToVerification('ver-target-uuid', {
+      type: 'document',
+      file_ref: 'trust/x/y.pdf',
+      source_ref: 'CDA Portal',
+    });
+
+    const savedVer = verSaveMock.mock.calls.find((call) => call[0].id === 'ver-target-uuid')?.[0];
+    expect(savedVer.status).toBe('VERIFIED'); // unchanged — was VERIFIED, stays VERIFIED
+  });
+
+  it('addEvidenceToVerification throws NotFoundException for a non-existent verification id, without creating an Evidence row', async () => {
+    verFindOneByMock.mockResolvedValue(null);
+
+    await expect(
+      svc.addEvidenceToVerification('missing-uuid', {
+        type: 'document',
+        file_ref: 'trust/x/y.pdf',
+        source_ref: 'CDA Portal',
+      }),
+    ).rejects.toThrow(NotFoundException);
+    expect(eviCreateMock).not.toHaveBeenCalled();
+    expect(eviSaveMock).not.toHaveBeenCalled();
+  });
+
+  it('addEvidenceToVerification works for any subject type, not just SOCIETY (unlike createAndLinkEvidence above)', async () => {
+    const CONTRACTOR_VERIFICATION: VerificationEntity = {
+      id: 'ver-contractor-uuid',
+      subject_type: 'CONTRACTOR',
+      subject_id: 'con-a-uuid',
+      claim: 'Licensed electrician — PEC registered',
+      claim_type: 'OTHER',
+      status: 'PENDING',
+      evidence_refs: [],
+      verified_at: null,
+    };
+    verFindOneByMock.mockResolvedValue(CONTRACTOR_VERIFICATION);
+
+    const result = await svc.addEvidenceToVerification('ver-contractor-uuid', {
+      type: 'document',
+      file_ref: 'trust/pec/license.pdf',
+      source_ref: 'PEC Portal',
+    });
+
+    expect(result.id).toBeDefined();
+    const savedVer = verSaveMock.mock.calls.find((call) => call[0].id === 'ver-contractor-uuid')?.[0];
+    expect(savedVer.evidence_refs).toContain(result.id);
+  });
+
   // ─── promoteVerificationToVerified (ID-scoped) ─────────────────────────────────
 
   it('promoteVerificationToVerified promotes the Verification matching the given id', async () => {

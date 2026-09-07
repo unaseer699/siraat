@@ -1,10 +1,17 @@
 'use client';
 
-import { useState, type FormEvent } from 'react';
+import { useEffect, useState, type FormEvent } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
-import { addClaimToSociety, type AdminEvidenceItem, type ClaimType } from '@/lib/api';
+import {
+  addClaimToSociety,
+  fetchSocietyVerifications,
+  type AdminEvidenceItem,
+  type ClaimType,
+  type VerificationResponse,
+} from '@/lib/api';
 import { EvidenceEditor } from '../../../EvidenceEditor';
+import { ExistingClaimsList } from '../../../ExistingClaimsList';
 import { CLAIM_TYPE_OPTIONS, fieldGroupStyle, inputStyle, labelStyle } from '../../../constants';
 
 type TargetStatus = 'VERIFIED' | 'DISPUTED' | 'PENDING';
@@ -21,6 +28,25 @@ export default function AddClaimPage() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<{ verification_id: string } | null>(null);
+
+  // ADD EVIDENCE TO EXISTING CLAIM — this page was previously "create a new
+  // claim" only, with no view of the society's existing ones at all.
+  const [existingClaims, setExistingClaims] = useState<VerificationResponse[]>([]);
+  const [claimsLoading, setClaimsLoading] = useState(true);
+
+  function loadExistingClaims() {
+    setClaimsLoading(true);
+    fetchSocietyVerifications(societyId)
+      .then((data) => setExistingClaims(data.claims))
+      // No claims yet is a 404 from the backend, not an error state here.
+      .catch(() => setExistingClaims([]))
+      .finally(() => setClaimsLoading(false));
+  }
+
+  useEffect(() => {
+    loadExistingClaims();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [societyId]);
 
   const evidenceOk = targetStatus !== 'VERIFIED' || evidence.length > 0;
   const canSubmit = claim.trim().length > 0 && evidenceOk;
@@ -40,6 +66,7 @@ export default function AddClaimPage() {
         evidence: showEvidence ? evidence : [],
       });
       setResult(res);
+      loadExistingClaims();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Submission failed');
     } finally {
@@ -63,6 +90,12 @@ export default function AddClaimPage() {
             Adds an additional verification claim to society <code>{societyId}</code>.
           </p>
         </div>
+
+        {claimsLoading ? (
+          <p style={{ fontSize: '13px', color: 'var(--muted)' }}>Loading existing claims…</p>
+        ) : (
+          <ExistingClaimsList claims={existingClaims} onEvidenceAdded={loadExistingClaims} />
+        )}
 
         {result ? (
           <div
