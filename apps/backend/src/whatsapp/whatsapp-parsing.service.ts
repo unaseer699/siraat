@@ -1,9 +1,39 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { WhatsappAiClient } from './whatsapp-ai.client';
+import { WhatsappAiClient, type ExpenseExtraction } from './whatsapp-ai.client';
+import { WhatsappOutboundClient } from './whatsapp-outbound.client';
 import { WhatsappInboundMessageEntity } from './entities/whatsapp-inbound-message.entity';
 import { WhatsappDraftExpenseEntity } from './entities/whatsapp-draft-expense.entity';
+
+// WHATSAPP INTEGRATION Phase 3 — CONFIRM/CORRECT LOOP. Plain-text summary of
+// a parsed draft, sent back to the sender so they can reply YES to confirm
+// or send a correction. Exported (not just used below) because
+// WhatsappConfirmationService.correctDraft re-parses a reply as a fresh
+// extraction attempt and needs to send the exact same shape of "here's what
+// I understood now" message — one wording, not two copies to keep in sync.
+//
+// Deliberately NOT a summary of null fields for a LOW-confidence/unparseable
+// extraction (per the brief) — that would read as a confirmed empty expense
+// rather than what it actually is: "I couldn't understand this."
+export function buildDraftSummaryText(extraction: ExpenseExtraction): string {
+  if (extraction.confidence === 'LOW' || !extraction.item) {
+    return (
+      "I couldn't quite understand that as an expense. Could you clarify or rephrase — " +
+      'e.g. "cement 50 bags @ 1490"?'
+    );
+  }
+
+  const parts = [extraction.item];
+  if (extraction.quantity != null && extraction.unit) {
+    parts.push(`${extraction.quantity} ${extraction.unit}`);
+  } else if (extraction.quantity != null) {
+    parts.push(`${extraction.quantity}`);
+  }
+  const rateSuffix = extraction.rate != null ? ` @ ${extraction.rate}` : '';
+
+  return `Got it: ${parts.join(', ')}${rateSuffix}. Reply YES to confirm, or send a correction.`;
+}
 
 // WHATSAPP INTEGRATION Phase 2 — AI PARSING. Turns one RECEIVED inbound
 // message into one WhatsappDraftExpenseEntity row, then flips the source
@@ -22,6 +52,10 @@ export class WhatsappParsingService {
     @InjectRepository(WhatsappDraftExpenseEntity)
     private readonly draftRepo: Repository<WhatsappDraftExpenseEntity>,
     private readonly aiClient: WhatsappAiClient,
+    // WHATSAPP INTEGRATION Phase 3 — reply to the sender with a summary of
+    // the parsed draft. Required (not @Optional() like WhatsappService's
+    // parsingSvc) since WhatsappModule always wires it; tests provide a mock.
+    private readonly outboundClient: WhatsappOutboundClient,
   ) {}
 
   // Fire-and-forget entry point (see WhatsappService.processInboundMessage —
@@ -87,6 +121,22 @@ export class WhatsappParsingService {
       this.logger.log(
         `Parsed WhatsApp message id=${message.id} confidence=${outcome.extraction.confidence}`,
       );
+
+      // WHATSAPP INTEGRATION Phase 3 — reply with a plain-text summary so
+      // the sender can confirm or correct. Its own try/catch, separate from
+      // the one below: a failed *send* here must never look like a failed
+      // *parse* (the draft is already safely saved by this point) and, per
+      // the brief, must never throw back into this method's caller — this
+      // method is itself always called fire-and-forget (see
+      // WhatsappService.processInboundMessage) and never throws regardless.
+      try {
+        await this.outboundClient.sendTextMessage(message.wa_id, buildDraftSummaryText(outcome.extraction));
+      } catch (err) {
+        this.logger.error(
+          `Failed to send WhatsApp draft summary for message id=${message.id} — draft was still saved`,
+          err instanceof Error ? err.stack : String(err),
+        );
+      }
     } catch (err) {
       this.logger.error(
         `Failed to parse WhatsApp message id=${message.id} — left at status RECEIVED for retry`,

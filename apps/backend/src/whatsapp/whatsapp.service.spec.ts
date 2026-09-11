@@ -8,8 +8,10 @@ import {
   maskPhone,
 } from './whatsapp.service';
 import { WhatsappParsingService } from './whatsapp-parsing.service';
+import { WhatsappConfirmationService } from './whatsapp-confirmation.service';
 import { WhatsappInboundMessageEntity } from './entities/whatsapp-inbound-message.entity';
 import { WhatsappProjectMappingEntity } from './entities/whatsapp-project-mapping.entity';
+import { WhatsappDraftExpenseEntity } from './entities/whatsapp-draft-expense.entity';
 
 // ─── Fixtures ──────────────────────────────────────────────────────────────
 
@@ -78,6 +80,8 @@ describe('WhatsappService', () => {
   let mappingDeleteMock: jest.Mock;
 
   let parseAndStoreDraftMock: jest.Mock;
+  let findMatchingPendingDraftMock: jest.Mock;
+  let handleReplyMock: jest.Mock;
 
   const ORIGINAL_ENV = { ...process.env };
 
@@ -100,6 +104,11 @@ describe('WhatsappService', () => {
     mappingDeleteMock = jest.fn().mockResolvedValue({ affected: 1 });
 
     parseAndStoreDraftMock = jest.fn().mockResolvedValue(undefined);
+    // WHATSAPP INTEGRATION Phase 3 — default: no matching PENDING draft, so
+    // existing Phase 2 tests (which never set this up) keep exercising the
+    // "fresh parse" branch exactly as before.
+    findMatchingPendingDraftMock = jest.fn().mockResolvedValue(null);
+    handleReplyMock = jest.fn().mockResolvedValue(undefined);
 
     const module = await Test.createTestingModule({
       providers: [
@@ -129,6 +138,15 @@ describe('WhatsappService', () => {
         {
           provide: WhatsappParsingService,
           useValue: { parseAndStoreDraft: parseAndStoreDraftMock },
+        },
+        // WHATSAPP INTEGRATION Phase 3 — same reasoning: mocked here so
+        // these tests stay focused on WhatsappService's routing logic (does
+        // it check for a matching draft, and dispatch to the right place);
+        // the confirm/correct logic itself is covered by
+        // whatsapp-confirmation.service.spec.ts.
+        {
+          provide: WhatsappConfirmationService,
+          useValue: { findMatchingPendingDraft: findMatchingPendingDraftMock, handleReply: handleReplyMock },
         },
       ],
     }).compile();
@@ -209,7 +227,32 @@ describe('WhatsappService', () => {
         text: 'Cement 10 bags 85000',
         timestamp: new Date(1700000000 * 1000),
         rawPayload: expect.objectContaining({ id: 'wamid.HASHABC123' }),
+        contextId: null,
       });
+    });
+
+    // ─── WHATSAPP INTEGRATION Phase 3 — native reply-threading ─────────────
+
+    it('extracts context.id when the sender used WhatsApp\'s native reply feature', () => {
+      const payload = metaPayload({
+        messages: [
+          {
+            from: '923001234567',
+            id: 'wamid.REPLY001',
+            timestamp: '1700000100',
+            type: 'text',
+            text: { body: 'yes' },
+            context: { from: '15550001111', id: 'wamid.HASHABC123' },
+          },
+        ],
+      });
+      const [msg] = extractInboundMessages(payload);
+      expect(msg.contextId).toBe('wamid.HASHABC123');
+    });
+
+    it('leaves contextId null when there is no context object (not a native reply)', () => {
+      const [msg] = extractInboundMessages(metaPayload());
+      expect(msg.contextId).toBeNull();
     });
 
     it('returns an empty array for a `statuses` change (delivery/read receipt, no messages key)', () => {
@@ -348,6 +391,59 @@ describe('WhatsappService', () => {
       await service.processInboundMessage(MSG);
 
       expect(parseAndStoreDraftMock).not.toHaveBeenCalled();
+    });
+
+    // ─── WHATSAPP INTEGRATION Phase 3 — confirm/correct routing ────────────
+
+    const PENDING_DRAFT: WhatsappDraftExpenseEntity = {
+      id: 'draft-uuid-0001',
+      inbound_message_id: 'some-earlier-msg-uuid',
+      project_ref: MAPPING.project_ref,
+      parsed_item: 'cement',
+      parsed_quantity: 50,
+      parsed_unit: 'bags',
+      parsed_rate: 1490,
+      parsed_trade_category: 'GENERAL_CONTRACTOR',
+      confidence: 'HIGH',
+      raw_ai_response: {},
+      status: 'PENDING',
+      created_at: new Date('2026-01-01'),
+    };
+
+    it('routes to confirmationSvc.handleReply (not fresh parsing) when a matching PENDING draft exists', async () => {
+      mappingFindOneByMock.mockResolvedValue(MAPPING);
+      findMatchingPendingDraftMock.mockResolvedValue(PENDING_DRAFT);
+
+      const result = await service.processInboundMessage(MSG);
+
+      expect(findMatchingPendingDraftMock).toHaveBeenCalledWith(
+        expect.objectContaining({ status: 'RECEIVED' }),
+        MSG.contextId,
+      );
+      expect(handleReplyMock).toHaveBeenCalledWith(
+        PENDING_DRAFT,
+        expect.objectContaining({ status: 'RECEIVED' }),
+      );
+      expect(parseAndStoreDraftMock).not.toHaveBeenCalled();
+      expect(result.stored).toBe(true);
+    });
+
+    it('falls back to fresh parsing when no matching PENDING draft is found', async () => {
+      mappingFindOneByMock.mockResolvedValue(MAPPING);
+      findMatchingPendingDraftMock.mockResolvedValue(null);
+
+      await service.processInboundMessage(MSG);
+
+      expect(parseAndStoreDraftMock).toHaveBeenCalled();
+      expect(handleReplyMock).not.toHaveBeenCalled();
+    });
+
+    it('never checks for a matching draft for an UNMAPPED message', async () => {
+      mappingFindOneByMock.mockResolvedValue(null);
+
+      await service.processInboundMessage(MSG);
+
+      expect(findMatchingPendingDraftMock).not.toHaveBeenCalled();
     });
   });
 

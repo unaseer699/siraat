@@ -1,7 +1,8 @@
 import { Test } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
-import { WhatsappParsingService } from './whatsapp-parsing.service';
+import { WhatsappParsingService, buildDraftSummaryText } from './whatsapp-parsing.service';
 import { WhatsappAiClient } from './whatsapp-ai.client';
+import { WhatsappOutboundClient } from './whatsapp-outbound.client';
 import { WhatsappInboundMessageEntity } from './entities/whatsapp-inbound-message.entity';
 import { WhatsappDraftExpenseEntity } from './entities/whatsapp-draft-expense.entity';
 
@@ -48,6 +49,7 @@ describe('WhatsappParsingService', () => {
   let draftSaveMock: jest.Mock;
   let draftFindMock: jest.Mock;
   let inboundUpdateMock: jest.Mock;
+  let sendTextMessageMock: jest.Mock;
 
   beforeEach(async () => {
     extractExpenseMock = jest.fn();
@@ -55,6 +57,7 @@ describe('WhatsappParsingService', () => {
     draftSaveMock = jest.fn((entity) => Promise.resolve({ id: 'draft-uuid-0001', ...entity }));
     draftFindMock = jest.fn().mockResolvedValue([]);
     inboundUpdateMock = jest.fn().mockResolvedValue({ affected: 1 });
+    sendTextMessageMock = jest.fn().mockResolvedValue(undefined);
 
     const module = await Test.createTestingModule({
       providers: [
@@ -70,6 +73,14 @@ describe('WhatsappParsingService', () => {
         {
           provide: WhatsappAiClient,
           useValue: { extractExpense: extractExpenseMock },
+        },
+        // WHATSAPP INTEGRATION Phase 3 — mocked here (not the real client)
+        // so these tests stay focused on WhatsappParsingService's own
+        // trigger logic; WhatsappOutboundClient's own send behavior is
+        // covered by whatsapp-outbound.client.spec.ts.
+        {
+          provide: WhatsappOutboundClient,
+          useValue: { sendTextMessage: sendTextMessageMock },
         },
       ],
     }).compile();
@@ -166,6 +177,75 @@ describe('WhatsappParsingService', () => {
     await expect(service.parseAndStoreDraft(receivedMessage())).resolves.toBeUndefined();
 
     expect(inboundUpdateMock).not.toHaveBeenCalled();
+  });
+
+  // ─── WHATSAPP INTEGRATION Phase 3 — outbound draft-summary send ──────────
+
+  it('sends a plain-text summary of the parsed draft to the sender after a clear expense is parsed', async () => {
+    extractExpenseMock.mockResolvedValue({ extraction: CLEAR_EXTRACTION, raw: { ok: true } });
+
+    await service.parseAndStoreDraft(receivedMessage());
+
+    expect(sendTextMessageMock).toHaveBeenCalledWith(
+      '923001234567',
+      'Got it: cement, 50 bags @ 1490. Reply YES to confirm, or send a correction.',
+    );
+  });
+
+  it('sends a clarification request, not a fake summary, for a low-confidence/unparseable draft', async () => {
+    extractExpenseMock.mockResolvedValue({ extraction: LOW_CONFIDENCE_EXTRACTION, raw: { ok: true } });
+
+    await service.parseAndStoreDraft(receivedMessage({ message_text: 'hey is the site open today' }));
+
+    const [, sentText] = sendTextMessageMock.mock.calls[0];
+    expect(sentText).not.toMatch(/null/);
+    expect(sentText).toMatch(/clarify|rephrase/i);
+  });
+
+  it('logs and does not throw when the outbound send fails — the draft is already saved by then', async () => {
+    extractExpenseMock.mockResolvedValue({ extraction: CLEAR_EXTRACTION, raw: { ok: true } });
+    sendTextMessageMock.mockRejectedValue(new Error('WhatsApp send failed (401): invalid token'));
+
+    await expect(service.parseAndStoreDraft(receivedMessage())).resolves.toBeUndefined();
+
+    // The draft/PARSED transition already happened — a send failure never
+    // unwinds work that already succeeded.
+    expect(draftSaveMock).toHaveBeenCalled();
+    expect(inboundUpdateMock).toHaveBeenCalledWith({ id: 'msg-uuid-0001' }, { status: 'PARSED' });
+  });
+
+  it('never attempts to send when the AI call itself fails — no draft was ever produced', async () => {
+    extractExpenseMock.mockRejectedValue(new Error('Anthropic API returned 500: internal server error'));
+
+    await service.parseAndStoreDraft(receivedMessage());
+
+    expect(sendTextMessageMock).not.toHaveBeenCalled();
+  });
+
+  // ─── buildDraftSummaryText ──────────────────────────────────────────────
+
+  describe('buildDraftSummaryText', () => {
+    it('formats item + quantity + unit + rate', () => {
+      expect(buildDraftSummaryText(CLEAR_EXTRACTION)).toBe(
+        'Got it: cement, 50 bags @ 1490. Reply YES to confirm, or send a correction.',
+      );
+    });
+
+    it('omits missing quantity/unit/rate gracefully rather than printing null', () => {
+      const text = buildDraftSummaryText({
+        item: 'cement',
+        quantity: null,
+        unit: null,
+        rate: null,
+        trade_category: null,
+        confidence: 'MEDIUM',
+      });
+      expect(text).toBe('Got it: cement. Reply YES to confirm, or send a correction.');
+    });
+
+    it('asks the sender to clarify/rephrase for a LOW-confidence extraction, never a fake summary', () => {
+      expect(buildDraftSummaryText(LOW_CONFIDENCE_EXTRACTION)).not.toMatch(/null|Got it/);
+    });
   });
 
   // ─── listDrafts (GET /v1/admin/whatsapp-drafts) ────────────────────────────
