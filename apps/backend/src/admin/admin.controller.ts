@@ -607,4 +607,13 @@ export class AdminController {
   deleteWhatsappMapping(@Param('id') id: string) {
     return this.adminSvc.deleteWhatsappMapping(id);
   }
+
+  // ─── WHATSAPP INTEGRATION Phase 2 — AI PARSING ─────────────────────────
+  // Read-only: lets the founder see what's been parsed so far, even before
+  // the confirm loop (Phase 3) exists. Same BearerGuard, same optional
+  // query-filter pattern as GET /material-rates above.
+  @Get('whatsapp-drafts')
+  listWhatsappDrafts(@Query('project_ref') project_ref?: string) {
+    return this.adminSvc.listWhatsappDrafts(project_ref);
+  }
 }
