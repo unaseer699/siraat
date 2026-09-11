@@ -36,7 +36,9 @@ import {
   WhatsappService,
   type CreateMappingInput as WhatsappCreateMappingInput,
 } from '../whatsapp/whatsapp.service';
+import { WhatsappParsingService } from '../whatsapp/whatsapp-parsing.service';
 import type { WhatsappProjectMappingEntity } from '../whatsapp/entities/whatsapp-project-mapping.entity';
+import type { WhatsappDraftExpenseEntity } from '../whatsapp/entities/whatsapp-draft-expense.entity';
 
 export type { ClaimType };
 export type { CreateMaterialRateInput, MaterialRateResult };
@@ -178,6 +180,7 @@ export class AdminService {
     private readonly storageSvc: StorageService,
     private readonly cpSvc: ConstructionProjectService,
     private readonly waSvc: WhatsappService,
+    private readonly waParsingSvc: WhatsappParsingService,
   ) {}
 
   // CLEANUP — was AdminService's own CandidateSocietyEntity repository
@@ -595,5 +598,13 @@ export class AdminService {
 
   async deleteWhatsappMapping(id: string): Promise<void> {
     return this.waSvc.deleteMapping(id);
+  }
+
+  // ─── WHATSAPP INTEGRATION Phase 2 — AI PARSING ─────────────────────────
+  // Read-only in this phase — no confirm/edit/reject actions exist yet
+  // (Phase 3). Thin delegation to WhatsappParsingService, same as every
+  // other cross-module call in this file.
+  async listWhatsappDrafts(project_ref?: string): Promise<WhatsappDraftExpenseEntity[]> {
+    return this.waParsingSvc.listDrafts(project_ref);
   }
 }

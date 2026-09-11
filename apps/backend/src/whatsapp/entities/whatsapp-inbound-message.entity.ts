@@ -1,16 +1,22 @@
 import { Entity, Column, PrimaryGeneratedColumn, CreateDateColumn, Index } from 'typeorm';
 
 // WHATSAPP INTEGRATION Phase 1 — receiving/verification/mapping layer only.
-// This is intentionally NOT tied to Expense creation yet: no AI parsing, no
-// Expense row is ever created from this table in this phase. Status is
-// RECEIVED (mapped number) or UNMAPPED (no WhatsappProjectMapping found for
-// the sender at receipt time) — later phases add PARSED, CONFIRMED, etc. as
-// the AI-parse → confirm-loop → admin-review pipeline is built out.
+// This is intentionally NOT tied to Expense creation yet: no Expense row is
+// ever created from this table. Status starts RECEIVED (mapped number) or
+// UNMAPPED (no WhatsappProjectMapping found for the sender at receipt time).
+//
+// WHATSAPP INTEGRATION Phase 2 — AI PARSING adds PARSED: a RECEIVED message
+// moves to PARSED once WhatsappParsingService has produced a
+// WhatsappDraftExpenseEntity for it (confident or not — see that entity's
+// comment). UNMAPPED messages never transition; they stay UNMAPPED until a
+// mapping exists and a later admin review queue (Phase 4) handles the
+// backlog. Later phases add CONFIRMED-related states as the
+// confirm-loop → admin-review pipeline is built out further.
 //
 // `data_acquisition` schema (Law 1) — cross-context reference to a Project
 // (construction_intelligence) is `project_ref`, a plain uuid string, never a
 // SQL FK.
-export type WhatsappInboundMessageStatus = 'RECEIVED' | 'UNMAPPED';
+export type WhatsappInboundMessageStatus = 'RECEIVED' | 'UNMAPPED' | 'PARSED';
 
 @Entity({ name: 'whatsapp_inbound_messages', schema: 'data_acquisition' })
 export class WhatsappInboundMessageEntity {

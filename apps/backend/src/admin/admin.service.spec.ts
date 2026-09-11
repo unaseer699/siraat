@@ -13,6 +13,7 @@ import { StorageService } from '../trust/storage.service';
 import { ConstructionIntelligenceService } from '../construction-intelligence/construction-intelligence.service';
 import { ConstructionProjectService } from '../construction-intelligence/construction-project.service';
 import { WhatsappService } from '../whatsapp/whatsapp.service';
+import { WhatsappParsingService } from '../whatsapp/whatsapp-parsing.service';
 import { CandidateSocietyEntity } from '../property-intelligence/entities/candidate-society.entity';
 
 // ─── Fixtures ─────────────────────────────────────────────────────────────────
@@ -46,6 +47,21 @@ const WHATSAPP_MAPPING = {
   wa_id: '923001234567',
   project_ref: 'proj-uuid-0001',
   created_by: 'founder@siraat.pk',
+  created_at: new Date('2026-01-01'),
+};
+
+const WHATSAPP_DRAFT = {
+  id: 'draft-uuid-0001',
+  inbound_message_id: 'msg-uuid-0001',
+  project_ref: 'proj-uuid-0001',
+  parsed_item: 'cement',
+  parsed_quantity: 50,
+  parsed_unit: 'bags',
+  parsed_rate: 1490,
+  parsed_trade_category: 'GENERAL_CONTRACTOR',
+  confidence: 'HIGH',
+  raw_ai_response: { ok: true },
+  status: 'PENDING',
   created_at: new Date('2026-01-01'),
 };
 
@@ -274,6 +290,7 @@ describe('AdminService', () => {
   let createWhatsappMappingMock: jest.Mock;
   let listWhatsappMappingsMock: jest.Mock;
   let deleteWhatsappMappingMock: jest.Mock;
+  let listWhatsappDraftsMock: jest.Mock;
 
   beforeEach(async () => {
     createSocietyMock          = jest.fn().mockResolvedValue(SOCIETY_RESULT);
@@ -322,6 +339,7 @@ describe('AdminService', () => {
     createWhatsappMappingMock = jest.fn().mockResolvedValue(WHATSAPP_MAPPING);
     listWhatsappMappingsMock  = jest.fn().mockResolvedValue([WHATSAPP_MAPPING]);
     deleteWhatsappMappingMock = jest.fn().mockResolvedValue(undefined);
+    listWhatsappDraftsMock    = jest.fn().mockResolvedValue([WHATSAPP_DRAFT]);
 
     const module = await Test.createTestingModule({
       providers: [
@@ -395,6 +413,12 @@ describe('AdminService', () => {
             createMapping: createWhatsappMappingMock,
             listMappings: listWhatsappMappingsMock,
             deleteMapping: deleteWhatsappMappingMock,
+          },
+        },
+        {
+          provide: WhatsappParsingService,
+          useValue: {
+            listDrafts: listWhatsappDraftsMock,
           },
         },
       ],
@@ -1264,6 +1288,20 @@ describe('AdminService', () => {
     deleteWhatsappMappingMock.mockRejectedValue(new NotFoundException('WhatsApp mapping missing-uuid not found'));
 
     await expect(svc.deleteWhatsappMapping('missing-uuid')).rejects.toThrow(NotFoundException);
+  });
+
+  // ─── WHATSAPP INTEGRATION Phase 2 (delegates to WhatsappParsingService) ──
+
+  it('listWhatsappDrafts delegates to WhatsappParsingService.listDrafts with no filter', async () => {
+    const result = await svc.listWhatsappDrafts();
+
+    expect(listWhatsappDraftsMock).toHaveBeenCalledWith(undefined);
+    expect(result).toEqual([WHATSAPP_DRAFT]);
+  });
+
+  it('listWhatsappDrafts passes the project_ref filter through', async () => {
+    await svc.listWhatsappDrafts('proj-uuid-0001');
+    expect(listWhatsappDraftsMock).toHaveBeenCalledWith('proj-uuid-0001');
   });
 
   // ─── Auth guard (controller-level wiring check) ───────────────────────────

@@ -7,6 +7,7 @@ import {
   extractInboundMessages,
   maskPhone,
 } from './whatsapp.service';
+import { WhatsappParsingService } from './whatsapp-parsing.service';
 import { WhatsappInboundMessageEntity } from './entities/whatsapp-inbound-message.entity';
 import { WhatsappProjectMappingEntity } from './entities/whatsapp-project-mapping.entity';
 
@@ -76,6 +77,8 @@ describe('WhatsappService', () => {
   let mappingFindMock: jest.Mock;
   let mappingDeleteMock: jest.Mock;
 
+  let parseAndStoreDraftMock: jest.Mock;
+
   const ORIGINAL_ENV = { ...process.env };
 
   beforeEach(async () => {
@@ -95,6 +98,8 @@ describe('WhatsappService', () => {
     );
     mappingFindMock = jest.fn().mockResolvedValue([]);
     mappingDeleteMock = jest.fn().mockResolvedValue({ affected: 1 });
+
+    parseAndStoreDraftMock = jest.fn().mockResolvedValue(undefined);
 
     const module = await Test.createTestingModule({
       providers: [
@@ -116,6 +121,14 @@ describe('WhatsappService', () => {
             find: mappingFindMock,
             delete: mappingDeleteMock,
           },
+        },
+        // WHATSAPP INTEGRATION Phase 2 — mocked here (not the real service)
+        // so these tests stay focused on WhatsappService's own trigger logic
+        // (does it call parseAndStoreDraft, with what, when); the parsing
+        // logic itself is covered by whatsapp-parsing.service.spec.ts.
+        {
+          provide: WhatsappParsingService,
+          useValue: { parseAndStoreDraft: parseAndStoreDraftMock },
         },
       ],
     }).compile();
@@ -304,6 +317,37 @@ describe('WhatsappService', () => {
       inboundSaveMock.mockRejectedValueOnce(new Error('db unavailable'));
 
       await expect(service.processInboundMessage(MSG)).rejects.toThrow('db unavailable');
+    });
+
+    // ─── WHATSAPP INTEGRATION Phase 2 — AI parsing trigger ───────────────────
+
+    it('triggers fire-and-forget parsing for a mapped (RECEIVED) message', async () => {
+      mappingFindOneByMock.mockResolvedValue(MAPPING);
+
+      const result = await service.processInboundMessage(MSG);
+
+      expect(parseAndStoreDraftMock).toHaveBeenCalledWith(
+        expect.objectContaining({ status: 'RECEIVED', project_ref: MAPPING.project_ref }),
+      );
+      // Fire-and-forget: processInboundMessage resolves without waiting on
+      // the parsing call's own promise.
+      expect(result.stored).toBe(true);
+    });
+
+    it('never triggers parsing for an UNMAPPED message — nothing to parse against', async () => {
+      mappingFindOneByMock.mockResolvedValue(null);
+
+      await service.processInboundMessage(MSG);
+
+      expect(parseAndStoreDraftMock).not.toHaveBeenCalled();
+    });
+
+    it('does not trigger parsing on a duplicate (idempotent no-op)', async () => {
+      inboundFindOneByMock.mockResolvedValue({ id: 'existing-row', wa_message_id: MSG.id });
+
+      await service.processInboundMessage(MSG);
+
+      expect(parseAndStoreDraftMock).not.toHaveBeenCalled();
     });
   });
 

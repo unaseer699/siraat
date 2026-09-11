@@ -3,12 +3,14 @@ import {
   Injectable,
   Logger,
   NotFoundException,
+  Optional,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { createHmac, timingSafeEqual } from 'crypto';
 import { WhatsappInboundMessageEntity } from './entities/whatsapp-inbound-message.entity';
 import { WhatsappProjectMappingEntity } from './entities/whatsapp-project-mapping.entity';
+import { WhatsappParsingService } from './whatsapp-parsing.service';
 
 // WHATSAPP INTEGRATION Phase 1 — parsed shape pulled out of Meta's webhook
 // entry[].changes[].value.messages[] before it's stored. Kept separate from
@@ -121,6 +123,14 @@ export class WhatsappService {
     private readonly inboundRepo: Repository<WhatsappInboundMessageEntity>,
     @InjectRepository(WhatsappProjectMappingEntity)
     private readonly mappingRepo: Repository<WhatsappProjectMappingEntity>,
+    // @Optional() — WHATSAPP INTEGRATION Phase 2. Lighter test setups (e.g.
+    // whatsapp-webhook.controller.spec.ts) construct WhatsappService without
+    // wiring up AI parsing at all; this keeps that DI graceful (parsing is
+    // simply skipped, see processInboundMessage below) rather than forcing
+    // every existing test module to know about a dependency it doesn't
+    // exercise. The real app (WhatsappModule) always provides it.
+    @Optional()
+    private readonly parsingSvc?: WhatsappParsingService,
   ) {}
 
   // ── [SECURITY] Webhook verification handshake (GET) ──────────────────────
@@ -182,6 +192,19 @@ export class WhatsappService {
       this.logger.log(
         `Stored WhatsApp message id=${msg.id} from ${maskPhone(msg.from)} status=${saved.status}`,
       );
+
+      // WHATSAPP INTEGRATION Phase 2 — fire-and-forget AI parsing, triggered
+      // only for a mapped (RECEIVED) message; an UNMAPPED one has no
+      // project_ref to parse against (see WhatsappParsingService's own
+      // guard, duplicated here as the call-site condition). Not awaited —
+      // matching the existing fire-and-forget Observation-logging pattern
+      // (ConstructionProjectService's `void this.ciSvc.logObservation(...)`)
+      // so a slow/failed LLM call never delays this method's caller, and in
+      // turn never delays the webhook controller's fast 200 ack to Meta.
+      if (saved.status === 'RECEIVED') {
+        void this.parsingSvc?.parseAndStoreDraft(saved);
+      }
+
       return { stored: true, duplicate: false, message: saved };
     } catch (err) {
       if (isUniqueViolation(err)) {
