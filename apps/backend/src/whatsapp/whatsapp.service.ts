@@ -11,11 +11,23 @@ import { createHmac, timingSafeEqual } from 'crypto';
 import { WhatsappInboundMessageEntity } from './entities/whatsapp-inbound-message.entity';
 import { WhatsappProjectMappingEntity } from './entities/whatsapp-project-mapping.entity';
 import { WhatsappParsingService } from './whatsapp-parsing.service';
+import { WhatsappConfirmationService } from './whatsapp-confirmation.service';
+import { maskPhone } from './whatsapp-phone.util';
+
+export { maskPhone };
 
 // WHATSAPP INTEGRATION Phase 1 — parsed shape pulled out of Meta's webhook
 // entry[].changes[].value.messages[] before it's stored. Kept separate from
 // the raw Meta payload shape so WhatsappService's own logic never has to
 // re-navigate that nesting past extractInboundMessages.
+//
+// WHATSAPP INTEGRATION Phase 3 — contextId added: WhatsApp's own native
+// "reply" feature (long-press a message -> Reply) stamps the replied-to
+// message's id onto `context.id` of the new message. Used by
+// WhatsappConfirmationService.findMatchingPendingDraft to thread a reply
+// back to the exact draft it was replying to, when the sender uses that
+// feature; null when they didn't (plain reply), which falls back to
+// "most recent PENDING draft for this sender's project" instead.
 export interface ParsedWhatsappMessage {
   id: string;
   from: string;
@@ -23,6 +35,7 @@ export interface ParsedWhatsappMessage {
   text: string | null;
   timestamp: Date;
   rawPayload: unknown;
+  contextId: string | null;
 }
 
 export interface CreateMappingInput {
@@ -50,12 +63,6 @@ function isUniqueViolation(err: unknown): boolean {
   return typeof err === 'object' && err !== null && (err as { code?: string }).code === '23505';
 }
 
-// [SECURITY] No PII beyond what's needed in logs — last 4 digits only.
-export function maskPhone(waId: string): string {
-  if (waId.length <= 4) return '*'.repeat(waId.length);
-  return '*'.repeat(waId.length - 4) + waId.slice(-4);
-}
-
 function parseOneMessage(raw: unknown): ParsedWhatsappMessage | null {
   if (!raw || typeof raw !== 'object') return null;
   const m = raw as Record<string, unknown>;
@@ -74,6 +81,11 @@ function parseOneMessage(raw: unknown): ParsedWhatsappMessage | null {
   const textBody = (m.text as Record<string, unknown> | undefined)?.body;
   const text = type === 'text' && typeof textBody === 'string' ? textBody : null;
 
+  // WHATSAPP INTEGRATION Phase 3 — messages[].context.id, present only when
+  // the sender used WhatsApp's native reply feature.
+  const contextIdRaw = (m.context as Record<string, unknown> | undefined)?.id;
+  const contextId = typeof contextIdRaw === 'string' ? contextIdRaw : null;
+
   return {
     id,
     from,
@@ -81,6 +93,7 @@ function parseOneMessage(raw: unknown): ParsedWhatsappMessage | null {
     text,
     timestamp: new Date(Number(timestampRaw) * 1000),
     rawPayload: raw,
+    contextId,
   };
 }
 
@@ -131,6 +144,12 @@ export class WhatsappService {
     // exercise. The real app (WhatsappModule) always provides it.
     @Optional()
     private readonly parsingSvc?: WhatsappParsingService,
+    // WHATSAPP INTEGRATION Phase 3 — same @Optional() reasoning as
+    // parsingSvc above: lighter test setups don't need to know about the
+    // confirm/correct loop at all. The real app (WhatsappModule) always
+    // provides it.
+    @Optional()
+    private readonly confirmationSvc?: WhatsappConfirmationService,
   ) {}
 
   // ── [SECURITY] Webhook verification handshake (GET) ──────────────────────
@@ -201,8 +220,23 @@ export class WhatsappService {
       // (ConstructionProjectService's `void this.ciSvc.logObservation(...)`)
       // so a slow/failed LLM call never delays this method's caller, and in
       // turn never delays the webhook controller's fast 200 ack to Meta.
+      //
+      // WHATSAPP INTEGRATION Phase 3 — before treating this as a fresh
+      // message to parse, check whether it's actually a reply to an
+      // existing PENDING draft (native WhatsApp reply-threading, or —
+      // falling back — the sender's most recent PENDING draft for their
+      // mapped project; see WhatsappConfirmationService.findMatchingPendingDraft).
+      // This lookup is a couple of indexed DB reads, not a slow external
+      // call, so it's awaited here (same "DB writes are awaited, only the
+      // slow external call is fire-and-forgotten" line Phase 1/2 already
+      // draw) rather than adding it to the fire-and-forget branch below.
       if (saved.status === 'RECEIVED') {
-        void this.parsingSvc?.parseAndStoreDraft(saved);
+        const matchedDraft = await this.confirmationSvc?.findMatchingPendingDraft(saved, msg.contextId);
+        if (matchedDraft) {
+          void this.confirmationSvc?.handleReply(matchedDraft, saved);
+        } else {
+          void this.parsingSvc?.parseAndStoreDraft(saved);
+        }
       }
 
       return { stored: true, duplicate: false, message: saved };
