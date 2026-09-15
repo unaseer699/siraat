@@ -20,6 +20,7 @@ import {
 } from '@/lib/api';
 import { TRADE_CATEGORY_OPTIONS } from '@/lib/tradeCategories';
 import { CopyLinkButton } from '@/components/CopyLinkButton';
+import WhatsappBadge from '@/components/WhatsappBadge';
 import { fieldGroupStyle, inputStyle, labelStyle } from '../../constants';
 import { AdminNav } from '../../AdminNav';
 import { TRUST_GREEN, RADIUS } from '@/styles/tokens';
@@ -456,7 +457,12 @@ function ExpenseRow({
   return (
     <tr style={{ borderTop: '1px solid var(--border)' }}>
       <td style={tdStyle}>{expense.expense_date}</td>
-      <td style={tdStyle}>{expense.description}</td>
+      <td style={tdStyle}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+          <span>{expense.description}</span>
+          {expense.source === 'WHATSAPP' && <WhatsappBadge />}
+        </div>
+      </td>
       <td style={tdStyle}>
         {expense.vendor_name}
         {(expense.linked_contractor_id || expense.linked_supplier_id) && (
@@ -498,7 +504,16 @@ function HistoryExpenseRow({ expense }: { expense: ExpenseResult }) {
   return (
     <tr style={{ borderTop: '1px solid var(--border)', opacity: 0.65 }}>
       <td style={tdStyle}>{expense.expense_date}</td>
-      <td style={{ ...tdStyle, textDecoration: 'line-through' }}>{expense.description}</td>
+      <td style={{ ...tdStyle, textDecoration: 'line-through' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+          <span>{expense.description}</span>
+          {expense.source === 'WHATSAPP' && (
+            <span style={{ textDecoration: 'none' }}>
+              <WhatsappBadge />
+            </span>
+          )}
+        </div>
+      </td>
       <td style={tdStyle}>{expense.vendor_name}</td>
       <td style={{ ...tdStyle, textAlign: 'right' }}>
         <div style={{ textDecoration: 'line-through' }}>
@@ -892,8 +907,19 @@ export default function AdminProjectPage({ params }: Props) {
             gap: '8px',
           }}
         >
-          <span style={{ fontSize: '13px', fontWeight: 600, opacity: 0.8 }}>RUNNING TOTAL</span>
-          <span style={{ fontSize: '28px', fontWeight: 800 }}>{formatPKR(project.total)}</span>
+          <div>
+            <span style={{ fontSize: '13px', fontWeight: 600, opacity: 0.8 }}>RUNNING TOTAL</span>
+          </div>
+          <div style={{ textAlign: 'right' }}>
+            <span style={{ fontSize: '28px', fontWeight: 800 }}>{formatPKR(project.total)}</span>
+            {project.whatsapp_activity.confirmed_count > 0 && (
+              <div style={{ fontSize: '12px', opacity: 0.75, marginTop: '2px' }}>
+                {project.whatsapp_activity.confirmed_count}{' '}
+                {project.whatsapp_activity.confirmed_count === 1 ? 'expense' : 'expenses'} (
+                {formatPKR(project.whatsapp_activity.total_amount)}) added via WhatsApp
+              </div>
+            )}
+          </div>
         </div>
 
         {refetchError && (

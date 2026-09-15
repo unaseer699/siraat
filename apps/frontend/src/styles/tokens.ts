@@ -33,6 +33,12 @@ export const REVOKED_SLATE = '#6b4a4a';
 export const REVOKED_SLATE_BG = '#f5f1f1';
 export const REVOKED_SLATE_BORDER = '#d6c8c8';
 
+// WHATSAPP EXPENSE BADGE — Frontend. WhatsApp's own brand green, deliberately
+// distinct from TRUST_GREEN: this marks "where this expense came from"
+// (a provenance tag), not "this is verified/trustworthy" — the two must
+// stay visually separable even though both happen to be green.
+export const WHATSAPP_GREEN = '#25D366';
+
 export const SPACING = {
   xs: '4px',
   sm: '8px',
