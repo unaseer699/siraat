@@ -2,6 +2,11 @@ import { Entity, Column, PrimaryGeneratedColumn, CreateDateColumn } from 'typeor
 
 export type ProjectExpenseStatus = 'ACTIVE' | 'CORRECTED' | 'VOID';
 
+// WHATSAPP INTEGRATION Phase 5 — DASHBOARD WIRING. Which channel created
+// this row. Not an enum of every possible future channel — just the two
+// that exist today.
+export type ExpenseSource = 'WHATSAPP' | 'MANUAL';
+
 // EXPENSE QUANTITY/RATE Chunk 1 — enum, not free-text, same discipline
 // TradeCategory/MaterialCategory already follow elsewhere in this schema.
 export type ExpenseUnit = 'PCS' | 'KG' | 'TON' | 'BAG' | 'CFT' | 'SFT' | 'RFT' | 'LTR';
@@ -102,6 +107,19 @@ export class ProjectExpenseEntity {
   // reason). Left null for ACTIVE/CORRECTED rows.
   @Column({ type: 'text', nullable: true })
   void_reason: string | null;
+
+  // WHATSAPP INTEGRATION Phase 5 — DASHBOARD WIRING. Traceability for where
+  // this row came from. Set explicitly, once, at the one call site that
+  // actually knows the channel — WhatsappConfirmationService.confirmDraft
+  // passes 'WHATSAPP'; every other creation path (the plain manual Project
+  // Cost Tracker flow) leaves it null. Never inferred at read time by
+  // joining back to whatsapp_draft_expenses — that would be a cross-context
+  // reach (Law 1) and slower than reading a column already on this row.
+  // Nullable with no DB default: every pre-Phase-5 row reads back as an
+  // explicit SQL NULL via TypeORM's ALTER TABLE ADD COLUMN (synchronize),
+  // same migration-safe shape as quantity/unit/rate above.
+  @Column({ type: 'varchar', length: 10, nullable: true })
+  source: ExpenseSource | null;
 
   @CreateDateColumn()
   created_at: Date;

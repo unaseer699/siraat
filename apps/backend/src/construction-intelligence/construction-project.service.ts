@@ -4,7 +4,7 @@ import { In, Repository } from 'typeorm';
 import type { TradeCategory } from '@siraat/shared-types';
 import { ConstructionProjectEntity, type ConstructionProjectStatus } from './entities/construction-project.entity';
 import { ProjectSectionEntity } from './entities/project-section.entity';
-import { ProjectExpenseEntity, type ProjectExpenseStatus, type ExpenseUnit } from './entities/project-expense.entity';
+import { ProjectExpenseEntity, type ProjectExpenseStatus, type ExpenseUnit, type ExpenseSource } from './entities/project-expense.entity';
 import { ConstructionIntelligenceService } from './construction-intelligence.service';
 
 // PROJECT COST TRACKER Chunk 1 — Project/Section/Expense are closely related
@@ -113,6 +113,11 @@ export interface CreateExpenseInput {
   quantity: number | null;
   unit: ExpenseUnit | null;
   rate: number | null;
+  // WHATSAPP INTEGRATION Phase 5 — DASHBOARD WIRING. Optional (not required
+  // of every existing caller/test) rather than adding a mandatory field to
+  // every CreateExpenseInput site — defaults to null (same as an
+  // unspecified manual entry) when omitted. See ProjectExpenseEntity.source.
+  source?: ExpenseSource | null;
 }
 
 // EXPENSE EDIT/DELETE Chunk 1 — same field shape as create; a PATCH submits
@@ -137,6 +142,7 @@ export interface ExpenseResult {
   status: ProjectExpenseStatus;
   supersedes_id: string | null;
   void_reason: string | null;
+  source: ExpenseSource | null;
 }
 
 // EXPENSE QUANTITY/RATE Chunk 1 — the one place `amount` is required vs.
@@ -183,6 +189,7 @@ function toExpenseResult(e: ProjectExpenseEntity): ExpenseResult {
     status: e.status,
     supersedes_id: e.supersedes_id,
     void_reason: e.void_reason,
+    source: e.source ?? null,
   };
 }
 
@@ -224,9 +231,21 @@ export interface SectionWithExpenses extends SectionResult {
   subtotal: number;
 }
 
+// WHATSAPP INTEGRATION Phase 5 — DASHBOARD WIRING. Live-computed, not a
+// cached/denormalized table — this project's expense count is small enough
+// that summing at query time (same pass as `total` below) is fine, and a
+// cached summary would be a second source of truth that could go stale.
+// ACTIVE-only, same as `total`/`subtotal` — a CORRECTED or VOID WhatsApp
+// expense never counts here either.
+export interface WhatsappActivitySummary {
+  confirmed_count: number;
+  total_amount: number;
+}
+
 export interface ProjectWithSectionsAndExpenses extends ProjectResult {
   sections: SectionWithExpenses[];
   total: number;
+  whatsapp_activity: WhatsappActivitySummary;
 }
 
 @Injectable()
@@ -339,6 +358,11 @@ export class ConstructionProjectService {
       status: 'ACTIVE',
       supersedes_id: null,
       void_reason: null,
+      // Explicit rather than relying on `...data` alone — same reasoning as
+      // record_type/status above: makes it unmistakable that this is the one
+      // field a caller (WhatsappConfirmationService.confirmDraft) sets to
+      // trace the row's origin, defaulting to null for every other caller.
+      source: data.source ?? null,
     });
     const saved = await this.expenseRepo.save(entity);
     return toExpenseResult(saved);
@@ -488,17 +512,34 @@ export class ConstructionProjectService {
     }
 
     let total = 0;
+    let whatsappConfirmedCount = 0;
+    let whatsappTotalAmount = 0;
     const sectionsWithExpenses: SectionWithExpenses[] = sections.map((s) => {
       const sectionExpenses = expensesBySectionRef.get(s.id) ?? [];
       // Always ACTIVE-only, even when includeAllStatuses widened `expenses`
       // itself — subtotal/total must never reflect CORRECTED/VOID rows.
-      const subtotal = sectionExpenses
-        .filter((e) => e.status === 'ACTIVE')
-        .reduce((sum, e) => sum + e.amount, 0);
+      const activeExpenses = sectionExpenses.filter((e) => e.status === 'ACTIVE');
+      const subtotal = activeExpenses.reduce((sum, e) => sum + e.amount, 0);
       total += subtotal;
+
+      // WHATSAPP INTEGRATION Phase 5 — same ACTIVE-only pass, no separate
+      // query (Law 9/"don't invent a second source of truth" — see
+      // WhatsappActivitySummary's comment).
+      for (const e of activeExpenses) {
+        if (e.source === 'WHATSAPP') {
+          whatsappConfirmedCount += 1;
+          whatsappTotalAmount += e.amount;
+        }
+      }
+
       return { ...toSectionResult(s), expenses: sectionExpenses, subtotal };
     });
 
-    return { ...toProjectResult(project), sections: sectionsWithExpenses, total };
+    return {
+      ...toProjectResult(project),
+      sections: sectionsWithExpenses,
+      total,
+      whatsapp_activity: { confirmed_count: whatsappConfirmedCount, total_amount: whatsappTotalAmount },
+    };
   }
 }

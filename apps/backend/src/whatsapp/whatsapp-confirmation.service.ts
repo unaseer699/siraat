@@ -192,6 +192,10 @@ export class WhatsappConfirmationService {
       quantity: draft.parsed_quantity,
       unit: mapToExpenseUnit(draft.parsed_unit),
       rate: draft.parsed_rate,
+      // WHATSAPP INTEGRATION Phase 5 — DASHBOARD WIRING. The one call site
+      // that actually knows this Expense originated from a confirmed
+      // WhatsApp draft; every other createExpense caller leaves this null.
+      source: 'WHATSAPP',
     });
 
     await this.draftRepo.update({ id: draft.id }, { status: 'CONFIRMED' });
