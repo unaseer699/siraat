@@ -24,7 +24,7 @@ import type { TradeCategory } from '@siraat/shared-types';
 // plain uuid columns, no TypeORM relation/SQL FK, matching this codebase's
 // existing convention of not special-casing same-schema references either
 // (see ProjectSectionEntity.project_ref's comment).
-export type WhatsappDraftExpenseStatus = 'PENDING' | 'CONFIRMED' | 'REJECTED' | 'EDITED';
+export type WhatsappDraftExpenseStatus = 'PENDING' | 'CONFIRMED' | 'REJECTED' | 'EDITED' | 'VOID';
 export type WhatsappDraftConfidence = 'HIGH' | 'MEDIUM' | 'LOW';
 
 @Entity({ name: 'whatsapp_draft_expenses', schema: 'data_acquisition' })
@@ -98,8 +98,19 @@ export class WhatsappDraftExpenseEntity {
   // scope here). Widened to the full union now so Phase 3 doesn't need a
   // migration to add values, matching WhatsappInboundMessageStatus's own
   // "later phases add more states" precedent.
+  //
+  // WHATSAPP INTEGRATION Phase 4 — ADMIN REVIEW QUEUE. VOID added: a manual
+  // admin action (WhatsappParsingService.voidDraft) for a stuck PENDING
+  // draft the sender never replied to. Never a hard delete — same
+  // corrections/void-never-deletion principle as ProjectExpenseEntity.
   @Column({ type: 'varchar', length: 16, default: 'PENDING' })
   status: WhatsappDraftExpenseStatus;
+
+  // Set only when status = VOID (optional — the admin isn't required to
+  // give a reason, unlike ProjectExpenseEntity.void_reason's mandatory
+  // one). Left null otherwise.
+  @Column({ type: 'text', nullable: true })
+  void_reason: string | null;
 
   @CreateDateColumn()
   created_at: Date;

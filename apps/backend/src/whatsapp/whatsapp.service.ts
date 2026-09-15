@@ -212,32 +212,7 @@ export class WhatsappService {
         `Stored WhatsApp message id=${msg.id} from ${maskPhone(msg.from)} status=${saved.status}`,
       );
 
-      // WHATSAPP INTEGRATION Phase 2 — fire-and-forget AI parsing, triggered
-      // only for a mapped (RECEIVED) message; an UNMAPPED one has no
-      // project_ref to parse against (see WhatsappParsingService's own
-      // guard, duplicated here as the call-site condition). Not awaited —
-      // matching the existing fire-and-forget Observation-logging pattern
-      // (ConstructionProjectService's `void this.ciSvc.logObservation(...)`)
-      // so a slow/failed LLM call never delays this method's caller, and in
-      // turn never delays the webhook controller's fast 200 ack to Meta.
-      //
-      // WHATSAPP INTEGRATION Phase 3 — before treating this as a fresh
-      // message to parse, check whether it's actually a reply to an
-      // existing PENDING draft (native WhatsApp reply-threading, or —
-      // falling back — the sender's most recent PENDING draft for their
-      // mapped project; see WhatsappConfirmationService.findMatchingPendingDraft).
-      // This lookup is a couple of indexed DB reads, not a slow external
-      // call, so it's awaited here (same "DB writes are awaited, only the
-      // slow external call is fire-and-forgotten" line Phase 1/2 already
-      // draw) rather than adding it to the fire-and-forget branch below.
-      if (saved.status === 'RECEIVED') {
-        const matchedDraft = await this.confirmationSvc?.findMatchingPendingDraft(saved, msg.contextId);
-        if (matchedDraft) {
-          void this.confirmationSvc?.handleReply(matchedDraft, saved);
-        } else {
-          void this.parsingSvc?.parseAndStoreDraft(saved);
-        }
-      }
+      await this.routeReceivedMessage(saved, msg.contextId);
 
       return { stored: true, duplicate: false, message: saved };
     } catch (err) {
@@ -249,6 +224,82 @@ export class WhatsappService {
       }
       throw err;
     }
+  }
+
+  // WHATSAPP INTEGRATION Phase 2/3 routing, extracted out of
+  // processInboundMessage so WHATSAPP INTEGRATION Phase 4's
+  // reprocessUnmappedMessages (below) can reuse the exact same
+  // mapped-message decision logic on an OLD, already-stored row instead of
+  // duplicating the branching (per the Phase 4 brief). No-op for anything
+  // other than a RECEIVED message (an UNMAPPED one has nothing to route).
+  private async routeReceivedMessage(message: WhatsappInboundMessageEntity, contextId: string | null): Promise<void> {
+    if (message.status !== 'RECEIVED') return;
+
+    // WHATSAPP INTEGRATION Phase 3 — before treating this as a fresh
+    // message to parse, check whether it's actually a reply to an existing
+    // PENDING draft (native WhatsApp reply-threading, or — falling back —
+    // the sender's most recent PENDING draft for their mapped project; see
+    // WhatsappConfirmationService.findMatchingPendingDraft). This lookup is
+    // a couple of indexed DB reads, not a slow external call, so it's
+    // awaited here (same "DB writes are awaited, only the slow external
+    // call is fire-and-forgotten" line Phase 1/2 already draw) rather than
+    // adding it to the fire-and-forget branch below.
+    const matchedDraft = await this.confirmationSvc?.findMatchingPendingDraft(message, contextId);
+    if (matchedDraft) {
+      void this.confirmationSvc?.handleReply(matchedDraft, message);
+      return;
+    }
+
+    // WHATSAPP INTEGRATION Phase 2 — fire-and-forget AI parsing. Not
+    // awaited — matching the existing fire-and-forget Observation-logging
+    // pattern (ConstructionProjectService's `void this.ciSvc.logObservation(...)`)
+    // so a slow/failed LLM call never delays this method's caller, and in
+    // turn never delays the webhook controller's fast 200 ack to Meta.
+    void this.parsingSvc?.parseAndStoreDraft(message);
+  }
+
+  // ── WHATSAPP INTEGRATION Phase 4 — ADMIN REVIEW QUEUE ─────────────────────
+
+  // GET /v1/admin/whatsapp-unmapped
+  async listUnmappedMessages(): Promise<WhatsappInboundMessageEntity[]> {
+    return this.inboundRepo.find({ where: { status: 'UNMAPPED' }, order: { created_at: 'DESC' } });
+  }
+
+  // Used by AdminService.reprocessUnmappedWhatsappMessages to resolve the
+  // mapping's own wa_id/project_ref before reprocessing — same "ID-scoped,
+  // not a raw findOneBy the caller assembles itself" pattern as
+  // deleteMapping's find-by-id.
+  async findMappingById(id: string): Promise<WhatsappProjectMappingEntity | null> {
+    return this.mappingRepo.findOneBy({ id });
+  }
+
+  // Retroactively resolves a sender's still-UNMAPPED messages after an
+  // admin creates a mapping for them — explicit, admin-triggered only,
+  // never automatic (per the brief: silently turning old messages into
+  // Expenses without a fresh look is exactly what this must NOT do on its
+  // own). Flips each matching row to RECEIVED with the new project_ref,
+  // then routes it through routeReceivedMessage — the exact same
+  // mapped-message logic a freshly-arrived message goes through, not a
+  // second copy of that branching.
+  //
+  // Only this wa_id's still-UNMAPPED rows are touched (scoped `where`
+  // clause below) — any of their other messages already RECEIVED/PARSED,
+  // and every other sender's messages, are left untouched.
+  //
+  // No native WhatsApp context.id exists for an old, already-stored message
+  // (it was never re-delivered) — reply-threading has nothing to match
+  // against here, so this always falls to routeReceivedMessage's
+  // "most recent PENDING draft for this project" fallback, same as any
+  // reply sent without using WhatsApp's native reply feature.
+  async reprocessUnmappedMessages(waId: string, projectRef: string): Promise<{ reprocessed: number }> {
+    const unmapped = await this.inboundRepo.find({ where: { wa_id: waId, status: 'UNMAPPED' } });
+
+    for (const message of unmapped) {
+      await this.inboundRepo.update({ id: message.id }, { status: 'RECEIVED', project_ref: projectRef });
+      await this.routeReceivedMessage({ ...message, status: 'RECEIVED', project_ref: projectRef }, null);
+    }
+
+    return { reprocessed: unmapped.length };
   }
 
   // ── Admin mapping CRUD (POST/GET/DELETE /v1/admin/whatsapp-mappings) ─────

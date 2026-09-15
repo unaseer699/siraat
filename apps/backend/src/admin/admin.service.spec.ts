@@ -62,6 +62,21 @@ const WHATSAPP_DRAFT = {
   confidence: 'HIGH',
   raw_ai_response: { ok: true },
   status: 'PENDING',
+  void_reason: null,
+  created_at: new Date('2026-01-01'),
+};
+
+// WHATSAPP INTEGRATION Phase 4 — ADMIN REVIEW QUEUE
+const UNMAPPED_MESSAGE = {
+  id: 'msg-uuid-unmapped-0001',
+  wa_message_id: 'wamid.UNMAPPED001',
+  wa_id: '923009999999',
+  message_type: 'text',
+  message_text: 'cement 50 bags 1490',
+  wa_timestamp: new Date('2026-01-01'),
+  raw_payload: {},
+  project_ref: null,
+  status: 'UNMAPPED',
   created_at: new Date('2026-01-01'),
 };
 
@@ -291,6 +306,12 @@ describe('AdminService', () => {
   let listWhatsappMappingsMock: jest.Mock;
   let deleteWhatsappMappingMock: jest.Mock;
   let listWhatsappDraftsMock: jest.Mock;
+  // WHATSAPP INTEGRATION Phase 4 — ADMIN REVIEW QUEUE
+  let findMappingByIdMock: jest.Mock;
+  let reprocessUnmappedMessagesMock: jest.Mock;
+  let listUnmappedMessagesMock: jest.Mock;
+  let voidDraftMock: jest.Mock;
+  let resendDraftPromptMock: jest.Mock;
 
   beforeEach(async () => {
     createSocietyMock          = jest.fn().mockResolvedValue(SOCIETY_RESULT);
@@ -340,6 +361,11 @@ describe('AdminService', () => {
     listWhatsappMappingsMock  = jest.fn().mockResolvedValue([WHATSAPP_MAPPING]);
     deleteWhatsappMappingMock = jest.fn().mockResolvedValue(undefined);
     listWhatsappDraftsMock    = jest.fn().mockResolvedValue([WHATSAPP_DRAFT]);
+    findMappingByIdMock       = jest.fn().mockResolvedValue(WHATSAPP_MAPPING);
+    reprocessUnmappedMessagesMock = jest.fn().mockResolvedValue({ reprocessed: 2 });
+    listUnmappedMessagesMock  = jest.fn().mockResolvedValue([UNMAPPED_MESSAGE]);
+    voidDraftMock             = jest.fn().mockResolvedValue({ ...WHATSAPP_DRAFT, status: 'VOID', void_reason: 'sender never replied' });
+    resendDraftPromptMock     = jest.fn().mockResolvedValue({ sent: true });
 
     const module = await Test.createTestingModule({
       providers: [
@@ -413,12 +439,17 @@ describe('AdminService', () => {
             createMapping: createWhatsappMappingMock,
             listMappings: listWhatsappMappingsMock,
             deleteMapping: deleteWhatsappMappingMock,
+            findMappingById: findMappingByIdMock,
+            reprocessUnmappedMessages: reprocessUnmappedMessagesMock,
+            listUnmappedMessages: listUnmappedMessagesMock,
           },
         },
         {
           provide: WhatsappParsingService,
           useValue: {
             listDrafts: listWhatsappDraftsMock,
+            voidDraft: voidDraftMock,
+            resendDraftPrompt: resendDraftPromptMock,
           },
         },
       ],
@@ -1295,13 +1326,56 @@ describe('AdminService', () => {
   it('listWhatsappDrafts delegates to WhatsappParsingService.listDrafts with no filter', async () => {
     const result = await svc.listWhatsappDrafts();
 
-    expect(listWhatsappDraftsMock).toHaveBeenCalledWith(undefined);
+    expect(listWhatsappDraftsMock).toHaveBeenCalledWith(undefined, undefined);
     expect(result).toEqual([WHATSAPP_DRAFT]);
   });
 
   it('listWhatsappDrafts passes the project_ref filter through', async () => {
     await svc.listWhatsappDrafts('proj-uuid-0001');
-    expect(listWhatsappDraftsMock).toHaveBeenCalledWith('proj-uuid-0001');
+    expect(listWhatsappDraftsMock).toHaveBeenCalledWith('proj-uuid-0001', undefined);
+  });
+
+  // ─── WHATSAPP INTEGRATION Phase 4 — ADMIN REVIEW QUEUE ───────────────────
+
+  it('listWhatsappDrafts passes the status filter through', async () => {
+    await svc.listWhatsappDrafts(undefined, 'CONFIRMED');
+    expect(listWhatsappDraftsMock).toHaveBeenCalledWith(undefined, 'CONFIRMED');
+  });
+
+  it('listUnmappedWhatsappMessages delegates to WhatsappService.listUnmappedMessages', async () => {
+    const result = await svc.listUnmappedWhatsappMessages();
+
+    expect(listUnmappedMessagesMock).toHaveBeenCalled();
+    expect(result).toEqual([UNMAPPED_MESSAGE]);
+  });
+
+  it('reprocessUnmappedWhatsappMessages resolves the mapping then delegates to WhatsappService.reprocessUnmappedMessages', async () => {
+    findMappingByIdMock.mockResolvedValue(WHATSAPP_MAPPING);
+
+    const result = await svc.reprocessUnmappedWhatsappMessages(WHATSAPP_MAPPING.id);
+
+    expect(findMappingByIdMock).toHaveBeenCalledWith(WHATSAPP_MAPPING.id);
+    expect(reprocessUnmappedMessagesMock).toHaveBeenCalledWith(WHATSAPP_MAPPING.wa_id, WHATSAPP_MAPPING.project_ref);
+    expect(result).toEqual({ reprocessed: 2 });
+  });
+
+  it('reprocessUnmappedWhatsappMessages throws NotFoundException for a non-existent mapping id', async () => {
+    findMappingByIdMock.mockResolvedValue(null);
+
+    await expect(svc.reprocessUnmappedWhatsappMessages('missing-uuid')).rejects.toThrow(NotFoundException);
+    expect(reprocessUnmappedMessagesMock).not.toHaveBeenCalled();
+  });
+
+  it('voidWhatsappDraft delegates to WhatsappParsingService.voidDraft', async () => {
+    await svc.voidWhatsappDraft(WHATSAPP_DRAFT.id, 'sender never replied');
+    expect(voidDraftMock).toHaveBeenCalledWith(WHATSAPP_DRAFT.id, 'sender never replied');
+  });
+
+  it('resendWhatsappDraftPrompt delegates to WhatsappParsingService.resendDraftPrompt', async () => {
+    const result = await svc.resendWhatsappDraftPrompt(WHATSAPP_DRAFT.id);
+
+    expect(resendDraftPromptMock).toHaveBeenCalledWith(WHATSAPP_DRAFT.id);
+    expect(result).toEqual({ sent: true });
   });
 
   // ─── Auth guard (controller-level wiring check) ───────────────────────────
