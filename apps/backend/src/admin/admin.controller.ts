@@ -10,6 +10,7 @@ import {
 } from '@siraat/shared-types';
 import { BearerGuard } from '../auth/bearer.guard';
 import { ZodValidationPipe } from '../common/zod-validation.pipe';
+import type { WhatsappDraftExpenseStatus } from '../whatsapp/entities/whatsapp-draft-expense.entity';
 import { AdminService } from './admin.service';
 
 // --- Shared sub-schemas ---
@@ -262,6 +263,15 @@ const CreateWhatsappMappingBodySchema = z.object({
   created_by: z.string().min(1),
 });
 type CreateWhatsappMappingBody = z.infer<typeof CreateWhatsappMappingBodySchema>;
+
+// --- POST /v1/admin/whatsapp-drafts/:id/void (WHATSAPP INTEGRATION Phase 4) ---
+// `reason` is optional (unlike VoidExpenseBodySchema's mandatory one above)
+// per the brief — the admin isn't required to explain why a stuck draft is
+// being voided.
+const VoidWhatsappDraftBodySchema = z.object({
+  reason: z.string().min(1).nullable().default(null),
+});
+type VoidWhatsappDraftBody = z.infer<typeof VoidWhatsappDraftBodySchema>;
 
 // --- Controller ---
 
@@ -608,12 +618,56 @@ export class AdminController {
     return this.adminSvc.deleteWhatsappMapping(id);
   }
 
+  // WHATSAPP INTEGRATION Phase 4 — ADMIN REVIEW QUEUE. Explicit, separate
+  // action from createWhatsappMapping above (not a flag on that request) so
+  // creating a mapping never has a side effect on old messages unless the
+  // admin deliberately triggers it afterward — see WhatsappService.reprocessUnmappedMessages.
+  @Post('whatsapp-mappings/:id/reprocess-unmapped')
+  @HttpCode(200)
+  reprocessUnmappedWhatsappMessages(@Param('id') id: string) {
+    return this.adminSvc.reprocessUnmappedWhatsappMessages(id);
+  }
+
+  // GET /v1/admin/whatsapp-unmapped — messages that arrived from a sender
+  // with no project mapping at receipt time (see WhatsappService.processInboundMessage);
+  // the founder's queue for deciding whether/where to map them.
+  @Get('whatsapp-unmapped')
+  listUnmappedWhatsappMessages() {
+    return this.adminSvc.listUnmappedWhatsappMessages();
+  }
+
   // ─── WHATSAPP INTEGRATION Phase 2 — AI PARSING ─────────────────────────
   // Read-only: lets the founder see what's been parsed so far, even before
   // the confirm loop (Phase 3) exists. Same BearerGuard, same optional
   // query-filter pattern as GET /material-rates above.
+  //
+  // WHATSAPP INTEGRATION Phase 4 — ADMIN REVIEW QUEUE. `status` is now a
+  // real filter (defaults to PENDING — unchanged behavior for an existing
+  // caller that never passes it); each row also carries a derived `stale`
+  // flag (see WhatsappParsingService.listDrafts).
   @Get('whatsapp-drafts')
-  listWhatsappDrafts(@Query('project_ref') project_ref?: string) {
-    return this.adminSvc.listWhatsappDrafts(project_ref);
+  listWhatsappDrafts(@Query('project_ref') project_ref?: string, @Query('status') status?: string) {
+    return this.adminSvc.listWhatsappDrafts(project_ref, status as WhatsappDraftExpenseStatus | undefined);
+  }
+
+  // POST /v1/admin/whatsapp-drafts/:id/void — manual resolution for a
+  // stuck draft (never a hard delete — see WhatsappParsingService.voidDraft).
+  @Post('whatsapp-drafts/:id/void')
+  @HttpCode(200)
+  voidWhatsappDraft(
+    @Param('id') id: string,
+    @Body(new ZodValidationPipe(VoidWhatsappDraftBodySchema)) body: VoidWhatsappDraftBody,
+  ) {
+    return this.adminSvc.voidWhatsappDraft(id, body.reason);
+  }
+
+  // POST /v1/admin/whatsapp-drafts/:id/resend-prompt — re-sends the
+  // original draft-summary message (see WhatsappParsingService.resendDraftPrompt,
+  // including why a send failure here surfaces as a real HTTP error rather
+  // than the fire-and-forget swallow-and-log Phase 2/3 use).
+  @Post('whatsapp-drafts/:id/resend-prompt')
+  @HttpCode(200)
+  resendWhatsappDraftPrompt(@Param('id') id: string) {
+    return this.adminSvc.resendWhatsappDraftPrompt(id);
   }
 }

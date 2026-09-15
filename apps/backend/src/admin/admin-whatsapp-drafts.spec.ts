@@ -9,6 +9,11 @@ import { AdminService } from './admin.service';
 // /v1/admin/whatsapp-drafts sits behind BearerGuard, same pattern as
 // admin-whatsapp-mappings.spec.ts (AdminService fully mocked — delegation
 // itself is covered by admin.service.spec.ts).
+//
+// WHATSAPP INTEGRATION Phase 4 — ADMIN REVIEW QUEUE. Extended with the new
+// `status` query param and `stale` field (both computed/passed through by
+// AdminService — this file only checks the controller wires the query
+// param through and returns whatever comes back).
 
 const API_KEY = 'test-admin-key-whatsapp-drafts';
 
@@ -24,7 +29,9 @@ const DRAFT = {
   confidence: 'HIGH',
   raw_ai_response: { ok: true },
   status: 'PENDING',
+  void_reason: null,
   created_at: new Date('2026-01-01'),
+  stale: false,
 };
 
 describe('AdminController — whatsapp-drafts (integration)', () => {
@@ -72,11 +79,11 @@ describe('AdminController — whatsapp-drafts (integration)', () => {
   }
 
   describe('with a valid admin Bearer key', () => {
-    it('returns pending drafts', async () => {
+    it('returns pending drafts by default (no status param)', async () => {
       const res = await req('/v1/admin/whatsapp-drafts', API_KEY);
 
       expect(res.statusCode).toBe(200);
-      expect(listMock).toHaveBeenCalledWith(undefined);
+      expect(listMock).toHaveBeenCalledWith(undefined, undefined);
       expect(JSON.parse(res.payload)).toEqual([
         { ...DRAFT, created_at: DRAFT.created_at.toISOString() },
       ]);
@@ -89,7 +96,24 @@ describe('AdminController — whatsapp-drafts (integration)', () => {
       );
 
       expect(res.statusCode).toBe(200);
-      expect(listMock).toHaveBeenCalledWith('aaaaaaaa-0000-0000-0000-000000000001');
+      expect(listMock).toHaveBeenCalledWith('aaaaaaaa-0000-0000-0000-000000000001', undefined);
+    });
+
+    // ─── WHATSAPP INTEGRATION Phase 4 — status filter ──────────────────────
+
+    it('passes ?status=CONFIRMED through to surface confirmed drafts for review', async () => {
+      const res = await req('/v1/admin/whatsapp-drafts?status=CONFIRMED', API_KEY);
+
+      expect(res.statusCode).toBe(200);
+      expect(listMock).toHaveBeenCalledWith(undefined, 'CONFIRMED');
+    });
+
+    it('reflects the stale flag AdminService returns for each draft', async () => {
+      listMock.mockResolvedValueOnce([{ ...DRAFT, stale: true }]);
+
+      const res = await req('/v1/admin/whatsapp-drafts', API_KEY);
+
+      expect(JSON.parse(res.payload)[0].stale).toBe(true);
     });
   });
 

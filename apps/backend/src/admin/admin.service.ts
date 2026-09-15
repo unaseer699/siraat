@@ -36,9 +36,13 @@ import {
   WhatsappService,
   type CreateMappingInput as WhatsappCreateMappingInput,
 } from '../whatsapp/whatsapp.service';
-import { WhatsappParsingService } from '../whatsapp/whatsapp-parsing.service';
+import { WhatsappParsingService, type WhatsappDraftListItem } from '../whatsapp/whatsapp-parsing.service';
 import type { WhatsappProjectMappingEntity } from '../whatsapp/entities/whatsapp-project-mapping.entity';
-import type { WhatsappDraftExpenseEntity } from '../whatsapp/entities/whatsapp-draft-expense.entity';
+import type {
+  WhatsappDraftExpenseEntity,
+  WhatsappDraftExpenseStatus,
+} from '../whatsapp/entities/whatsapp-draft-expense.entity';
+import type { WhatsappInboundMessageEntity } from '../whatsapp/entities/whatsapp-inbound-message.entity';
 
 export type { ClaimType };
 export type { CreateMaterialRateInput, MaterialRateResult };
@@ -600,11 +604,45 @@ export class AdminService {
     return this.waSvc.deleteMapping(id);
   }
 
+  // ─── WHATSAPP INTEGRATION Phase 4 — ADMIN REVIEW QUEUE ─────────────────
+  // POST /v1/admin/whatsapp-mappings/:id/reprocess-unmapped — resolves the
+  // mapping's own wa_id/project_ref first (find-or-404, same pattern as
+  // every other route in this file), then delegates the actual reprocessing
+  // to WhatsappService, which reuses processInboundMessage's own routing
+  // logic rather than a second copy of it.
+  async reprocessUnmappedWhatsappMessages(mappingId: string): Promise<{ reprocessed: number }> {
+    const mapping = await this.waSvc.findMappingById(mappingId);
+    if (!mapping) throw new NotFoundException(`WhatsApp mapping ${mappingId} not found`);
+    return this.waSvc.reprocessUnmappedMessages(mapping.wa_id, mapping.project_ref);
+  }
+
+  // GET /v1/admin/whatsapp-unmapped
+  async listUnmappedWhatsappMessages(): Promise<WhatsappInboundMessageEntity[]> {
+    return this.waSvc.listUnmappedMessages();
+  }
+
   // ─── WHATSAPP INTEGRATION Phase 2 — AI PARSING ─────────────────────────
-  // Read-only in this phase — no confirm/edit/reject actions exist yet
-  // (Phase 3). Thin delegation to WhatsappParsingService, same as every
-  // other cross-module call in this file.
-  async listWhatsappDrafts(project_ref?: string): Promise<WhatsappDraftExpenseEntity[]> {
-    return this.waParsingSvc.listDrafts(project_ref);
+  // Thin delegation to WhatsappParsingService, same as every other
+  // cross-module call in this file.
+  //
+  // WHATSAPP INTEGRATION Phase 4 — ADMIN REVIEW QUEUE. `status` now passes
+  // through (defaults to PENDING inside WhatsappParsingService.listDrafts
+  // when omitted, matching this endpoint's original Phase 2 behavior).
+  async listWhatsappDrafts(
+    project_ref?: string,
+    status?: WhatsappDraftExpenseStatus,
+  ): Promise<WhatsappDraftListItem[]> {
+    return this.waParsingSvc.listDrafts(project_ref, status);
+  }
+
+  // POST /v1/admin/whatsapp-drafts/:id/void — WhatsappParsingService owns
+  // the not-found/state-guard logic itself, nothing to re-check here.
+  async voidWhatsappDraft(id: string, reason: string | null): Promise<WhatsappDraftExpenseEntity> {
+    return this.waParsingSvc.voidDraft(id, reason);
+  }
+
+  // POST /v1/admin/whatsapp-drafts/:id/resend-prompt
+  async resendWhatsappDraftPrompt(id: string): Promise<{ sent: true }> {
+    return this.waParsingSvc.resendDraftPrompt(id);
   }
 }

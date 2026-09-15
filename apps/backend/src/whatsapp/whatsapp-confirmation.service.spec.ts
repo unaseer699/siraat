@@ -30,6 +30,7 @@ function pendingDraft(overrides: Partial<WhatsappDraftExpenseEntity> = {}): What
     confidence: 'HIGH',
     raw_ai_response: { ok: true },
     status: 'PENDING',
+    void_reason: null,
     created_at: new Date('2026-01-01'),
     ...overrides,
   };

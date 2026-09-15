@@ -72,6 +72,8 @@ describe('WhatsappService', () => {
   let inboundFindOneByMock: jest.Mock;
   let inboundCreateMock: jest.Mock;
   let inboundSaveMock: jest.Mock;
+  let inboundFindMock: jest.Mock;
+  let inboundUpdateMock: jest.Mock;
 
   let mappingFindOneByMock: jest.Mock;
   let mappingCreateMock: jest.Mock;
@@ -94,6 +96,8 @@ describe('WhatsappService', () => {
     inboundSaveMock = jest.fn((entity) =>
       Promise.resolve({ id: 'msg-new-uuid', ...entity }),
     );
+    inboundFindMock = jest.fn().mockResolvedValue([]);
+    inboundUpdateMock = jest.fn().mockResolvedValue({ affected: 1 });
 
     mappingFindOneByMock = jest.fn().mockResolvedValue(null);
     mappingCreateMock = jest.fn((data) => data);
@@ -119,6 +123,8 @@ describe('WhatsappService', () => {
             findOneBy: inboundFindOneByMock,
             create: inboundCreateMock,
             save: inboundSaveMock,
+            find: inboundFindMock,
+            update: inboundUpdateMock,
           },
         },
         {
@@ -407,6 +413,7 @@ describe('WhatsappService', () => {
       confidence: 'HIGH',
       raw_ai_response: {},
       status: 'PENDING',
+      void_reason: null,
       created_at: new Date('2026-01-01'),
     };
 
@@ -495,6 +502,114 @@ describe('WhatsappService', () => {
     it('throws NotFoundException when the mapping does not exist', async () => {
       mappingDeleteMock.mockResolvedValue({ affected: 0 });
       await expect(service.deleteMapping('non-existent')).rejects.toThrow(NotFoundException);
+    });
+  });
+
+  // ─── WHATSAPP INTEGRATION Phase 4 — ADMIN REVIEW QUEUE ─────────────────────
+
+  describe('listUnmappedMessages', () => {
+    it('queries only UNMAPPED messages, most recent first', async () => {
+      await service.listUnmappedMessages();
+      expect(inboundFindMock).toHaveBeenCalledWith({
+        where: { status: 'UNMAPPED' },
+        order: { created_at: 'DESC' },
+      });
+    });
+  });
+
+  describe('findMappingById', () => {
+    it('returns whatever the repository finds', async () => {
+      mappingFindOneByMock.mockResolvedValue(MAPPING);
+      await expect(service.findMappingById(MAPPING.id)).resolves.toEqual(MAPPING);
+      expect(mappingFindOneByMock).toHaveBeenCalledWith({ id: MAPPING.id });
+    });
+
+    it('returns null when no mapping exists for that id', async () => {
+      mappingFindOneByMock.mockResolvedValue(null);
+      await expect(service.findMappingById('missing-uuid')).resolves.toBeNull();
+    });
+  });
+
+  describe('reprocessUnmappedMessages', () => {
+    const OTHER_SENDER_MSG = {
+      id: 'msg-other-sender',
+      wa_message_id: 'wamid.OTHER',
+      wa_id: '923005555555',
+      status: 'UNMAPPED',
+      project_ref: null,
+    };
+
+    it('flips only this sender\'s still-UNMAPPED messages to RECEIVED with the new project_ref, and routes each through the same mapped-message logic', async () => {
+      const unmappedForSender = [
+        { id: 'msg-unmapped-1', wa_id: MAPPING.wa_id, status: 'UNMAPPED', project_ref: null },
+        { id: 'msg-unmapped-2', wa_id: MAPPING.wa_id, status: 'UNMAPPED', project_ref: null },
+      ];
+      inboundFindMock.mockResolvedValue(unmappedForSender);
+
+      const result = await service.reprocessUnmappedMessages(MAPPING.wa_id, MAPPING.project_ref);
+
+      // Scoped to exactly this sender's UNMAPPED rows — not a blanket query.
+      expect(inboundFindMock).toHaveBeenCalledWith({ where: { wa_id: MAPPING.wa_id, status: 'UNMAPPED' } });
+
+      expect(inboundUpdateMock).toHaveBeenCalledWith(
+        { id: 'msg-unmapped-1' },
+        { status: 'RECEIVED', project_ref: MAPPING.project_ref },
+      );
+      expect(inboundUpdateMock).toHaveBeenCalledWith(
+        { id: 'msg-unmapped-2' },
+        { status: 'RECEIVED', project_ref: MAPPING.project_ref },
+      );
+      expect(inboundUpdateMock).toHaveBeenCalledTimes(2);
+
+      // Routed through the exact same logic a freshly-arrived RECEIVED
+      // message goes through (Phase 3's matched-draft-or-fresh-parse
+      // branching) — here, no matching draft, so it falls to fresh parsing.
+      expect(parseAndStoreDraftMock).toHaveBeenCalledWith(
+        expect.objectContaining({ id: 'msg-unmapped-1', status: 'RECEIVED', project_ref: MAPPING.project_ref }),
+      );
+      expect(parseAndStoreDraftMock).toHaveBeenCalledWith(
+        expect.objectContaining({ id: 'msg-unmapped-2', status: 'RECEIVED', project_ref: MAPPING.project_ref }),
+      );
+
+      expect(result).toEqual({ reprocessed: 2 });
+    });
+
+    it('never touches another sender\'s messages — the query is scoped by wa_id', async () => {
+      inboundFindMock.mockResolvedValue([]); // this wa_id has none
+
+      await service.reprocessUnmappedMessages(MAPPING.wa_id, MAPPING.project_ref);
+
+      expect(inboundFindMock).toHaveBeenCalledWith({ where: { wa_id: MAPPING.wa_id, status: 'UNMAPPED' } });
+      expect(inboundUpdateMock).not.toHaveBeenCalled();
+      // Sanity: OTHER_SENDER_MSG is never referenced by this call at all —
+      // the query itself, not a post-hoc filter, is what scopes this.
+      expect(OTHER_SENDER_MSG.wa_id).not.toBe(MAPPING.wa_id);
+    });
+
+    it('never re-touches an already-RECEIVED/PARSED message — the repository query only ever returns UNMAPPED rows', async () => {
+      // find() is mocked to return only what a real `status: 'UNMAPPED'`
+      // WHERE clause would — an already-RECEIVED/PARSED row for this sender
+      // simply never appears in the result set to begin with.
+      inboundFindMock.mockResolvedValue([]);
+
+      const result = await service.reprocessUnmappedMessages(MAPPING.wa_id, MAPPING.project_ref);
+
+      expect(result).toEqual({ reprocessed: 0 });
+      expect(inboundUpdateMock).not.toHaveBeenCalled();
+      expect(parseAndStoreDraftMock).not.toHaveBeenCalled();
+    });
+
+    it('routes a reprocessed message to confirmationSvc.handleReply when it matches a PENDING draft, same as a fresh mapped message would', async () => {
+      inboundFindMock.mockResolvedValue([{ id: 'msg-unmapped-1', wa_id: MAPPING.wa_id, status: 'UNMAPPED', project_ref: null }]);
+      const draft = { id: 'draft-uuid-0001', status: 'PENDING' };
+      findMatchingPendingDraftMock.mockResolvedValue(draft);
+
+      await service.reprocessUnmappedMessages(MAPPING.wa_id, MAPPING.project_ref);
+
+      // No native context.id exists for a reprocessed old message.
+      expect(findMatchingPendingDraftMock).toHaveBeenCalledWith(expect.objectContaining({ id: 'msg-unmapped-1' }), null);
+      expect(handleReplyMock).toHaveBeenCalledWith(draft, expect.objectContaining({ id: 'msg-unmapped-1' }));
+      expect(parseAndStoreDraftMock).not.toHaveBeenCalled();
     });
   });
 });

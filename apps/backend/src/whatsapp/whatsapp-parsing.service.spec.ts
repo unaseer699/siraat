@@ -1,5 +1,6 @@
 import { Test } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
+import { BadGatewayException, BadRequestException, NotFoundException } from '@nestjs/common';
 import { WhatsappParsingService, buildDraftSummaryText } from './whatsapp-parsing.service';
 import { WhatsappAiClient } from './whatsapp-ai.client';
 import { WhatsappOutboundClient } from './whatsapp-outbound.client';
@@ -48,7 +49,10 @@ describe('WhatsappParsingService', () => {
   let draftCreateMock: jest.Mock;
   let draftSaveMock: jest.Mock;
   let draftFindMock: jest.Mock;
+  let draftFindOneByMock: jest.Mock;
+  let draftUpdateMock: jest.Mock;
   let inboundUpdateMock: jest.Mock;
+  let inboundFindOneByMock: jest.Mock;
   let sendTextMessageMock: jest.Mock;
 
   beforeEach(async () => {
@@ -56,7 +60,10 @@ describe('WhatsappParsingService', () => {
     draftCreateMock = jest.fn((data) => data);
     draftSaveMock = jest.fn((entity) => Promise.resolve({ id: 'draft-uuid-0001', ...entity }));
     draftFindMock = jest.fn().mockResolvedValue([]);
+    draftFindOneByMock = jest.fn().mockResolvedValue(null);
+    draftUpdateMock = jest.fn().mockResolvedValue({ affected: 1 });
     inboundUpdateMock = jest.fn().mockResolvedValue({ affected: 1 });
+    inboundFindOneByMock = jest.fn().mockResolvedValue(null);
     sendTextMessageMock = jest.fn().mockResolvedValue(undefined);
 
     const module = await Test.createTestingModule({
@@ -64,11 +71,17 @@ describe('WhatsappParsingService', () => {
         WhatsappParsingService,
         {
           provide: getRepositoryToken(WhatsappInboundMessageEntity),
-          useValue: { update: inboundUpdateMock },
+          useValue: { update: inboundUpdateMock, findOneBy: inboundFindOneByMock },
         },
         {
           provide: getRepositoryToken(WhatsappDraftExpenseEntity),
-          useValue: { create: draftCreateMock, save: draftSaveMock, find: draftFindMock },
+          useValue: {
+            create: draftCreateMock,
+            save: draftSaveMock,
+            find: draftFindMock,
+            findOneBy: draftFindOneByMock,
+            update: draftUpdateMock,
+          },
         },
         {
           provide: WhatsappAiClient,
@@ -251,7 +264,7 @@ describe('WhatsappParsingService', () => {
   // ─── listDrafts (GET /v1/admin/whatsapp-drafts) ────────────────────────────
 
   describe('listDrafts', () => {
-    it('queries only PENDING drafts, most recent first, with no project_ref filter', async () => {
+    it('queries only PENDING drafts, most recent first, with no project_ref filter (default, no regression from Phase 2)', async () => {
       await service.listDrafts();
       expect(draftFindMock).toHaveBeenCalledWith({
         where: { status: 'PENDING' },
@@ -265,6 +278,179 @@ describe('WhatsappParsingService', () => {
         where: { project_ref: 'proj-uuid-0001', status: 'PENDING' },
         order: { created_at: 'DESC' },
       });
+    });
+
+    // ─── WHATSAPP INTEGRATION Phase 4 — status filter + staleness ─────────
+
+    it('queries CONFIRMED drafts when status=CONFIRMED is passed', async () => {
+      await service.listDrafts(undefined, 'CONFIRMED');
+      expect(draftFindMock).toHaveBeenCalledWith({
+        where: { status: 'CONFIRMED' },
+        order: { created_at: 'DESC' },
+      });
+    });
+
+    it('flags a PENDING draft older than the staleness threshold as stale: true', async () => {
+      const oldDraft = {
+        id: 'draft-old',
+        status: 'PENDING' as const,
+        created_at: new Date(Date.now() - 25 * 60 * 60 * 1000), // 25h ago
+      };
+      draftFindMock.mockResolvedValue([oldDraft]);
+
+      const [result] = await service.listDrafts();
+      expect(result.stale).toBe(true);
+    });
+
+    it('does not flag a fresh PENDING draft as stale', async () => {
+      const freshDraft = {
+        id: 'draft-fresh',
+        status: 'PENDING' as const,
+        created_at: new Date(Date.now() - 1 * 60 * 60 * 1000), // 1h ago
+      };
+      draftFindMock.mockResolvedValue([freshDraft]);
+
+      const [result] = await service.listDrafts();
+      expect(result.stale).toBe(false);
+    });
+
+    it('never flags a non-PENDING draft as stale, no matter how old', async () => {
+      const oldConfirmed = {
+        id: 'draft-old-confirmed',
+        status: 'CONFIRMED' as const,
+        created_at: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000), // 30 days ago
+      };
+      draftFindMock.mockResolvedValue([oldConfirmed]);
+
+      const [result] = await service.listDrafts(undefined, 'CONFIRMED');
+      expect(result.stale).toBe(false);
+    });
+
+    it('honors WHATSAPP_DRAFT_STALE_HOURS when configured', async () => {
+      const ORIGINAL = process.env.WHATSAPP_DRAFT_STALE_HOURS;
+      process.env.WHATSAPP_DRAFT_STALE_HOURS = '1';
+      try {
+        const twoHoursOld = {
+          id: 'draft-2h',
+          status: 'PENDING' as const,
+          created_at: new Date(Date.now() - 2 * 60 * 60 * 1000),
+        };
+        draftFindMock.mockResolvedValue([twoHoursOld]);
+
+        const [result] = await service.listDrafts();
+        expect(result.stale).toBe(true);
+      } finally {
+        process.env.WHATSAPP_DRAFT_STALE_HOURS = ORIGINAL;
+      }
+    });
+  });
+
+  // ─── WHATSAPP INTEGRATION Phase 4 — voidDraft ──────────────────────────────
+
+  describe('voidDraft', () => {
+    const PENDING_DRAFT = {
+      id: 'draft-uuid-0001',
+      inbound_message_id: 'msg-uuid-0001',
+      project_ref: 'proj-uuid-0001',
+      parsed_item: 'cement',
+      status: 'PENDING',
+      void_reason: null,
+    };
+
+    it('sets status to VOID and stores the reason', async () => {
+      draftFindOneByMock.mockResolvedValue(PENDING_DRAFT);
+
+      const result = await service.voidDraft(PENDING_DRAFT.id, 'sender never replied');
+
+      expect(draftUpdateMock).toHaveBeenCalledWith(
+        { id: PENDING_DRAFT.id },
+        { status: 'VOID', void_reason: 'sender never replied' },
+      );
+      expect(result.status).toBe('VOID');
+      expect(result.void_reason).toBe('sender never replied');
+    });
+
+    it('accepts a null reason (optional field)', async () => {
+      draftFindOneByMock.mockResolvedValue(PENDING_DRAFT);
+
+      await service.voidDraft(PENDING_DRAFT.id, null);
+
+      expect(draftUpdateMock).toHaveBeenCalledWith({ id: PENDING_DRAFT.id }, { status: 'VOID', void_reason: null });
+    });
+
+    it('never deletes the row — no delete/remove call exists on this path', async () => {
+      draftFindOneByMock.mockResolvedValue(PENDING_DRAFT);
+      await service.voidDraft(PENDING_DRAFT.id, 'reason');
+      expect(draftUpdateMock).toHaveBeenCalled(); // update, not delete
+    });
+
+    it('404s on a non-existent draft', async () => {
+      draftFindOneByMock.mockResolvedValue(null);
+      await expect(service.voidDraft('missing-uuid', null)).rejects.toThrow(NotFoundException);
+      expect(draftUpdateMock).not.toHaveBeenCalled();
+    });
+
+    it('refuses to void a draft that is not PENDING', async () => {
+      draftFindOneByMock.mockResolvedValue({ ...PENDING_DRAFT, status: 'CONFIRMED' });
+      await expect(service.voidDraft(PENDING_DRAFT.id, null)).rejects.toThrow(BadRequestException);
+      expect(draftUpdateMock).not.toHaveBeenCalled();
+    });
+  });
+
+  // ─── WHATSAPP INTEGRATION Phase 4 — resendDraftPrompt ──────────────────────
+
+  describe('resendDraftPrompt', () => {
+    const PENDING_DRAFT = {
+      id: 'draft-uuid-0001',
+      inbound_message_id: 'msg-uuid-0001',
+      project_ref: 'proj-uuid-0001',
+      parsed_item: 'cement',
+      parsed_quantity: 50,
+      parsed_unit: 'bags',
+      parsed_rate: 1490,
+      parsed_trade_category: 'GENERAL_CONTRACTOR',
+      confidence: 'HIGH',
+      status: 'PENDING',
+      void_reason: null,
+    };
+    const ORIGINAL_MESSAGE = { id: 'msg-uuid-0001', wa_id: '923001234567' };
+
+    it('calls the outbound client with the same summary text the original send used', async () => {
+      draftFindOneByMock.mockResolvedValue(PENDING_DRAFT);
+      inboundFindOneByMock.mockResolvedValue(ORIGINAL_MESSAGE);
+
+      const result = await service.resendDraftPrompt(PENDING_DRAFT.id);
+
+      expect(sendTextMessageMock).toHaveBeenCalledWith(
+        '923001234567',
+        'Got it: cement, 50 bags @ 1490. Reply YES to confirm, or send a correction.',
+      );
+      expect(result).toEqual({ sent: true });
+    });
+
+    it('404s on a non-existent draft', async () => {
+      draftFindOneByMock.mockResolvedValue(null);
+      await expect(service.resendDraftPrompt('missing-uuid')).rejects.toThrow(NotFoundException);
+      expect(sendTextMessageMock).not.toHaveBeenCalled();
+    });
+
+    it('refuses to resend for a draft that is not PENDING', async () => {
+      draftFindOneByMock.mockResolvedValue({ ...PENDING_DRAFT, status: 'VOID' });
+      await expect(service.resendDraftPrompt(PENDING_DRAFT.id)).rejects.toThrow(BadRequestException);
+      expect(sendTextMessageMock).not.toHaveBeenCalled();
+    });
+
+    // ─── Outbound failure — surfaced to the admin caller, not swallowed ────
+    // This IS an explicit admin action waiting on a result (unlike Phase
+    // 2/3's fire-and-forget background sends), so a send failure becomes a
+    // real error response, not a silent 200.
+
+    it('surfaces an outbound send failure as an error to the caller, after logging it', async () => {
+      draftFindOneByMock.mockResolvedValue(PENDING_DRAFT);
+      inboundFindOneByMock.mockResolvedValue(ORIGINAL_MESSAGE);
+      sendTextMessageMock.mockRejectedValue(new Error('WhatsApp send failed (401): invalid token'));
+
+      await expect(service.resendDraftPrompt(PENDING_DRAFT.id)).rejects.toThrow(BadGatewayException);
     });
   });
 });

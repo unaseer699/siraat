@@ -1,10 +1,34 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { BadGatewayException, BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { WhatsappAiClient, type ExpenseExtraction } from './whatsapp-ai.client';
 import { WhatsappOutboundClient } from './whatsapp-outbound.client';
 import { WhatsappInboundMessageEntity } from './entities/whatsapp-inbound-message.entity';
-import { WhatsappDraftExpenseEntity } from './entities/whatsapp-draft-expense.entity';
+import { WhatsappDraftExpenseEntity, type WhatsappDraftExpenseStatus } from './entities/whatsapp-draft-expense.entity';
+
+// WHATSAPP INTEGRATION Phase 4 — ADMIN REVIEW QUEUE. How long a PENDING
+// draft can sit unanswered before GET /v1/admin/whatsapp-drafts flags it
+// `stale: true` — configurable (per the brief) rather than hardcoded, with
+// the brief's own suggested default. Read once per call (not cached) so a
+// config change takes effect without a restart-sensitive cache to worry
+// about; this is a cheap Number() parse, not a network call.
+const DEFAULT_STALE_HOURS = 24;
+
+function isDraftStale(draft: WhatsappDraftExpenseEntity): boolean {
+  // Staleness only means anything for a draft still awaiting a reply — a
+  // CONFIRMED/VOID/etc. draft is resolved, never "stuck."
+  if (draft.status !== 'PENDING') return false;
+
+  const hours = Number(process.env.WHATSAPP_DRAFT_STALE_HOURS);
+  const thresholdMs = (Number.isFinite(hours) && hours > 0 ? hours : DEFAULT_STALE_HOURS) * 60 * 60 * 1000;
+  return Date.now() - draft.created_at.getTime() > thresholdMs;
+}
+
+// `stale` is deliberately NOT a stored column/status value (per the brief —
+// don't invent a new status for this) — it's computed at query time from
+// created_at, so it's always current and never needs a background job to
+// keep it in sync.
+export type WhatsappDraftListItem = WhatsappDraftExpenseEntity & { stale: boolean };
 
 // WHATSAPP INTEGRATION Phase 3 — CONFIRM/CORRECT LOOP. Plain-text summary of
 // a parsed draft, sent back to the sender so they can reply YES to confirm
@@ -145,15 +169,102 @@ export class WhatsappParsingService {
     }
   }
 
-  // GET /v1/admin/whatsapp-drafts — "returns pending drafts" per the brief,
-  // so this always filters to status = PENDING (the only status this phase
-  // ever writes, but explicit rather than incidental — once Phase 3 adds
-  // CONFIRMED/REJECTED/EDITED, this endpoint should keep showing only what
-  // still needs review). Read-only: no confirm/edit/reject actions exist yet.
-  async listDrafts(project_ref?: string): Promise<WhatsappDraftExpenseEntity[]> {
-    return this.draftRepo.find({
-      where: project_ref ? { project_ref, status: 'PENDING' } : { status: 'PENDING' },
+  // GET /v1/admin/whatsapp-drafts — defaults to PENDING (this endpoint's
+  // original Phase 2 behavior, unchanged for an existing caller that never
+  // passes `status`).
+  //
+  // WHATSAPP INTEGRATION Phase 4 — ADMIN REVIEW QUEUE. `status` is now a
+  // real filter (not hardcoded) so CONFIRMED drafts can be surfaced for
+  // review-after-the-fact, and every returned row carries a derived `stale`
+  // flag (see isDraftStale) so the admin can spot a PENDING draft nobody
+  // ever replied to without cross-referencing created_at by hand.
+  async listDrafts(
+    project_ref?: string,
+    status: WhatsappDraftExpenseStatus = 'PENDING',
+  ): Promise<WhatsappDraftListItem[]> {
+    const drafts = await this.draftRepo.find({
+      where: project_ref ? { project_ref, status } : { status },
       order: { created_at: 'DESC' },
     });
+    return drafts.map((draft) => ({ ...draft, stale: isDraftStale(draft) }));
+  }
+
+  // ── WHATSAPP INTEGRATION Phase 4 — ADMIN REVIEW QUEUE ─────────────────────
+  // Manual resolution actions for a draft that never advanced — a failed AI
+  // call, a low-confidence draft nobody replied to, an orphaned correction.
+  // Both actions below are scoped to PENDING only (same "corrections/void
+  // only apply to the current live state" guard ConstructionProjectService
+  // uses for ACTIVE expenses) — a CONFIRMED draft already has a real
+  // Expense; voiding or re-prompting the draft row itself afterward would
+  // be meaningless at best, misleading at worst.
+
+  // POST /v1/admin/whatsapp-drafts/:id/void — never deletes the row (Law 3
+  // / this codebase's standing corrections-not-deletion principle, same as
+  // ProjectExpenseEntity.void_reason). `reason` is optional here (unlike
+  // ProjectExpenseEntity's mandatory one) per the brief.
+  async voidDraft(id: string, reason: string | null): Promise<WhatsappDraftExpenseEntity> {
+    const draft = await this.draftRepo.findOneBy({ id });
+    if (!draft) throw new NotFoundException(`WhatsApp draft ${id} not found`);
+    if (draft.status !== 'PENDING') {
+      throw new BadRequestException(
+        `Draft ${id} cannot be voided — it is already ${draft.status}. Voiding only applies to a stuck PENDING draft.`,
+      );
+    }
+
+    await this.draftRepo.update({ id }, { status: 'VOID', void_reason: reason });
+    return { ...draft, status: 'VOID', void_reason: reason };
+  }
+
+  // POST /v1/admin/whatsapp-drafts/:id/resend-prompt — re-sends the exact
+  // same draft-summary text Phase 3 sends right after parsing (reusing
+  // buildDraftSummaryText, not a re-derived copy), in case the original
+  // send never reached the sender (e.g. an outbound-credential
+  // misconfiguration — the scenario this endpoint exists for).
+  //
+  // FAILURE HANDLING — deliberately NOT fire-and-forget, unlike the
+  // background sends in parseAndStoreDraft/WhatsappConfirmationService:
+  // those happen off a webhook the sender never sees a direct response to,
+  // so swallow-and-log is the only sane behavior. This is an explicit admin
+  // action — the admin clicked "resend" and is waiting for a result — so a
+  // send failure is surfaced back to THEM as a real error (502, since the
+  // failure is WhatsApp's/the network's, not a bad request) instead of a
+  // silent "200 OK, nothing happened." It's still logged either way, same
+  // as every other outbound failure in this codebase.
+  async resendDraftPrompt(id: string): Promise<{ sent: true }> {
+    const draft = await this.draftRepo.findOneBy({ id });
+    if (!draft) throw new NotFoundException(`WhatsApp draft ${id} not found`);
+    if (draft.status !== 'PENDING') {
+      throw new BadRequestException(
+        `Draft ${id} cannot be re-prompted — it is already ${draft.status}. Only a stuck PENDING draft can be re-prompted.`,
+      );
+    }
+
+    const originalMessage = await this.inboundRepo.findOneBy({ id: draft.inbound_message_id });
+    if (!originalMessage) {
+      // Shouldn't happen (inbound_message_id always references a real row —
+      // see the entity's own comment) but defensive rather than assumed.
+      throw new NotFoundException(`Original WhatsApp message for draft ${id} not found — cannot resend`);
+    }
+
+    const extraction: ExpenseExtraction = {
+      item: draft.parsed_item,
+      quantity: draft.parsed_quantity,
+      unit: draft.parsed_unit,
+      rate: draft.parsed_rate,
+      trade_category: draft.parsed_trade_category,
+      confidence: draft.confidence,
+    };
+
+    try {
+      await this.outboundClient.sendTextMessage(originalMessage.wa_id, buildDraftSummaryText(extraction));
+    } catch (err) {
+      this.logger.error(
+        `Failed to resend WhatsApp draft prompt for draft id=${id}`,
+        err instanceof Error ? err.stack : String(err),
+      );
+      throw new BadGatewayException('Failed to send the WhatsApp message — see server logs for detail');
+    }
+
+    return { sent: true };
   }
 }
