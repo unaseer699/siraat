@@ -223,6 +223,9 @@ describe('WhatsappConfirmationService', () => {
           quantity: 50,
           unit: 'BAG',
           rate: 1490,
+          // WHATSAPP INTEGRATION Phase 5 — DASHBOARD WIRING: the one call
+          // site that tags an Expense as WhatsApp-sourced.
+          source: 'WHATSAPP',
         }),
       );
       expect(draftUpdateMock).toHaveBeenCalledWith({ id: draft.id }, { status: 'CONFIRMED' });

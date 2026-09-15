@@ -225,6 +225,14 @@ type CreateSectionBody = z.infer<typeof CreateSectionBodySchema>;
 
 const EXPENSE_UNITS = ['PCS', 'KG', 'TON', 'BAG', 'CFT', 'SFT', 'RFT', 'LTR'] as const;
 
+// WHATSAPP INTEGRATION Phase 5 — DASHBOARD WIRING. Accepted here mainly so
+// this schema stays the single shape createExpense/editExpense accept —
+// in practice this admin-facing create path leaves it at the null default;
+// 'WHATSAPP' is set by WhatsappConfirmationService.confirmDraft, which
+// calls ConstructionProjectService.createExpense directly, not through
+// this HTTP body.
+const EXPENSE_SOURCES = ['WHATSAPP', 'MANUAL'] as const;
+
 const CreateExpenseBodySchema = z.object({
   expense_date: z.string().min(1),
   description: z.string().min(1),
@@ -236,6 +244,7 @@ const CreateExpenseBodySchema = z.object({
   quantity: z.number().nullable().default(null),
   unit: z.enum(EXPENSE_UNITS).nullable().default(null),
   rate: z.number().nullable().default(null),
+  source: z.enum(EXPENSE_SOURCES).nullable().default(null),
 });
 type CreateExpenseBody = z.infer<typeof CreateExpenseBodySchema>;
 

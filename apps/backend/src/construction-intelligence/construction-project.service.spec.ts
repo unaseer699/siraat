@@ -403,6 +403,23 @@ describe('ConstructionProjectService', () => {
 
       expect(result.amount).toBe(-10000);
     });
+
+    // WHATSAPP INTEGRATION Phase 5 — DASHBOARD WIRING
+    describe('source (WhatsApp traceability)', () => {
+      it('defaults source to null for a plain manual-flow input with no source given', async () => {
+        const result = await service.createExpense('sec-a-uuid', buildExpenseInput());
+
+        expect(expenseCreateMock).toHaveBeenCalledWith(expect.objectContaining({ source: null }));
+        expect(result.source).toBeNull();
+      });
+
+      it('sets source: WHATSAPP when a caller (WhatsappConfirmationService.confirmDraft) passes it explicitly', async () => {
+        const result = await service.createExpense('sec-a-uuid', buildExpenseInput({ source: 'WHATSAPP' }));
+
+        expect(expenseCreateMock).toHaveBeenCalledWith(expect.objectContaining({ source: 'WHATSAPP' }));
+        expect(result.source).toBe('WHATSAPP');
+      });
+    });
   });
 
   // EXPENSE QUANTITY/RATE Chunk 1
@@ -931,6 +948,66 @@ describe('ConstructionProjectService', () => {
         expect(expenseFindMock).toHaveBeenCalledWith(
           expect.objectContaining({ where: expect.objectContaining({ status: 'ACTIVE' }) }),
         );
+      });
+    });
+
+    // WHATSAPP INTEGRATION Phase 5 — DASHBOARD WIRING. Live-computed summary,
+    // not a cached table — see WhatsappActivitySummary's comment.
+    describe('whatsapp_activity summary', () => {
+      it('counts and sums only ACTIVE, source: WHATSAPP expenses across a mix of WhatsApp and manual rows', async () => {
+        projectFindOneByMock.mockResolvedValue({ id: 'proj-a-uuid', ...buildProjectInput(), record_type: 'FACT' });
+        sectionFindMock.mockResolvedValue([
+          { id: 'sec-a-uuid', project_ref: 'proj-a-uuid', category: 'WOODWORK_CARPENTER', display_order: 1, record_type: 'FACT' },
+          { id: 'sec-b-uuid', project_ref: 'proj-a-uuid', category: 'TILE_WORK', display_order: 2, record_type: 'FACT' },
+        ]);
+        expenseFindMock.mockResolvedValue([
+          buildExistingExpense({ id: 'exp-wa-1', section_ref: 'sec-a-uuid', amount: '74500.00', source: 'WHATSAPP' }),
+          buildExistingExpense({ id: 'exp-wa-2', section_ref: 'sec-b-uuid', amount: '15000.00', source: 'WHATSAPP' }),
+          buildExistingExpense({ id: 'exp-manual', section_ref: 'sec-a-uuid', amount: '45000.00', source: null }),
+          buildExistingExpense({ id: 'exp-legacy', section_ref: 'sec-a-uuid', amount: '30000.00' }), // source omitted entirely, like a pre-Phase-5 row
+        ]);
+
+        const result = await service.getProjectWithSectionsAndExpenses('proj-a-uuid');
+
+        expect(result!.whatsapp_activity).toEqual({ confirmed_count: 2, total_amount: 89500 });
+        // Sanity: the grand total still includes every ACTIVE row regardless of source.
+        expect(result!.total).toBe(74500 + 15000 + 45000 + 30000);
+      });
+
+      it('excludes a CORRECTED/VOID WhatsApp expense from the summary, same as it is excluded from total', async () => {
+        projectFindOneByMock.mockResolvedValue({ id: 'proj-a-uuid', ...buildProjectInput(), record_type: 'FACT' });
+        sectionFindMock.mockResolvedValue([
+          { id: 'sec-a-uuid', project_ref: 'proj-a-uuid', category: 'WOODWORK_CARPENTER', display_order: 1, record_type: 'FACT' },
+        ]);
+        expenseFindMock.mockResolvedValue([
+          buildExistingExpense({ id: 'exp-wa-active', amount: '74500.00', source: 'WHATSAPP', status: 'ACTIVE' }),
+          buildExistingExpense({ id: 'exp-wa-voided', amount: '15000.00', source: 'WHATSAPP', status: 'VOID', void_reason: 'Duplicate entry' }),
+        ]);
+
+        const result = await service.getProjectWithSectionsAndExpenses('proj-a-uuid', { includeAllStatuses: true });
+
+        expect(result!.whatsapp_activity).toEqual({ confirmed_count: 1, total_amount: 74500 });
+      });
+
+      it('returns zero counts/totals for a project with no WhatsApp-sourced expenses', async () => {
+        projectFindOneByMock.mockResolvedValue({ id: 'proj-a-uuid', ...buildProjectInput(), record_type: 'FACT' });
+        sectionFindMock.mockResolvedValue([
+          { id: 'sec-a-uuid', project_ref: 'proj-a-uuid', category: 'WOODWORK_CARPENTER', display_order: 1, record_type: 'FACT' },
+        ]);
+        expenseFindMock.mockResolvedValue([buildExistingExpense({ source: null })]);
+
+        const result = await service.getProjectWithSectionsAndExpenses('proj-a-uuid');
+
+        expect(result!.whatsapp_activity).toEqual({ confirmed_count: 0, total_amount: 0 });
+      });
+
+      it('returns zero counts/totals for a project with no sections at all', async () => {
+        projectFindOneByMock.mockResolvedValue({ id: 'proj-a-uuid', ...buildProjectInput(), record_type: 'FACT' });
+        sectionFindMock.mockResolvedValue([]);
+
+        const result = await service.getProjectWithSectionsAndExpenses('proj-a-uuid');
+
+        expect(result!.whatsapp_activity).toEqual({ confirmed_count: 0, total_amount: 0 });
       });
     });
   });
