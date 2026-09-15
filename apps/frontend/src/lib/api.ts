@@ -775,6 +775,12 @@ export type ExpenseStatus = 'ACTIVE' | 'CORRECTED' | 'VOID';
 export type ExpenseUnit = 'PCS' | 'KG' | 'TON' | 'BAG' | 'CFT' | 'SFT' | 'RFT' | 'LTR';
 export const EXPENSE_UNIT_OPTIONS: ExpenseUnit[] = ['PCS', 'KG', 'TON', 'BAG', 'CFT', 'SFT', 'RFT', 'LTR'];
 
+// WHATSAPP EXPENSE BADGE — Frontend. Matches the backend's ExpenseSource
+// (construction-intelligence/entities/project-expense.entity.ts) exactly —
+// this type was already returned by the API since WhatsApp Integration
+// Phase 5 but had no frontend consumer until now.
+export type ExpenseSource = 'WHATSAPP' | 'MANUAL';
+
 export interface ExpenseResult {
   id: string;
   section_ref: string;
@@ -792,6 +798,7 @@ export interface ExpenseResult {
   status: ExpenseStatus;
   supersedes_id: string | null;
   void_reason: string | null;
+  source: ExpenseSource | null;
 }
 
 // May be negative — a correction to a prior expense is a new row with a
@@ -861,9 +868,20 @@ export interface SectionWithExpenses extends SectionResult {
   subtotal: number;
 }
 
+// WHATSAPP EXPENSE BADGE — Frontend. Mirrors
+// ConstructionProjectService.WhatsappActivitySummary — live-computed,
+// ACTIVE-only count/total of CONFIRMED WhatsApp expenses on this project,
+// already returned by the API since Phase 5 but unused on the frontend
+// until now.
+export interface WhatsappActivitySummary {
+  confirmed_count: number;
+  total_amount: number;
+}
+
 export interface ProjectWithSectionsAndExpenses extends ProjectResult {
   sections: SectionWithExpenses[];
   total: number;
+  whatsapp_activity: WhatsappActivitySummary;
 }
 
 // Admin-route fetch — used by the admin management page

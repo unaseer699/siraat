@@ -8,6 +8,7 @@ import {
 } from '@/lib/api';
 import { TRADE_CATEGORY_OPTIONS } from '@/lib/tradeCategories';
 import { RADIUS } from '@/styles/tokens';
+import WhatsappBadge from '@/components/WhatsappBadge';
 
 interface Props {
   params: { id: string };
@@ -43,7 +44,10 @@ function ExpenseLine({ expense }: { expense: ExpenseResult }) {
       }}
     >
       <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', minWidth: 0 }}>
-        <span style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text)' }}>{expense.description}</span>
+        <span style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+          <span style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text)' }}>{expense.description}</span>
+          {expense.source === 'WHATSAPP' && <WhatsappBadge />}
+        </span>
         <span style={{ fontSize: '12px', color: 'var(--muted)' }}>
           {expense.vendor_name} · {formatDate(expense.expense_date)}
         </span>
@@ -188,6 +192,13 @@ export default function ProjectDashboardPage({ params }: Props) {
         >
           <span style={{ fontSize: '12px', fontWeight: 600, opacity: 0.8, letterSpacing: '0.04em' }}>RUNNING TOTAL</span>
           <span style={{ fontSize: '30px', fontWeight: 800 }}>{formatPKR(project.total)}</span>
+          {project.whatsapp_activity.confirmed_count > 0 && (
+            <span style={{ fontSize: '12px', opacity: 0.75, marginTop: '4px' }}>
+              {project.whatsapp_activity.confirmed_count}{' '}
+              {project.whatsapp_activity.confirmed_count === 1 ? 'expense' : 'expenses'} (
+              {formatPKR(project.whatsapp_activity.total_amount)}) added via WhatsApp
+            </span>
+          )}
         </div>
 
         {usedCategories.length > 1 && (
