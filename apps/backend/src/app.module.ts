@@ -24,6 +24,9 @@ import { HealthController } from './health.controller';
       // Explicit UTF-8 guards against PGCLIENTENCODING env var or system-level Postgres installs
       // overriding pg's default on Windows, which would cause the server to transcode multi-byte
       // characters (e.g. em-dash U+2014) into replacement characters before sending over the wire.
+      // No explicit `ssl` option needed for Neon: TypeORM passes `url` straight through to pg as
+      // `connectionString`, and pg's own connection-string parsing already turns the URL's
+      // `sslmode=require` into a verified TLS connection (confirmed against a live Neon database).
       extra: { options: '-c client_encoding=UTF8' },
     }),
     // In-memory rate limiting — no Redis needed at current scale
