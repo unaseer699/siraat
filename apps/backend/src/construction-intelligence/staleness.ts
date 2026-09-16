@@ -4,9 +4,15 @@ import type { MaterialRateSourceTier } from './entities/material-rate.entity';
 export const SUPPLIER_RATE_STALENESS_DAYS = 14;
 // Tier 2 — market reference rates, matches the source's own stated weekly update cadence
 export const MARKET_REFERENCE_STALENESS_DAYS = 7;
+// Tier 3 — WHATSAPP INTEGRATION Phase 6a: founder/site-reported actual
+// purchase prices. Same cadence as SUPPLIER_VERIFIED — a first-party FACT of
+// what was actually paid, not lower-trust than a supplier's own quote.
+export const FIELD_REPORTED_STALENESS_DAYS = SUPPLIER_RATE_STALENESS_DAYS;
 
 export function stalenessThresholdDaysFor(tier: MaterialRateSourceTier): number {
-  return tier === 'SUPPLIER_VERIFIED' ? SUPPLIER_RATE_STALENESS_DAYS : MARKET_REFERENCE_STALENESS_DAYS;
+  if (tier === 'SUPPLIER_VERIFIED') return SUPPLIER_RATE_STALENESS_DAYS;
+  if (tier === 'FIELD_REPORTED') return FIELD_REPORTED_STALENESS_DAYS;
+  return MARKET_REFERENCE_STALENESS_DAYS;
 }
 
 // Whole calendar days between two dates, compared at UTC-midnight resolution so local

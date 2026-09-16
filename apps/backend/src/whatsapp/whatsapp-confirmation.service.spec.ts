@@ -10,6 +10,8 @@ import { WhatsappOutboundClient } from './whatsapp-outbound.client';
 import { WhatsappInboundMessageEntity } from './entities/whatsapp-inbound-message.entity';
 import { WhatsappDraftExpenseEntity } from './entities/whatsapp-draft-expense.entity';
 import { ConstructionProjectService } from '../construction-intelligence/construction-project.service';
+import { ConstructionIntelligenceService } from '../construction-intelligence/construction-intelligence.service';
+import { PropertyIntelligenceService } from '../property-intelligence/property-intelligence.service';
 
 // WHATSAPP INTEGRATION Phase 3 — CONFIRM/CORRECT LOOP.
 
@@ -75,6 +77,9 @@ describe('WhatsappConfirmationService', () => {
   let getProjectMock: jest.Mock;
   let createSectionMock: jest.Mock;
   let createExpenseMock: jest.Mock;
+  let findProjectByIdMock: jest.Mock;
+  let createMaterialRateMock: jest.Mock;
+  let findPropertyByIdMock: jest.Mock;
 
   beforeEach(async () => {
     draftFindOneMock = jest.fn().mockResolvedValue(null);
@@ -103,6 +108,53 @@ describe('WhatsappConfirmationService', () => {
       void_reason: null,
     });
 
+    // WHATSAPP INTEGRATION Phase 6a — MARKET OBSERVATIONS. Defaults to a
+    // project WITH a linked property, so the happy-path tests below don't
+    // each have to set this up; tests that need the "no property_ref"
+    // skip-path override findProjectByIdMock per-test.
+    // WHATSAPP INTEGRATION Phase 6a follow-up — MARKET OBSERVATIONS. Default
+    // fixture has city: null and a property_ref, so the existing happy-path
+    // test below exercises the property_ref -> Society.city FALLBACK path;
+    // the "city set directly" test overrides this to prove that path is
+    // tried first and short-circuits the property lookup entirely.
+    findProjectByIdMock = jest.fn().mockResolvedValue({
+      id: PROJECT_REF,
+      name: 'Test Project',
+      property_ref: 'prop-ref-0001',
+      city: null,
+      owner_contact: 'owner',
+      start_date: '2026-01-01',
+      status: 'ACTIVE',
+      record_type: 'FACT',
+    });
+    findPropertyByIdMock = jest.fn().mockResolvedValue({
+      id: 'prop-ref-0001',
+      society_id: 'soc-uuid-0001',
+      society: { id: 'soc-uuid-0001', name: 'Test Society', city: 'Islamabad', noc_approved: true },
+      owner_ref: null,
+      address: '123 Test Street',
+      price: 0,
+      listing_source: null,
+      status: 'AVAILABLE',
+      property_type: 'HOUSE',
+      area_marla: 5,
+    });
+    createMaterialRateMock = jest.fn().mockResolvedValue({
+      id: 'rate-uuid-0001',
+      material_name: 'cement',
+      unit: 'bags',
+      price: 1490,
+      city: 'Islamabad',
+      source_tier: 'FIELD_REPORTED',
+      source_name: 'WhatsApp submission',
+      source_contact: null,
+      supplier_id: null,
+      recorded_date: '2026-01-01',
+      record_type: 'FACT',
+      is_stale: false,
+      staleness_threshold_days: 14,
+    });
+
     const module = await Test.createTestingModule({
       providers: [
         WhatsappConfirmationService,
@@ -122,7 +174,16 @@ describe('WhatsappConfirmationService', () => {
             getProjectWithSectionsAndExpenses: getProjectMock,
             createSection: createSectionMock,
             createExpense: createExpenseMock,
+            findProjectById: findProjectByIdMock,
           },
+        },
+        {
+          provide: ConstructionIntelligenceService,
+          useValue: { createMaterialRate: createMaterialRateMock },
+        },
+        {
+          provide: PropertyIntelligenceService,
+          useValue: { findPropertyById: findPropertyByIdMock },
         },
       ],
     }).compile();
@@ -280,6 +341,166 @@ describe('WhatsappConfirmationService', () => {
 
       expect(createExpenseMock).toHaveBeenCalled();
       expect(draftUpdateMock).toHaveBeenCalledWith({ id: draft.id }, { status: 'CONFIRMED' });
+    });
+  });
+
+  // ─── handleReply — material_price Observation (Phase 6a) ────────────────
+  // Fire-and-forget, kicked off after the Expense/CONFIRMED update but not
+  // awaited by confirmDraft itself (same "must never block or fail the flow"
+  // contract as the outbound reply above) — tests flush the microtask queue
+  // after awaiting handleReply so the detached promise chain (findProjectById
+  // -> findPropertyById -> createMaterialRate) has settled before assertions.
+  describe('handleReply — material_price Observation (Phase 6a)', () => {
+    async function flushMicrotasks(): Promise<void> {
+      for (let i = 0; i < 5; i++) await Promise.resolve();
+    }
+
+    // WHATSAPP INTEGRATION Phase 6a follow-up — MARKET OBSERVATIONS.
+    it('uses project.city directly when set, with no property_ref needed at all — property lookup is never attempted', async () => {
+      findProjectByIdMock.mockResolvedValue({
+        id: PROJECT_REF,
+        name: 'Test Project',
+        property_ref: null,
+        city: 'Islamabad',
+        owner_contact: 'owner',
+        start_date: '2026-01-01',
+        status: 'ACTIVE',
+        record_type: 'FACT',
+      });
+      const draft = pendingDraft();
+
+      await service.handleReply(draft, replyMessage({ message_text: 'yes' }));
+      await flushMicrotasks();
+
+      expect(findProjectByIdMock).toHaveBeenCalledWith(PROJECT_REF);
+      expect(findPropertyByIdMock).not.toHaveBeenCalled();
+      expect(createMaterialRateMock).toHaveBeenCalledWith(
+        expect.objectContaining({ city: 'Islamabad' }),
+      );
+    });
+
+    it('falls back to property_ref -> Society.city when project.city is null (existing behavior preserved) and logs the price through ConstructionIntelligenceService.createMaterialRate — never a raw-text entity_ref (that\'s createMaterialRate\'s own, already-tested responsibility)', async () => {
+      const draft = pendingDraft();
+
+      await service.handleReply(draft, replyMessage({ message_text: 'yes' }));
+      await flushMicrotasks();
+
+      expect(findProjectByIdMock).toHaveBeenCalledWith(PROJECT_REF);
+      expect(findPropertyByIdMock).toHaveBeenCalledWith('prop-ref-0001');
+      expect(createMaterialRateMock).toHaveBeenCalledWith({
+        material_name: 'cement',
+        unit: 'bags',
+        price: 1490,
+        city: 'Islamabad',
+        source_tier: 'FIELD_REPORTED',
+        source_name: 'WhatsApp submission',
+        source_contact: null,
+        supplier_id: null,
+        recorded_date: '2026-01-01',
+      });
+      // WhatsappConfirmationService never calls logObservation directly —
+      // entity_ref always comes from createMaterialRate's own saved.id
+      // (construction-intelligence.service.ts:137), matched by delegation
+      // rather than reimplemented here.
+    });
+
+    // Case-insensitive reuse/dedup (matching an existing Material Rate by
+    // name+city, no duplicate Observation for an unchanged price) is
+    // createMaterialRate's own behavior, already covered end-to-end by
+    // construction-intelligence.service.spec.ts ("does not log an
+    // Observation when the price is unchanged from the prior rate" /
+    // "logs a material_price Observation when a prior rate exists at a
+    // different price"). WhatsappConfirmationService doesn't reimplement any
+    // lookup — it always delegates to that one shared method, so it can't
+    // drift from that behavior; nothing further to assert at this layer.
+
+    it('does not log a price when the project has neither a city nor a linked property — skips rather than fabricating one', async () => {
+      findProjectByIdMock.mockResolvedValue({
+        id: PROJECT_REF,
+        name: 'Test Project',
+        property_ref: null,
+        city: null,
+        owner_contact: 'owner',
+        start_date: '2026-01-01',
+        status: 'ACTIVE',
+        record_type: 'FACT',
+      });
+      const draft = pendingDraft();
+
+      await service.handleReply(draft, replyMessage({ message_text: 'yes' }));
+      await flushMicrotasks();
+
+      expect(findPropertyByIdMock).not.toHaveBeenCalled();
+      expect(createMaterialRateMock).not.toHaveBeenCalled();
+      // The Expense itself is unaffected by the missing property_ref.
+      expect(createExpenseMock).toHaveBeenCalled();
+      expect(draftUpdateMock).toHaveBeenCalledWith({ id: draft.id }, { status: 'CONFIRMED' });
+    });
+
+    it('does not log a price when the linked property resolves to a society with no city', async () => {
+      findPropertyByIdMock.mockResolvedValue({
+        id: 'prop-ref-0001',
+        society_id: 'soc-uuid-0001',
+        society: null,
+        owner_ref: null,
+        address: '123 Test Street',
+        price: 0,
+        listing_source: null,
+        status: 'AVAILABLE',
+        property_type: 'HOUSE',
+        area_marla: 5,
+      });
+
+      await service.handleReply(pendingDraft(), replyMessage({ message_text: 'yes' }));
+      await flushMicrotasks();
+
+      expect(createMaterialRateMock).not.toHaveBeenCalled();
+    });
+
+    it('does not log a price when parsed_unit is null — MaterialRateEntity.unit is required, unlike Expense.unit (defensive guard)', async () => {
+      const draft = pendingDraft({ parsed_unit: null });
+
+      await service.handleReply(draft, replyMessage({ message_text: 'yes' }));
+      await flushMicrotasks();
+
+      expect(createMaterialRateMock).not.toHaveBeenCalled();
+      // The Expense still gets created — parsed_unit is not required for that.
+      expect(createExpenseMock).toHaveBeenCalled();
+    });
+
+    it('does not log a price when parsed_item/parsed_rate are null (defensive guard, even though confirmDraft already blocks this state earlier)', async () => {
+      const draft = pendingDraft({ parsed_quantity: null });
+
+      await service.handleReply(draft, replyMessage({ message_text: 'yes' }));
+      await flushMicrotasks();
+
+      expect(createExpenseMock).not.toHaveBeenCalled();
+      expect(findProjectByIdMock).not.toHaveBeenCalled();
+      expect(createMaterialRateMock).not.toHaveBeenCalled();
+    });
+
+    it('a failure resolving the project/property does not prevent the Expense from being created or the draft from being CONFIRMED', async () => {
+      findProjectByIdMock.mockRejectedValue(new Error('db unavailable'));
+      const draft = pendingDraft();
+
+      await expect(service.handleReply(draft, replyMessage({ message_text: 'yes' }))).resolves.toBeUndefined();
+      await flushMicrotasks();
+
+      expect(createExpenseMock).toHaveBeenCalled();
+      expect(draftUpdateMock).toHaveBeenCalledWith({ id: draft.id }, { status: 'CONFIRMED' });
+      expect(createMaterialRateMock).not.toHaveBeenCalled();
+    });
+
+    it('a failure inside createMaterialRate/logObservation does not prevent the Expense from being created or the draft from being CONFIRMED', async () => {
+      createMaterialRateMock.mockRejectedValue(new Error('db unavailable'));
+      const draft = pendingDraft();
+
+      await expect(service.handleReply(draft, replyMessage({ message_text: 'yes' }))).resolves.toBeUndefined();
+      await flushMicrotasks();
+
+      expect(createExpenseMock).toHaveBeenCalled();
+      expect(draftUpdateMock).toHaveBeenCalledWith({ id: draft.id }, { status: 'CONFIRMED' });
+      expect(sendTextMessageMock).toHaveBeenCalledWith('923001234567', expect.stringContaining('Recorded'));
     });
   });
 

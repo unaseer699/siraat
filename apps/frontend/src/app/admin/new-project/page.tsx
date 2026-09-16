@@ -23,6 +23,7 @@ export default function NewProjectPage() {
 
   const [name, setName] = useState('');
   const [propertyRef, setPropertyRef] = useState('');
+  const [city, setCity] = useState('');
   const [ownerContact, setOwnerContact] = useState('');
   const [startDate, setStartDate] = useState(todayIso());
   const [status, setStatus] = useState<ConstructionProjectStatus>('ACTIVE');
@@ -53,6 +54,7 @@ export default function NewProjectPage() {
       const project = await createProject({
         name: name.trim(),
         property_ref: propertyRef.trim() || null,
+        city: city.trim() || null,
         owner_contact: ownerContact.trim(),
         start_date: startDate,
         status,
@@ -143,6 +145,27 @@ export default function NewProjectPage() {
             ) : (
               <p style={{ fontSize: '12px', color: 'var(--muted)' }}>
                 Leave blank — most private renovations won&apos;t have one.
+              </p>
+            )}
+          </div>
+
+          <div style={fieldGroupStyle}>
+            <label style={labelStyle}>City (optional)</label>
+            <input
+              type="text"
+              value={city}
+              onChange={(e) => {
+                setCity(e.target.value);
+                if (fieldErrors.city) setFieldErrors((f) => ({ ...f, city: '' }));
+              }}
+              placeholder="e.g. Islamabad"
+              style={fieldErrors.city ? { ...inputStyle, borderColor: 'var(--error)' } : inputStyle}
+            />
+            {fieldErrors.city ? (
+              <p style={errorTextStyle}>{fieldErrors.city}</p>
+            ) : (
+              <p style={{ fontSize: '12px', color: 'var(--muted)' }}>
+                Powers material price observations for this project even without a linked property.
               </p>
             )}
           </div>

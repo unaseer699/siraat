@@ -701,6 +701,7 @@ export interface ProjectResult {
   start_date: string;
   status: ConstructionProjectStatus;
   record_type: 'FACT';
+  city: string | null;
 }
 
 export interface CreateProjectBody {
@@ -709,6 +710,9 @@ export interface CreateProjectBody {
   owner_contact: string;
   start_date: string;
   status: ConstructionProjectStatus;
+  // WHATSAPP INTEGRATION Phase 6a follow-up — MARKET OBSERVATIONS. Optional:
+  // the backend defaults to null when omitted.
+  city?: string | null;
 }
 
 export async function createProject(data: CreateProjectBody): Promise<ProjectResult> {

@@ -25,6 +25,15 @@ export class ConstructionProjectEntity {
   @Column({ type: 'uuid', nullable: true })
   property_ref: string | null;
 
+  // WHATSAPP INTEGRATION Phase 6a follow-up — MARKET OBSERVATIONS. Additive,
+  // nullable column: lets the founder set a project's city directly instead
+  // of requiring a linked property (property_ref above is optional and, per
+  // its own comment, usually absent for private renovations). Free text, no
+  // validation against PropertyIntelligenceService's Society.city list —
+  // this is this module's own field, not a reach into that schema (Law 9).
+  @Column({ type: 'varchar', length: 100, nullable: true })
+  city: string | null;
+
   @Column({ type: 'varchar', length: 255 })
   owner_contact: string;
 

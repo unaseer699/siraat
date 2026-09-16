@@ -9,6 +9,8 @@ import { WhatsappInboundMessageEntity } from './entities/whatsapp-inbound-messag
 import { WhatsappDraftExpenseEntity } from './entities/whatsapp-draft-expense.entity';
 import { maskPhone } from './whatsapp-phone.util';
 import { ConstructionProjectService } from '../construction-intelligence/construction-project.service';
+import { ConstructionIntelligenceService } from '../construction-intelligence/construction-intelligence.service';
+import { PropertyIntelligenceService } from '../property-intelligence/property-intelligence.service';
 import type { ExpenseUnit } from '../construction-intelligence/entities/project-expense.entity';
 
 // WHATSAPP INTEGRATION Phase 3 — CONFIRM/CORRECT LOOP. Closes the loop Phase
@@ -95,6 +97,12 @@ export class WhatsappConfirmationService {
     // god context) — see confirmDraft below. Same cross-module composition
     // pattern AdminService already uses for cpSvc.
     private readonly cpSvc: ConstructionProjectService,
+    // WHATSAPP INTEGRATION Phase 6a — MARKET OBSERVATIONS. Both already
+    // exported by modules WhatsappModule imports (ConstructionIntelligenceModule
+    // directly; PropertyIntelligenceModule added for this phase) — reused via
+    // their public methods only (Law 9), same pattern as cpSvc above.
+    private readonly ciSvc: ConstructionIntelligenceService,
+    private readonly piSvc: PropertyIntelligenceService,
   ) {}
 
   // Called for every RECEIVED inbound message before WhatsappService decides
@@ -200,6 +208,24 @@ export class WhatsappConfirmationService {
 
     await this.draftRepo.update({ id: draft.id }, { status: 'CONFIRMED' });
 
+    // WHATSAPP INTEGRATION Phase 6a — MARKET OBSERVATIONS. Right after the
+    // real Expense is created (never for a still-PENDING draft), also feed
+    // this confirmed price into Construction Intelligence's Material Rate
+    // ledger — same logObservation() pipeline every other Material Rate
+    // write already goes through (createMaterialRate itself logs the
+    // Observation at construction-intelligence.service.ts:137 when the price
+    // actually changed — reused as-is here, not reinvented). Fire-and-forget:
+    // a failure here must never undo the Expense that was just created or
+    // block the CONFIRMED status update above (logObservation already
+    // swallows its own failures; this .catch() covers createMaterialRate's
+    // own repo write and the city lookup, neither of which self-catches).
+    void this.logMaterialPriceObservation(draft).catch((err) => {
+      this.logger.error(
+        `Failed to log material_price Observation for draft id=${draft.id}`,
+        err instanceof Error ? err.stack : String(err),
+      );
+    });
+
     const quantityPart =
       draft.parsed_quantity != null
         ? `, ${draft.parsed_quantity}${draft.parsed_unit ? ` ${draft.parsed_unit}` : ''}`
@@ -208,6 +234,53 @@ export class WhatsappConfirmationService {
       message.wa_id,
       `Recorded: ${draft.parsed_item}${quantityPart} — total ${expense.amount}. Thanks!`,
     );
+  }
+
+  // WHATSAPP INTEGRATION Phase 6a — MARKET OBSERVATIONS. Only logs for
+  // genuinely usable data: item, rate, AND unit must all be present (unit is
+  // a required, non-nullable column on MaterialRateEntity, unlike
+  // ProjectExpenseEntity's unit — mapToExpenseUnit's null result is fine for
+  // an Expense but not here), and the project must resolve to a real city.
+  //
+  // WHATSAPP INTEGRATION Phase 6a follow-up — MARKET OBSERVATIONS. City
+  // resolution order: project.city (set directly on the project, the common
+  // case) first; only falls back to property_ref -> Society.city when
+  // project.city is null (most private-renovation projects have no
+  // property_ref either, per that column's own comment). Skips rather than
+  // fabricating a city if neither resolves.
+  //
+  // Never a second material-rate creation path: this calls the same
+  // ConstructionIntelligenceService.createMaterialRate used everywhere else,
+  // which does its own case-insensitive prior-rate lookup and already logs
+  // the material_price Observation internally (construction-intelligence.
+  // service.ts:137) when the price actually changed.
+  private async logMaterialPriceObservation(draft: WhatsappDraftExpenseEntity): Promise<void> {
+    if (!draft.parsed_item || draft.parsed_rate == null || !draft.parsed_unit) return;
+
+    const project = await this.cpSvc.findProjectById(draft.project_ref);
+    if (!project) return;
+
+    let city = project.city;
+    if (!city && project.property_ref) {
+      const property = await this.piSvc.findPropertyById(project.property_ref);
+      city = property?.society?.city ?? null;
+    }
+    if (!city) return;
+
+    await this.ciSvc.createMaterialRate({
+      material_name: draft.parsed_item,
+      unit: draft.parsed_unit,
+      price: draft.parsed_rate,
+      city,
+      source_tier: 'FIELD_REPORTED',
+      source_name: 'WhatsApp submission',
+      source_contact: null,
+      supplier_id: null,
+      // Dated to the original WhatsApp report, same convention as the
+      // Expense's own expense_date above — not the (possibly later)
+      // confirmation reply.
+      recorded_date: draft.created_at.toISOString().slice(0, 10),
+    });
   }
 
   // Not a recognized confirmation phrase -> treat as a correction: re-run

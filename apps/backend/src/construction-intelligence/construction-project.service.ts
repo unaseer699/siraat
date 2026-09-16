@@ -23,6 +23,11 @@ export interface CreateProjectInput {
   owner_contact: string;
   start_date: string;
   status: ConstructionProjectStatus;
+  // WHATSAPP INTEGRATION Phase 6a follow-up — MARKET OBSERVATIONS. Optional
+  // key (not a required `city: string | null` like property_ref above) so
+  // every existing caller/test that builds a CreateProjectInput without it
+  // keeps compiling unchanged; defaults to null in createProject below.
+  city?: string | null;
 }
 
 export interface ProjectResult {
@@ -33,6 +38,7 @@ export interface ProjectResult {
   start_date: string;
   status: ConstructionProjectStatus;
   record_type: 'FACT';
+  city: string | null;
 }
 
 function toProjectResult(e: ConstructionProjectEntity): ProjectResult {
@@ -44,6 +50,7 @@ function toProjectResult(e: ConstructionProjectEntity): ProjectResult {
     start_date: e.start_date,
     status: e.status,
     record_type: e.record_type,
+    city: e.city,
   };
 }
 
@@ -267,7 +274,7 @@ export class ConstructionProjectService {
   ) {}
 
   async createProject(data: CreateProjectInput): Promise<ProjectResult> {
-    const entity = this.projectRepo.create({ ...data, record_type: 'FACT' });
+    const entity = this.projectRepo.create({ ...data, city: data.city ?? null, record_type: 'FACT' });
     const saved = await this.projectRepo.save(entity);
     return toProjectResult(saved);
   }

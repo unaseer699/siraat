@@ -182,6 +182,17 @@ describe('ConstructionProjectService', () => {
       const result = await service.createProject(buildProjectInput({ property_ref: 'prop-uuid-001' }));
       expect(result.property_ref).toBe('prop-uuid-001');
     });
+
+    // WHATSAPP INTEGRATION Phase 6a follow-up — MARKET OBSERVATIONS.
+    it('defaults city to null when omitted — existing callers/tests unaffected', async () => {
+      const result = await service.createProject(buildProjectInput());
+      expect(result.city).toBeNull();
+    });
+
+    it('accepts an explicit city', async () => {
+      const result = await service.createProject(buildProjectInput({ city: 'Islamabad' }));
+      expect(result.city).toBe('Islamabad');
+    });
   });
 
   describe('findProjectById', () => {

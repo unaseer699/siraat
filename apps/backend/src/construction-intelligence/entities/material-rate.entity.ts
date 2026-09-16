@@ -1,6 +1,10 @@
 import { Entity, Column, PrimaryGeneratedColumn, CreateDateColumn, Index } from 'typeorm';
 
-export type MaterialRateSourceTier = 'SUPPLIER_VERIFIED' | 'MARKET_REFERENCE';
+// WHATSAPP INTEGRATION Phase 6a — MARKET OBSERVATIONS. FIELD_REPORTED added
+// for founder/site-reported actual purchase prices confirmed over WhatsApp —
+// a first-party FACT, distinct from a third-party MARKET_REFERENCE price and
+// from a SUPPLIER_VERIFIED quote (no supplier_id link here).
+export type MaterialRateSourceTier = 'SUPPLIER_VERIFIED' | 'MARKET_REFERENCE' | 'FIELD_REPORTED';
 
 @Index(['city', 'material_name'])
 @Entity({ name: 'material_rates', schema: 'construction_intelligence' })
