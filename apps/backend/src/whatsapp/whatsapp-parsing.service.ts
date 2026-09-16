@@ -3,6 +3,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { WhatsappAiClient, type ExpenseExtraction } from './whatsapp-ai.client';
 import { WhatsappOutboundClient } from './whatsapp-outbound.client';
+import { WhatsappBusinessLinkService } from './whatsapp-business-link.service';
 import { WhatsappInboundMessageEntity } from './entities/whatsapp-inbound-message.entity';
 import { WhatsappDraftExpenseEntity, type WhatsappDraftExpenseStatus } from './entities/whatsapp-draft-expense.entity';
 
@@ -80,6 +81,10 @@ export class WhatsappParsingService {
     // the parsed draft. Required (not @Optional() like WhatsappService's
     // parsingSvc) since WhatsappModule always wires it; tests provide a mock.
     private readonly outboundClient: WhatsappOutboundClient,
+    // WHATSAPP INTEGRATION Phase 6b — CONTRACTOR/SUPPLIER MENTION DETECTION.
+    // Same module, same "trigger from here, own logic lives there" split as
+    // outboundClient above.
+    private readonly linkSvc: WhatsappBusinessLinkService,
   ) {}
 
   // Fire-and-forget entry point (see WhatsappService.processInboundMessage —
@@ -118,7 +123,15 @@ export class WhatsappParsingService {
         text && text.trim().length > 0
           ? await this.aiClient.extractExpense(text)
           : {
-              extraction: { item: null, quantity: null, unit: null, rate: null, trade_category: null, confidence: 'LOW' as const },
+              extraction: {
+                item: null,
+                quantity: null,
+                unit: null,
+                rate: null,
+                trade_category: null,
+                confidence: 'LOW' as const,
+                mentioned_business_name: null,
+              },
               raw: { skipped: 'empty_message_text' },
             };
 
@@ -131,16 +144,32 @@ export class WhatsappParsingService {
         parsed_rate: outcome.extraction.rate,
         parsed_trade_category: outcome.extraction.trade_category,
         confidence: outcome.extraction.confidence,
+        parsed_mentioned_business: outcome.extraction.mentioned_business_name,
         raw_ai_response: outcome.raw,
         status: 'PENDING',
       });
-      await this.draftRepo.save(draft);
+      const savedDraft = await this.draftRepo.save(draft);
 
       // Only advance the source message once its draft is actually
       // persisted — a save failure above throws before this line, leaving
       // the message at RECEIVED (see RETRY APPROACH) rather than marking it
       // PARSED with no corresponding draft.
       await this.inboundRepo.update({ id: message.id }, { status: 'PARSED' });
+
+      // WHATSAPP INTEGRATION Phase 6b — CONTRACTOR/SUPPLIER MENTION
+      // DETECTION. One detection attempt per parsed message (see
+      // WhatsappSuggestedBusinessLinkEntity's own comment on why corrections
+      // don't re-trigger this) — own try/catch so a failure here is never
+      // confused with a failed parse and never blocks the PARSED transition
+      // above, which has already happened by this point.
+      try {
+        await this.linkSvc.detectAndSuggest(savedDraft.id, outcome.extraction.mentioned_business_name);
+      } catch (err) {
+        this.logger.error(
+          `Failed to record business-mention suggestion for message id=${message.id} — draft was still saved`,
+          err instanceof Error ? err.stack : String(err),
+        );
+      }
 
       this.logger.log(
         `Parsed WhatsApp message id=${message.id} confidence=${outcome.extraction.confidence}`,
@@ -253,6 +282,7 @@ export class WhatsappParsingService {
       rate: draft.parsed_rate,
       trade_category: draft.parsed_trade_category,
       confidence: draft.confidence,
+      mentioned_business_name: draft.parsed_mentioned_business,
     };
 
     try {
