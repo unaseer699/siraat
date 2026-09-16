@@ -1,0 +1,65 @@
+# Render Blueprint — Siraat backend
+#
+# BEFORE DEPLOYING:
+#   1. Connect this repo in the Render dashboard and let it detect this blueprint,
+#      or run `render blueprint launch`.
+#   2. Every env var below with `sync: false` must be set manually in the Render
+#      dashboard (Environment tab) — Render will prompt for it and never reads a
+#      value from this file for those keys.
+#   3. See docs/RENDER_DEPLOYMENT.md for the full pre-deploy checklist, including
+#      the one-time Neon schema bootstrap.
+#
+# This targets Render's free tier (cold start after 15 min idle — accepted).
+# It builds and runs only apps/backend; the pnpm workspace (packages/shared-types)
+# is built first since the backend depends on it.
+
+services:
+  - type: web
+    name: siraat-backend
+    runtime: node
+    plan: free
+    region: oregon
+    branch: main
+    autoDeploy: false
+    buildCommand: corepack enable && pnpm install --frozen-lockfile && pnpm --filter @siraat/shared-types build && pnpm --filter backend build
+    startCommand: node apps/backend/dist/main.js
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      # Neon connection string (must include sslmode=require, which Neon's own
+      # connection strings already do). No extra ssl config needed in code —
+      # verified against a live Neon database (see app.module.ts).
+      - key: DATABASE_URL
+        sync: false
+      # Placeholder — Redis not yet used at runtime (ThrottlerModule is in-memory).
+      - key: REDIS_URL
+        sync: false
+      # Shared Bearer token all API clients must send (BearerGuard).
+      - key: SIRAAT_API_KEY
+        sync: false
+      # Deployed Vercel frontend origin — used by main.ts's CORS config.
+      - key: FRONTEND_URL
+        sync: false
+      - key: WHATSAPP_VERIFY_TOKEN
+        sync: false
+      - key: WHATSAPP_APP_SECRET
+        sync: false
+      - key: WHATSAPP_ACCESS_TOKEN
+        sync: false
+      - key: WHATSAPP_PHONE_NUMBER_ID
+        sync: false
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      - key: ANTHROPIC_MODEL
+        value: claude-haiku-4-5-20251001
+      - key: S3_ENDPOINT
+        sync: false
+      - key: S3_ACCESS_KEY
+        sync: false
+      - key: S3_SECRET_KEY
+        sync: false
+      - key: S3_BUCKET
+        sync: false
+      - key: S3_REGION
+        sync: false
