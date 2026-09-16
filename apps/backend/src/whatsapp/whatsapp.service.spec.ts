@@ -411,6 +411,7 @@ describe('WhatsappService', () => {
       parsed_rate: 1490,
       parsed_trade_category: 'GENERAL_CONTRACTOR',
       confidence: 'HIGH',
+      parsed_mentioned_business: null,
       raw_ai_response: {},
       status: 'PENDING',
       void_reason: null,

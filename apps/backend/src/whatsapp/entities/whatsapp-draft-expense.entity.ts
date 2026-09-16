@@ -79,6 +79,16 @@ export class WhatsappDraftExpenseEntity {
   @Column({ type: 'varchar', length: 30, nullable: true })
   parsed_trade_category: TradeCategory | null;
 
+  // WHATSAPP INTEGRATION Phase 6b — CONTRACTOR/SUPPLIER MENTION DETECTION.
+  // Raw text as extracted (mirrors parsed_item's own convention) — kept
+  // current across corrections the same way every other parsed_* column is,
+  // but only the very first parse (WhatsappParsingService.parseAndStoreDraft)
+  // ever creates a WhatsappSuggestedBusinessLink row from it; a correction
+  // that reveals a new/changed mention is not separately re-detected (FOR
+  // FOUNDER REVIEW, same kind of scope note as this file's other ones).
+  @Column({ type: 'text', nullable: true })
+  parsed_mentioned_business: string | null;
+
   // How sure the parse is — HIGH/MEDIUM/LOW rather than a raw 0-1 float
   // (unlike Law 5's confidence_score) since there's no scoring math here to
   // justify float precision, just the AI's own self-reported certainty

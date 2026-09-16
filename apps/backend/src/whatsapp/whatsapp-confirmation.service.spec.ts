@@ -30,6 +30,7 @@ function pendingDraft(overrides: Partial<WhatsappDraftExpenseEntity> = {}): What
     parsed_rate: 1490,
     parsed_trade_category: 'GENERAL_CONTRACTOR',
     confidence: 'HIGH',
+    parsed_mentioned_business: null,
     raw_ai_response: { ok: true },
     status: 'PENDING',
     void_reason: null,
@@ -517,6 +518,7 @@ describe('WhatsappConfirmationService', () => {
           rate: 1490,
           trade_category: 'GENERAL_CONTRACTOR',
           confidence: 'HIGH',
+          mentioned_business_name: 'Al-Rehman Traders',
         },
         raw: { ok: true },
       });
@@ -528,7 +530,15 @@ describe('WhatsappConfirmationService', () => {
       // Same draft id updated — never a second draft for the same thread.
       expect(draftUpdateMock).toHaveBeenCalledWith(
         { id: draft.id },
-        expect.objectContaining({ parsed_quantity: 60, status: 'PENDING' }),
+        expect.objectContaining({
+          parsed_quantity: 60,
+          // WHATSAPP INTEGRATION Phase 6b — kept current on correction like
+          // every other parsed_* field, but (unlike the original Phase 2
+          // parse) never triggers a new suggestion row — WhatsappConfirmationService
+          // has no WhatsappBusinessLinkService dependency at all.
+          parsed_mentioned_business: 'Al-Rehman Traders',
+          status: 'PENDING',
+        }),
       );
       expect(sendTextMessageMock).toHaveBeenCalledWith(
         '923001234567',
@@ -546,6 +556,7 @@ describe('WhatsappConfirmationService', () => {
           rate: null,
           trade_category: null,
           confidence: 'LOW',
+          mentioned_business_name: null,
         },
         raw: { ok: true },
       });
@@ -577,6 +588,7 @@ describe('WhatsappConfirmationService', () => {
           rate: 1490,
           trade_category: 'GENERAL_CONTRACTOR',
           confidence: 'HIGH',
+          mentioned_business_name: null,
         },
         raw: {},
       });

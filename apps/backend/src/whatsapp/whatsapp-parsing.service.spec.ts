@@ -4,6 +4,7 @@ import { BadGatewayException, BadRequestException, NotFoundException } from '@ne
 import { WhatsappParsingService, buildDraftSummaryText } from './whatsapp-parsing.service';
 import { WhatsappAiClient } from './whatsapp-ai.client';
 import { WhatsappOutboundClient } from './whatsapp-outbound.client';
+import { WhatsappBusinessLinkService } from './whatsapp-business-link.service';
 import { WhatsappInboundMessageEntity } from './entities/whatsapp-inbound-message.entity';
 import { WhatsappDraftExpenseEntity } from './entities/whatsapp-draft-expense.entity';
 
@@ -32,6 +33,7 @@ const CLEAR_EXTRACTION = {
   rate: 1490,
   trade_category: 'GENERAL_CONTRACTOR' as const,
   confidence: 'HIGH' as const,
+  mentioned_business_name: null,
 };
 
 const LOW_CONFIDENCE_EXTRACTION = {
@@ -41,6 +43,7 @@ const LOW_CONFIDENCE_EXTRACTION = {
   rate: null,
   trade_category: null,
   confidence: 'LOW' as const,
+  mentioned_business_name: null,
 };
 
 describe('WhatsappParsingService', () => {
@@ -54,6 +57,7 @@ describe('WhatsappParsingService', () => {
   let inboundUpdateMock: jest.Mock;
   let inboundFindOneByMock: jest.Mock;
   let sendTextMessageMock: jest.Mock;
+  let detectAndSuggestMock: jest.Mock;
 
   beforeEach(async () => {
     extractExpenseMock = jest.fn();
@@ -65,6 +69,7 @@ describe('WhatsappParsingService', () => {
     inboundUpdateMock = jest.fn().mockResolvedValue({ affected: 1 });
     inboundFindOneByMock = jest.fn().mockResolvedValue(null);
     sendTextMessageMock = jest.fn().mockResolvedValue(undefined);
+    detectAndSuggestMock = jest.fn().mockResolvedValue(undefined);
 
     const module = await Test.createTestingModule({
       providers: [
@@ -94,6 +99,14 @@ describe('WhatsappParsingService', () => {
         {
           provide: WhatsappOutboundClient,
           useValue: { sendTextMessage: sendTextMessageMock },
+        },
+        // WHATSAPP INTEGRATION Phase 6b — mocked here (not the real
+        // service) so these tests stay focused on WhatsappParsingService's
+        // own trigger logic; WhatsappBusinessLinkService's own detection/
+        // matching behavior is covered by whatsapp-business-link.service.spec.ts.
+        {
+          provide: WhatsappBusinessLinkService,
+          useValue: { detectAndSuggest: detectAndSuggestMock },
         },
       ],
     }).compile();
@@ -235,6 +248,48 @@ describe('WhatsappParsingService', () => {
     expect(sendTextMessageMock).not.toHaveBeenCalled();
   });
 
+  // ─── WHATSAPP INTEGRATION Phase 6b — CONTRACTOR/SUPPLIER MENTION DETECTION ──
+
+  it('triggers detectAndSuggest with the saved draft id and the extracted mention', async () => {
+    extractExpenseMock.mockResolvedValue({
+      extraction: { ...CLEAR_EXTRACTION, mentioned_business_name: 'Al-Rehman Traders' },
+      raw: { ok: true },
+    });
+
+    await service.parseAndStoreDraft(receivedMessage());
+
+    expect(detectAndSuggestMock).toHaveBeenCalledWith('draft-uuid-0001', 'Al-Rehman Traders');
+  });
+
+  it('still triggers detectAndSuggest (with null) when no business is mentioned — the null-guard lives in WhatsappBusinessLinkService, not here', async () => {
+    extractExpenseMock.mockResolvedValue({ extraction: CLEAR_EXTRACTION, raw: { ok: true } });
+
+    await service.parseAndStoreDraft(receivedMessage());
+
+    expect(detectAndSuggestMock).toHaveBeenCalledWith('draft-uuid-0001', null);
+  });
+
+  it('logs and does not throw when detectAndSuggest fails — the draft/PARSED transition already happened', async () => {
+    extractExpenseMock.mockResolvedValue({
+      extraction: { ...CLEAR_EXTRACTION, mentioned_business_name: 'Al-Rehman Traders' },
+      raw: { ok: true },
+    });
+    detectAndSuggestMock.mockRejectedValue(new Error('db unavailable'));
+
+    await expect(service.parseAndStoreDraft(receivedMessage())).resolves.toBeUndefined();
+
+    expect(draftSaveMock).toHaveBeenCalled();
+    expect(inboundUpdateMock).toHaveBeenCalledWith({ id: 'msg-uuid-0001' }, { status: 'PARSED' });
+  });
+
+  it('never calls detectAndSuggest when the AI call itself fails — no draft was ever produced', async () => {
+    extractExpenseMock.mockRejectedValue(new Error('Anthropic API returned 500: internal server error'));
+
+    await service.parseAndStoreDraft(receivedMessage());
+
+    expect(detectAndSuggestMock).not.toHaveBeenCalled();
+  });
+
   // ─── buildDraftSummaryText ──────────────────────────────────────────────
 
   describe('buildDraftSummaryText', () => {
@@ -252,6 +307,7 @@ describe('WhatsappParsingService', () => {
         rate: null,
         trade_category: null,
         confidence: 'MEDIUM',
+        mentioned_business_name: null,
       });
       expect(text).toBe('Got it: cement. Reply YES to confirm, or send a correction.');
     });

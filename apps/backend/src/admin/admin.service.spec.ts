@@ -14,6 +14,7 @@ import { ConstructionIntelligenceService } from '../construction-intelligence/co
 import { ConstructionProjectService } from '../construction-intelligence/construction-project.service';
 import { WhatsappService } from '../whatsapp/whatsapp.service';
 import { WhatsappParsingService } from '../whatsapp/whatsapp-parsing.service';
+import { WhatsappBusinessLinkService } from '../whatsapp/whatsapp-business-link.service';
 import { CandidateSocietyEntity } from '../property-intelligence/entities/candidate-society.entity';
 
 // ─── Fixtures ─────────────────────────────────────────────────────────────────
@@ -63,6 +64,20 @@ const WHATSAPP_DRAFT = {
   raw_ai_response: { ok: true },
   status: 'PENDING',
   void_reason: null,
+  created_at: new Date('2026-01-01'),
+};
+
+// WHATSAPP INTEGRATION Phase 6b — CONTRACTOR/SUPPLIER MENTION DETECTION
+const WHATSAPP_SUGGESTED_LINK = {
+  id: 'link-uuid-0001',
+  draft_expense_id: 'draft-uuid-0001',
+  mentioned_name: 'Al-Rehman Traders',
+  matched_contractor_id: 'contractor-uuid-0001',
+  matched_supplier_id: null,
+  status: 'PENDING_REVIEW',
+  reviewed_by: null,
+  reviewed_at: null,
+  review_note: null,
   created_at: new Date('2026-01-01'),
 };
 
@@ -312,6 +327,9 @@ describe('AdminService', () => {
   let listUnmappedMessagesMock: jest.Mock;
   let voidDraftMock: jest.Mock;
   let resendDraftPromptMock: jest.Mock;
+  let listPendingSuggestionsMock: jest.Mock;
+  let approveSuggestedLinkMock: jest.Mock;
+  let rejectSuggestedLinkMock: jest.Mock;
 
   beforeEach(async () => {
     createSocietyMock          = jest.fn().mockResolvedValue(SOCIETY_RESULT);
@@ -366,6 +384,9 @@ describe('AdminService', () => {
     listUnmappedMessagesMock  = jest.fn().mockResolvedValue([UNMAPPED_MESSAGE]);
     voidDraftMock             = jest.fn().mockResolvedValue({ ...WHATSAPP_DRAFT, status: 'VOID', void_reason: 'sender never replied' });
     resendDraftPromptMock     = jest.fn().mockResolvedValue({ sent: true });
+    listPendingSuggestionsMock = jest.fn().mockResolvedValue([WHATSAPP_SUGGESTED_LINK]);
+    approveSuggestedLinkMock  = jest.fn().mockResolvedValue({ ...WHATSAPP_SUGGESTED_LINK, status: 'APPROVED', reviewed_at: new Date() });
+    rejectSuggestedLinkMock   = jest.fn().mockResolvedValue({ ...WHATSAPP_SUGGESTED_LINK, status: 'REJECTED', reviewed_at: new Date() });
 
     const module = await Test.createTestingModule({
       providers: [
@@ -450,6 +471,14 @@ describe('AdminService', () => {
             listDrafts: listWhatsappDraftsMock,
             voidDraft: voidDraftMock,
             resendDraftPrompt: resendDraftPromptMock,
+          },
+        },
+        {
+          provide: WhatsappBusinessLinkService,
+          useValue: {
+            listPendingSuggestions: listPendingSuggestionsMock,
+            approve: approveSuggestedLinkMock,
+            reject: rejectSuggestedLinkMock,
           },
         },
       ],
@@ -1376,6 +1405,28 @@ describe('AdminService', () => {
 
     expect(resendDraftPromptMock).toHaveBeenCalledWith(WHATSAPP_DRAFT.id);
     expect(result).toEqual({ sent: true });
+  });
+
+  // ─── WHATSAPP INTEGRATION Phase 6b (delegates to WhatsappBusinessLinkService) ──
+
+  it('listWhatsappSuggestedLinks delegates to WhatsappBusinessLinkService.listPendingSuggestions', async () => {
+    const result = await svc.listWhatsappSuggestedLinks();
+
+    expect(listPendingSuggestionsMock).toHaveBeenCalled();
+    expect(result).toEqual([WHATSAPP_SUGGESTED_LINK]);
+  });
+
+  it('approveWhatsappSuggestedLink delegates to WhatsappBusinessLinkService.approve', async () => {
+    await svc.approveWhatsappSuggestedLink(WHATSAPP_SUGGESTED_LINK.id, { contractor_id: null, supplier_id: null });
+    expect(approveSuggestedLinkMock).toHaveBeenCalledWith(WHATSAPP_SUGGESTED_LINK.id, {
+      contractor_id: null,
+      supplier_id: null,
+    });
+  });
+
+  it('rejectWhatsappSuggestedLink delegates to WhatsappBusinessLinkService.reject', async () => {
+    await svc.rejectWhatsappSuggestedLink(WHATSAPP_SUGGESTED_LINK.id, 'not a real business');
+    expect(rejectSuggestedLinkMock).toHaveBeenCalledWith(WHATSAPP_SUGGESTED_LINK.id, 'not a real business');
   });
 
   // ─── Auth guard (controller-level wiring check) ───────────────────────────

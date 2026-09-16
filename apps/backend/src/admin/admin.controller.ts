@@ -285,6 +285,25 @@ const VoidWhatsappDraftBodySchema = z.object({
 });
 type VoidWhatsappDraftBody = z.infer<typeof VoidWhatsappDraftBodySchema>;
 
+// --- POST /v1/admin/whatsapp-suggested-links/:id/approve (WHATSAPP INTEGRATION Phase 6b) ---
+// At most one of contractor_id/supplier_id — an override for a wrong or
+// missing auto-match; both default to null (use the suggestion's own
+// matched_contractor_id/matched_supplier_id) enforced in
+// WhatsappBusinessLinkService.approve, not here (cross-field rule, same
+// division of labor as CreateExpenseBodySchema's amount/quantity/rate).
+const ApproveWhatsappSuggestedLinkBodySchema = z.object({
+  contractor_id: z.string().uuid().nullable().default(null),
+  supplier_id: z.string().uuid().nullable().default(null),
+});
+type ApproveWhatsappSuggestedLinkBody = z.infer<typeof ApproveWhatsappSuggestedLinkBodySchema>;
+
+// --- POST /v1/admin/whatsapp-suggested-links/:id/reject (WHATSAPP INTEGRATION Phase 6b) ---
+// Same optional-reason shape as VoidWhatsappDraftBodySchema above.
+const RejectWhatsappSuggestedLinkBodySchema = z.object({
+  reason: z.string().min(1).nullable().default(null),
+});
+type RejectWhatsappSuggestedLinkBody = z.infer<typeof RejectWhatsappSuggestedLinkBodySchema>;
+
 // --- Controller ---
 
 @Controller('v1/admin')
@@ -681,5 +700,38 @@ export class AdminController {
   @HttpCode(200)
   resendWhatsappDraftPrompt(@Param('id') id: string) {
     return this.adminSvc.resendWhatsappDraftPrompt(id);
+  }
+
+  // ─── WHATSAPP INTEGRATION Phase 6b — CONTRACTOR/SUPPLIER MENTION
+  // DETECTION (REVIEW-GATED) ─────────────────────────────────────────────
+  // Extends the Phase 4 admin review queue pattern above — same BearerGuard
+  // (class-level), same delegate-to-AdminService shape.
+
+  // GET /v1/admin/whatsapp-suggested-links — PENDING_REVIEW only, most recent first.
+  @Get('whatsapp-suggested-links')
+  listWhatsappSuggestedLinks() {
+    return this.adminSvc.listWhatsappSuggestedLinks();
+  }
+
+  // POST /v1/admin/whatsapp-suggested-links/:id/approve — creates the real
+  // Trust-side link (see WhatsappBusinessLinkService.approve for why this is
+  // the only place that happens, and only here).
+  @Post('whatsapp-suggested-links/:id/approve')
+  @HttpCode(200)
+  approveWhatsappSuggestedLink(
+    @Param('id') id: string,
+    @Body(new ZodValidationPipe(ApproveWhatsappSuggestedLinkBodySchema)) body: ApproveWhatsappSuggestedLinkBody,
+  ) {
+    return this.adminSvc.approveWhatsappSuggestedLink(id, body);
+  }
+
+  // POST /v1/admin/whatsapp-suggested-links/:id/reject — never creates any link.
+  @Post('whatsapp-suggested-links/:id/reject')
+  @HttpCode(200)
+  rejectWhatsappSuggestedLink(
+    @Param('id') id: string,
+    @Body(new ZodValidationPipe(RejectWhatsappSuggestedLinkBodySchema)) body: RejectWhatsappSuggestedLinkBody,
+  ) {
+    return this.adminSvc.rejectWhatsappSuggestedLink(id, body.reason);
   }
 }

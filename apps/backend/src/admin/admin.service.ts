@@ -37,12 +37,17 @@ import {
   type CreateMappingInput as WhatsappCreateMappingInput,
 } from '../whatsapp/whatsapp.service';
 import { WhatsappParsingService, type WhatsappDraftListItem } from '../whatsapp/whatsapp-parsing.service';
+import {
+  WhatsappBusinessLinkService,
+  type ApproveSuggestedLinkInput,
+} from '../whatsapp/whatsapp-business-link.service';
 import type { WhatsappProjectMappingEntity } from '../whatsapp/entities/whatsapp-project-mapping.entity';
 import type {
   WhatsappDraftExpenseEntity,
   WhatsappDraftExpenseStatus,
 } from '../whatsapp/entities/whatsapp-draft-expense.entity';
 import type { WhatsappInboundMessageEntity } from '../whatsapp/entities/whatsapp-inbound-message.entity';
+import type { WhatsappSuggestedBusinessLinkEntity } from '../whatsapp/entities/whatsapp-suggested-business-link.entity';
 
 export type { ClaimType };
 export type { CreateMaterialRateInput, MaterialRateResult };
@@ -185,6 +190,7 @@ export class AdminService {
     private readonly cpSvc: ConstructionProjectService,
     private readonly waSvc: WhatsappService,
     private readonly waParsingSvc: WhatsappParsingService,
+    private readonly waLinkSvc: WhatsappBusinessLinkService,
   ) {}
 
   // CLEANUP — was AdminService's own CandidateSocietyEntity repository
@@ -644,5 +650,29 @@ export class AdminService {
   // POST /v1/admin/whatsapp-drafts/:id/resend-prompt
   async resendWhatsappDraftPrompt(id: string): Promise<{ sent: true }> {
     return this.waParsingSvc.resendDraftPrompt(id);
+  }
+
+  // ─── WHATSAPP INTEGRATION Phase 6b — CONTRACTOR/SUPPLIER MENTION
+  // DETECTION (REVIEW-GATED) ─────────────────────────────────────────────
+  // Same plain-passthrough delegation as the whatsapp-drafts routes above —
+  // all the actual logic (fuzzy matching, the Trust-side link on approve)
+  // lives on WhatsappBusinessLinkService.
+
+  // GET /v1/admin/whatsapp-suggested-links
+  async listWhatsappSuggestedLinks(): Promise<WhatsappSuggestedBusinessLinkEntity[]> {
+    return this.waLinkSvc.listPendingSuggestions();
+  }
+
+  // POST /v1/admin/whatsapp-suggested-links/:id/approve
+  async approveWhatsappSuggestedLink(
+    id: string,
+    override: ApproveSuggestedLinkInput,
+  ): Promise<WhatsappSuggestedBusinessLinkEntity> {
+    return this.waLinkSvc.approve(id, override);
+  }
+
+  // POST /v1/admin/whatsapp-suggested-links/:id/reject
+  async rejectWhatsappSuggestedLink(id: string, reason: string | null): Promise<WhatsappSuggestedBusinessLinkEntity> {
+    return this.waLinkSvc.reject(id, reason);
   }
 }

@@ -43,6 +43,7 @@ describe('WhatsappAiClient', () => {
       rate: null,
       trade_category: null,
       confidence: 'LOW',
+      mentioned_business_name: null,
     });
   });
 
@@ -61,6 +62,7 @@ describe('WhatsappAiClient', () => {
             rate: 1490,
             trade_category: 'GENERAL_CONTRACTOR',
             confidence: 'HIGH',
+            mentioned_business_name: null,
           }),
         ),
       );
@@ -81,8 +83,52 @@ describe('WhatsappAiClient', () => {
         rate: 1490,
         trade_category: 'GENERAL_CONTRACTOR',
         confidence: 'HIGH',
+        mentioned_business_name: null,
       });
       expect(result.raw).toBeDefined();
+    });
+
+    // ─── WHATSAPP INTEGRATION Phase 6b — CONTRACTOR/SUPPLIER MENTION DETECTION ──
+
+    it('extracts a mentioned business name independently of item/confidence', async () => {
+      fetchMock.mockResolvedValue(
+        anthropicResponse(
+          JSON.stringify({
+            item: 'cement',
+            quantity: 50,
+            unit: 'bags',
+            rate: 1490,
+            trade_category: 'GENERAL_CONTRACTOR',
+            confidence: 'HIGH',
+            mentioned_business_name: 'Al-Rehman Traders',
+          }),
+        ),
+      );
+
+      const result = await client.extractExpense('Al-Rehman Traders delivered cement 50 bags rate 1490');
+
+      expect(result.extraction.mentioned_business_name).toBe('Al-Rehman Traders');
+    });
+
+    it('extracts a mentioned business name even when no expense is described (LOW confidence, null item)', async () => {
+      fetchMock.mockResolvedValue(
+        anthropicResponse(
+          JSON.stringify({
+            item: null,
+            quantity: null,
+            unit: null,
+            rate: null,
+            trade_category: null,
+            confidence: 'LOW',
+            mentioned_business_name: 'Ali Traders',
+          }),
+        ),
+      );
+
+      const result = await client.extractExpense('Ali Traders came by the site today');
+
+      expect(result.extraction.confidence).toBe('LOW');
+      expect(result.extraction.mentioned_business_name).toBe('Ali Traders');
     });
 
     it('strips a ```json fence if the model wraps its answer in one', async () => {
@@ -96,6 +142,7 @@ describe('WhatsappAiClient', () => {
               rate: 2500,
               trade_category: 'STEEL_FIXING',
               confidence: 'MEDIUM',
+              mentioned_business_name: null,
             }) +
             '\n```',
         ),
@@ -117,6 +164,7 @@ describe('WhatsappAiClient', () => {
             rate: null,
             trade_category: null,
             confidence: 'LOW',
+            mentioned_business_name: null,
           }),
         ),
       );
@@ -130,6 +178,7 @@ describe('WhatsappAiClient', () => {
         rate: null,
         trade_category: null,
         confidence: 'LOW',
+        mentioned_business_name: null,
       });
     });
 

@@ -16,6 +16,14 @@ export interface ExpenseExtraction {
   rate: number | null;
   trade_category: TradeCategory | null;
   confidence: 'HIGH' | 'MEDIUM' | 'LOW';
+  // WHATSAPP INTEGRATION Phase 6b — CONTRACTOR/SUPPLIER MENTION DETECTION.
+  // Added as an extra field on the SAME extraction call rather than a second
+  // AI request per message (cheaper, and the model already reads the full
+  // message text for item/trade_category) — independent of confidence/item:
+  // a message with no identifiable expense can still name a business, and a
+  // clear expense can still mention none. Detection only; never used to
+  // link anything by itself — see WhatsappBusinessLinkService.
+  mentioned_business_name: string | null;
 }
 
 export interface ExtractionOutcome {
@@ -43,17 +51,26 @@ const ExtractionResponseSchema = z.object({
   // recognize, without a second hand-maintained enum list.
   trade_category: TradeCategorySchema.nullable(),
   confidence: z.enum(['HIGH', 'MEDIUM', 'LOW']),
+  mentioned_business_name: z.string().trim().min(1).nullable(),
 });
 
 function lowConfidenceFallback(): ExpenseExtraction {
-  return { item: null, quantity: null, unit: null, rate: null, trade_category: null, confidence: 'LOW' };
+  return {
+    item: null,
+    quantity: null,
+    unit: null,
+    rate: null,
+    trade_category: null,
+    confidence: 'LOW',
+    mentioned_business_name: null,
+  };
 }
 
 function buildSystemPrompt(): string {
   return [
     'You extract structured construction-expense data from a short WhatsApp message sent by a site supervisor or contractor.',
     'Respond with ONLY a single JSON object — no prose, no markdown code fences — matching exactly this shape:',
-    '{"item": string|null, "quantity": number|null, "unit": string|null, "rate": number|null, "trade_category": string|null, "confidence": "HIGH"|"MEDIUM"|"LOW"}',
+    '{"item": string|null, "quantity": number|null, "unit": string|null, "rate": number|null, "trade_category": string|null, "confidence": "HIGH"|"MEDIUM"|"LOW", "mentioned_business_name": string|null}',
     '',
     'Field rules:',
     '- item: the material or work item purchased/performed (e.g. "cement", "steel bars"), or null if none is identifiable.',
@@ -62,6 +79,7 @@ function buildSystemPrompt(): string {
     '- rate: the price per unit, or null. Do not compute a total; only the per-unit rate if one is stated.',
     `- trade_category: your best guess at which ONE of these categories the item/work belongs to — you MUST pick only from this exact list, never invent a new one: ${TRADE_CATEGORIES.join(', ')}. Use null only if none plausibly fits.`,
     '- confidence: "HIGH" if the message clearly describes a specific purchase/expense with usable numbers, "MEDIUM" if it describes an expense but some fields are guessed or missing, "LOW" if the message is not really describing an expense at all (a question, a greeting, a status update, etc.) — in that case set item/quantity/unit/rate/trade_category to null.',
+    '- mentioned_business_name: the name of any contractor or supplier business named in the message (e.g. "Al-Rehman Traders delivered the cement" -> "Al-Rehman Traders"), or null if no business is named by name. This is independent of the other fields — extract it even when confidence is LOW or no expense is described.',
     '',
     'Always return valid JSON matching the shape above, even when every field is null.',
   ].join('\n');

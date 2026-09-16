@@ -301,6 +301,7 @@ export class WhatsappConfirmationService {
               rate: null,
               trade_category: null,
               confidence: 'LOW' as const,
+              mentioned_business_name: null,
             },
             raw: { skipped: 'empty_message_text' },
           };
@@ -314,6 +315,11 @@ export class WhatsappConfirmationService {
         parsed_rate: outcome.extraction.rate,
         parsed_trade_category: outcome.extraction.trade_category,
         confidence: outcome.extraction.confidence,
+        // WHATSAPP INTEGRATION Phase 6b — kept current the same as every
+        // other parsed_* field here, but a correction never re-triggers
+        // detectAndSuggest (see WhatsappSuggestedBusinessLinkEntity's own
+        // comment) — only the original Phase 2 parse does.
+        parsed_mentioned_business: outcome.extraction.mentioned_business_name,
         // TypeORM's update() QueryDeepPartialEntity can't map a plain
         // `unknown`-typed jsonb column the way create()+save() can (see
         // WhatsappParsingService.parseAndStoreDraft, which hits the same

@@ -3,14 +3,17 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { WhatsappInboundMessageEntity } from './entities/whatsapp-inbound-message.entity';
 import { WhatsappProjectMappingEntity } from './entities/whatsapp-project-mapping.entity';
 import { WhatsappDraftExpenseEntity } from './entities/whatsapp-draft-expense.entity';
+import { WhatsappSuggestedBusinessLinkEntity } from './entities/whatsapp-suggested-business-link.entity';
 import { WhatsappService } from './whatsapp.service';
 import { WhatsappParsingService } from './whatsapp-parsing.service';
 import { WhatsappAiClient } from './whatsapp-ai.client';
 import { WhatsappOutboundClient } from './whatsapp-outbound.client';
 import { WhatsappConfirmationService } from './whatsapp-confirmation.service';
+import { WhatsappBusinessLinkService } from './whatsapp-business-link.service';
 import { WhatsappWebhookController } from './whatsapp-webhook.controller';
 import { ConstructionIntelligenceModule } from '../construction-intelligence/construction-intelligence.module';
 import { PropertyIntelligenceModule } from '../property-intelligence/property-intelligence.module';
+import { TrustModule } from '../trust/trust.module';
 
 // WHATSAPP INTEGRATION Phase 1 — imported by both AppModule (for the public
 // webhook controller below) and AdminModule (so AdminController can delegate
@@ -36,15 +39,24 @@ import { PropertyIntelligenceModule } from '../property-intelligence/property-in
 // same composition pattern PropertyIntelligenceModule itself already uses to
 // reach ConstructionIntelligenceModule) — no cycle, PropertyIntelligenceModule
 // never imports WhatsappModule.
+//
+// WHATSAPP INTEGRATION Phase 6b — CONTRACTOR/SUPPLIER MENTION DETECTION.
+// TrustModule added so WhatsappBusinessLinkService can call
+// TrustService.createVerification (same public-API-call pattern, no cycle —
+// TrustModule is a leaf module with no imports of its own).
+// WhatsappBusinessLinkService is exported so AdminService can inject it
+// directly for the review-queue endpoints, same as WhatsappParsingService.
 @Module({
   imports: [
     TypeOrmModule.forFeature([
       WhatsappInboundMessageEntity,
       WhatsappProjectMappingEntity,
       WhatsappDraftExpenseEntity,
+      WhatsappSuggestedBusinessLinkEntity,
     ]),
     ConstructionIntelligenceModule,
     PropertyIntelligenceModule,
+    TrustModule,
   ],
   controllers: [WhatsappWebhookController],
   providers: [
@@ -53,7 +65,8 @@ import { PropertyIntelligenceModule } from '../property-intelligence/property-in
     WhatsappAiClient,
     WhatsappOutboundClient,
     WhatsappConfirmationService,
+    WhatsappBusinessLinkService,
   ],
-  exports: [WhatsappService, WhatsappParsingService],
+  exports: [WhatsappService, WhatsappParsingService, WhatsappBusinessLinkService],
 })
 export class WhatsappModule {}
