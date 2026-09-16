@@ -10,3 +10,6 @@ coverage/
 detail-response.json
 page-source.txt
 response.json
+.neon
+.env.local
+.claude/
