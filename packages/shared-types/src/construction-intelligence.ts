@@ -18,7 +18,10 @@ export type EstimateRequest = z.infer<typeof EstimateRequestSchema>;
 export const CoreMaterialKeySchema = z.enum(['CEMENT', 'STEEL', 'BRICKS', 'SAND', 'CRUSH']);
 export type CoreMaterialKey = z.infer<typeof CoreMaterialKeySchema>;
 
-export const MaterialRateSourceTierSchema = z.enum(['SUPPLIER_VERIFIED', 'MARKET_REFERENCE']);
+// WHATSAPP INTEGRATION Phase 6a — FIELD_REPORTED: founder/site-reported
+// actual purchase prices confirmed over WhatsApp (first-party FACT, not a
+// third-party MARKET_REFERENCE price and not a SUPPLIER_VERIFIED quote).
+export const MaterialRateSourceTierSchema = z.enum(['SUPPLIER_VERIFIED', 'MARKET_REFERENCE', 'FIELD_REPORTED']);
 export type MaterialRateSourceTier = z.infer<typeof MaterialRateSourceTierSchema>;
 
 // ─── SUPPLIER DIRECTORY Chunk 2 ──────────────────────────────────────────────

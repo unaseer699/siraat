@@ -10,6 +10,7 @@ import { WhatsappOutboundClient } from './whatsapp-outbound.client';
 import { WhatsappConfirmationService } from './whatsapp-confirmation.service';
 import { WhatsappWebhookController } from './whatsapp-webhook.controller';
 import { ConstructionIntelligenceModule } from '../construction-intelligence/construction-intelligence.module';
+import { PropertyIntelligenceModule } from '../property-intelligence/property-intelligence.module';
 
 // WHATSAPP INTEGRATION Phase 1 — imported by both AppModule (for the public
 // webhook controller below) and AdminModule (so AdminController can delegate
@@ -28,6 +29,13 @@ import { ConstructionIntelligenceModule } from '../construction-intelligence/con
 // and WhatsappConfirmationService are not exported — nothing outside this
 // module calls them directly (WhatsappService.processInboundMessage is the
 // only trigger point, same as WhatsappParsingService in Phase 2).
+//
+// WHATSAPP INTEGRATION Phase 6a — MARKET OBSERVATIONS. PropertyIntelligenceModule
+// added so WhatsappConfirmationService can resolve a confirmed project's city
+// via PropertyIntelligenceService.findPropertyById (Law 9: public API call,
+// same composition pattern PropertyIntelligenceModule itself already uses to
+// reach ConstructionIntelligenceModule) — no cycle, PropertyIntelligenceModule
+// never imports WhatsappModule.
 @Module({
   imports: [
     TypeOrmModule.forFeature([
@@ -36,6 +44,7 @@ import { ConstructionIntelligenceModule } from '../construction-intelligence/con
       WhatsappDraftExpenseEntity,
     ]),
     ConstructionIntelligenceModule,
+    PropertyIntelligenceModule,
   ],
   controllers: [WhatsappWebhookController],
   providers: [

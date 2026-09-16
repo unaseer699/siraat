@@ -196,6 +196,9 @@ const CreateProjectBodySchema = z.object({
   owner_contact: z.string().min(1),
   start_date: z.string().min(1),
   status: z.enum(PROJECT_STATUSES).default('ACTIVE'),
+  // WHATSAPP INTEGRATION Phase 6a follow-up — MARKET OBSERVATIONS. Optional,
+  // defaults to null so existing create-project callers/tests are unaffected.
+  city: z.string().min(1).nullable().default(null),
 });
 type CreateProjectBody = z.infer<typeof CreateProjectBodySchema>;
 
