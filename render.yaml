@@ -21,7 +21,7 @@ services:
     region: oregon
     branch: main
     autoDeploy: false
-    buildCommand: corepack enable && pnpm install --frozen-lockfile && pnpm --filter @siraat/shared-types build && pnpm --filter backend build
+    buildCommand: npm install -g pnpm@11.20.0 && pnpm install --frozen-lockfile && pnpm --filter @siraat/shared-types build && pnpm --filter backend build
     startCommand: node apps/backend/dist/main.js
     healthCheckPath: /health
     envVars:
