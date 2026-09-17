@@ -62,15 +62,22 @@ disabled once `NODE_ENV=production`. Before the first real deploy:
 
 Render builds and runs only `apps/backend` out of the pnpm workspace:
 
-- **Build:** `corepack enable && pnpm install --frozen-lockfile && pnpm --filter @siraat/shared-types build && pnpm --filter backend build`
+- **Build:** `npm install -g pnpm@11.20.0 && pnpm install --frozen-lockfile && pnpm --filter @siraat/shared-types build && pnpm --filter backend build`
   (the backend depends on the workspace package `@siraat/shared-types`, so it must be
   built first; `nest build` for the backend then compiles to `apps/backend/dist`).
 - **Start:** `node apps/backend/dist/main.js` (`main.ts`'s NestFactory bootstrap; matches
   the entrypoint the existing `apps/backend/Dockerfile` also runs).
 - **Health check:** `GET /health` → `{"status":"ok"}` (`HealthController`, public, no auth).
 
-Root `package.json` pins `"packageManager": "pnpm@11.20.0"` so Render's `corepack enable`
-resolves the same pnpm version used locally.
+Root `package.json` pins `"packageManager": "pnpm@11.20.0"`, and the build command installs
+that exact version with `npm install -g pnpm@11.20.0` so Render's build matches local.
+
+> **Do not switch this back to `corepack enable`.** Render's Node build image ships pnpm
+> pre-installed at a path (`/usr/bin/pnpm`) that is read-only at build time. `corepack enable`
+> tries to replace that binary and fails with `EROFS: read-only file system, unlink
+> '/usr/bin/pnpm'` — this is a known issue on Render, not a config mistake. pnpm's own current
+> guidance has also moved away from recommending Corepack for this reason, favoring a direct
+> `npm install -g pnpm` instead.
 
 ---
 
