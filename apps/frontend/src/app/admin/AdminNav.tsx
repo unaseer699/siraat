@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import type { CSSProperties } from 'react';
+import { AdminLogoutButton } from './AdminLogoutButton';
 
 type AdminSection = 'candidates' | 'material-rates' | 'contractors' | 'suppliers' | 'house-plans' | 'projects';
 
@@ -45,6 +46,7 @@ export function AdminNav({ active }: { active: AdminSection }) {
           </Link>
         );
       })}
+      <AdminLogoutButton />
     </nav>
   );
 }
