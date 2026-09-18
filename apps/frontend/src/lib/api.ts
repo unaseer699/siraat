@@ -32,7 +32,34 @@ export type { DocumentType, VerificationResponse };
 
 export type { MaterialRateItem, CreateMaterialRateBody };
 
-const BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001';
+const BACKEND_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001';
+const PROXY_PREFIX = '/api/proxy';
+
+// True only in the Node.js process that renders Server Components — that
+// branch (and the real SIRAAT_API_KEY it reads) is dead-code-eliminated from
+// the browser bundle, since bundlers statically resolve `typeof window`.
+// Server Components already run server-side, so calling the backend
+// directly there is safe (the key never reaches the browser); Client
+// Components instead go through the same-origin proxy below, which holds
+// the key on their behalf. See apps/frontend/src/app/api/proxy/[...path]/route.ts.
+const isServer = typeof window === 'undefined';
+
+// `path` is always `/v1/...`. Server-side, it's sent straight to the
+// backend with the real key; client-side, it's rewritten to the proxy's
+// mirrored namespace (`/v1/admin/x` -> `/api/proxy/admin/x`) and the key is
+// left for the proxy to attach.
+function resolveTarget(path: string): { url: string; headers: Record<string, string> } {
+  if (isServer) {
+    return {
+      url: `${BACKEND_URL}${path}`,
+      headers: {
+        Authorization: `Bearer ${process.env.SIRAAT_API_KEY ?? ''}`,
+        'X-Siraat-Country-Code': 'PK',
+      },
+    };
+  }
+  return { url: path.replace(/^\/v1/, PROXY_PREFIX), headers: {} };
+}
 
 // Field-level detail from ZodValidationPipe (apps/backend/src/common/zod-validation.pipe.ts):
 // { error_code: 'VALIDATION_ERROR', message, details: [{ path, message }] }.
@@ -65,14 +92,14 @@ export class ApiError extends Error {
 }
 
 async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(`${BASE_URL}${path}`, {
+  const { url, headers } = resolveTarget(path);
+  const res = await fetch(url, {
     // All Siraat endpoints reflect live database state — never serve from Next.js Data Cache
     cache: 'no-store',
     ...init,
     headers: {
       'Content-Type': 'application/json',
-      Authorization: `Bearer ${process.env.NEXT_PUBLIC_SIRAAT_API_KEY ?? ''}`,
-      'X-Siraat-Country-Code': 'PK',
+      ...headers,
       ...init?.headers,
     },
   });
@@ -189,12 +216,10 @@ export async function fetchEvidenceDownloadUrl(
 export async function fetchRecommendationExport(
   id: string,
 ): Promise<{ blob: Blob; filename: string }> {
-  const res = await fetch(`${BASE_URL}/v1/market-intelligence/recommendations/${id}/export`, {
+  const { url, headers } = resolveTarget(`/v1/market-intelligence/recommendations/${id}/export`);
+  const res = await fetch(url, {
     cache: 'no-store',
-    headers: {
-      Authorization: `Bearer ${process.env.NEXT_PUBLIC_SIRAAT_API_KEY ?? ''}`,
-      'X-Siraat-Country-Code': 'PK',
-    },
+    headers,
   });
   if (!res.ok) {
     const text = await res.text();

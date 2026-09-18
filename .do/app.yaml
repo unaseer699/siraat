@@ -70,10 +70,12 @@ services:
       - key: NEXT_PUBLIC_API_URL
         scope: BUILD_TIME
         value: ${siraat-monolith-app.PUBLIC_URL}
-      # The shared API key is also needed client-side to authenticate fetch calls.
-      # This is intentional — BearerGuard uses a single shared key, not user-level tokens.
-      - key: NEXT_PUBLIC_SIRAAT_API_KEY
-        scope: BUILD_TIME
+      # Server-side only (no NEXT_PUBLIC_ prefix — never baked into the
+      # browser bundle). Read at request time by the proxy route
+      # (apps/frontend/src/app/api/proxy/[...path]/route.ts), which forwards
+      # browser calls to the backend with this key attached server-side.
+      - key: SIRAAT_API_KEY
+        scope: RUN_TIME
         type: SECRET
       - key: NODE_ENV
         scope: RUN_TIME

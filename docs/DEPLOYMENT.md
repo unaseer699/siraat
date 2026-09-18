@@ -15,9 +15,8 @@ that DO should prompt for the value; it never stores the value itself.
 |---|---|---|
 | `DATABASE_URL` | Backend | Injected automatically by DO when you attach the Managed Postgres database. Verify it starts with `postgres://`. |
 | `REDIS_URL` | Backend | Placeholder for future Redis-backed throttler/queue. Set to any valid Redis URL or a dummy value until needed. |
-| `SIRAAT_API_KEY` | Backend + Frontend | The shared Bearer token all API clients must send. Generate a strong random string (e.g. `openssl rand -hex 32`). Set the **same value** in both the backend env var and `NEXT_PUBLIC_SIRAAT_API_KEY` (frontend). |
+| `SIRAAT_API_KEY` | Backend + Frontend | The shared Bearer token all API clients must send. Generate a strong random string (e.g. `openssl rand -hex 32`). Set the **same value** in both the backend env var and the frontend's own `SIRAAT_API_KEY` (server-side only — no `NEXT_PUBLIC_` prefix, never baked into the browser bundle; read by the frontend's proxy route at request time). |
 | `NEXT_PUBLIC_API_URL` | Frontend (build-time) | Auto-resolved from the backend component's public URL by DO. No manual action needed. |
-| `NEXT_PUBLIC_SIRAAT_API_KEY` | Frontend (build-time) | Must match `SIRAAT_API_KEY`. Baked into the Next.js bundle — any change requires a full frontend rebuild. |
 | `FRONTEND_URL` | Backend | Auto-resolved from the frontend component's public URL. Used for CORS. |
 
 ---
