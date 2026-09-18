@@ -20,10 +20,14 @@ RUN pnpm --filter backend build
 # Collect production dependencies only (resolves workspace packages, strips devDeps).
 # pnpm deploy copies the package directory contents (including dist/) into /deploy
 # along with a flat node_modules containing only production deps.
-# --legacy: pnpm 11+ defaults to injected workspace deps, which requires a lockfile
-# regenerated with injectWorkspacePackages set; --legacy keeps the prior deploy behavior
-# without touching the (shared, monorepo-wide) lockfile.
-RUN pnpm deploy --filter backend --prod --legacy /deploy
+# --legacy mode only *symlinks* workspace packages (e.g. @siraat/shared-types) back to
+# their source location under /app/packages, which doesn't exist in the runtime stage
+# below and breaks at container startup. inject-workspace-packages makes pnpm copy the
+# real package contents into /deploy/node_modules instead; passing it as an ad-hoc
+# --config flag (rather than persisting it in pnpm-workspace.yaml) applies it only to
+# this deploy step, so it doesn't affect `pnpm install --frozen-lockfile` above and
+# doesn't require regenerating the shared monorepo lockfile.
+RUN pnpm --config.inject-workspace-packages=true deploy --filter backend --prod /deploy
 
 # ── Stage 2: Runtime ─────────────────────────────────────────────────────────
 FROM node:22-alpine AS runtime
