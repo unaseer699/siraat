@@ -17,7 +17,7 @@ first deploy.
 |---|---|
 | `DATABASE_URL` | Neon connection string, from the Neon dashboard. Must include `sslmode=require` (Neon includes this by default). No extra SSL config is needed in code — confirmed by a live connection test against Neon; pg's own connection-string parsing already upgrades `sslmode=require` to a verified TLS connection. |
 | `REDIS_URL` | Placeholder — the throttler is in-memory today. Any valid Redis URL or dummy value until Redis is actually wired in. |
-| `SIRAAT_API_KEY` | Shared Bearer token all API clients send. Generate with `openssl rand -hex 32`. Must match the frontend's `NEXT_PUBLIC_SIRAAT_API_KEY`. |
+| `SIRAAT_API_KEY` | Shared Bearer token all API clients send. Generate with `openssl rand -hex 32`. Must match the frontend's own `SIRAAT_API_KEY` (server-side only, set in Vercel — the frontend's Next.js proxy route holds this and forwards it to the backend; it is never sent to the browser). |
 | `FRONTEND_URL` | The deployed Vercel frontend's origin (e.g. `https://siraat.vercel.app`). Used by `main.ts`'s `app.enableCors` — falls back to `http://localhost:3000` if unset. |
 | `WHATSAPP_VERIFY_TOKEN` / `WHATSAPP_APP_SECRET` / `WHATSAPP_ACCESS_TOKEN` / `WHATSAPP_PHONE_NUMBER_ID` | From the Meta App Dashboard. |
 | `ANTHROPIC_API_KEY` | Used by `WhatsappAiClient`. If unset, parsing degrades gracefully rather than failing. |
