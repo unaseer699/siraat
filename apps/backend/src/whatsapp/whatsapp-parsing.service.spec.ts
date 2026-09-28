@@ -214,7 +214,7 @@ describe('WhatsappParsingService', () => {
 
     expect(sendTextMessageMock).toHaveBeenCalledWith(
       '923001234567',
-      'Got it: cement, 50 bags @ 1490. Reply YES to confirm, or send a correction.',
+      'Got it: cement, 50 bags @ 1490 (General Contractor). Reply YES to confirm, or send a correction.',
     );
   });
 
@@ -295,7 +295,7 @@ describe('WhatsappParsingService', () => {
   describe('buildDraftSummaryText', () => {
     it('formats item + quantity + unit + rate', () => {
       expect(buildDraftSummaryText(CLEAR_EXTRACTION)).toBe(
-        'Got it: cement, 50 bags @ 1490. Reply YES to confirm, or send a correction.',
+        'Got it: cement, 50 bags @ 1490 (General Contractor). Reply YES to confirm, or send a correction.',
       );
     });
 
@@ -314,6 +314,36 @@ describe('WhatsappParsingService', () => {
 
     it('asks the sender to clarify/rephrase for a LOW-confidence extraction, never a fake summary', () => {
       expect(buildDraftSummaryText(LOW_CONFIDENCE_EXTRACTION)).not.toMatch(/null|Got it/);
+    });
+
+    // CATEGORY-CORRECTION UX — shows a readable label, not the raw enum
+    // value, so a miscategorized expense is catchable before confirming.
+    it('shows a readable trade_category label, not the raw enum value', () => {
+      const text = buildDraftSummaryText({
+        item: 'cement',
+        quantity: 50,
+        unit: 'bags',
+        rate: 1490,
+        trade_category: 'MASON_GREY_STRUCTURE',
+        confidence: 'HIGH',
+        mentioned_business_name: null,
+      });
+      expect(text).toBe(
+        'Got it: cement, 50 bags @ 1490 (Mason Grey Structure). Reply YES to confirm, or send a correction.',
+      );
+    });
+
+    it('omits the category suffix entirely when trade_category is null', () => {
+      const text = buildDraftSummaryText({
+        item: 'cement',
+        quantity: 50,
+        unit: 'bags',
+        rate: 1490,
+        trade_category: null,
+        confidence: 'HIGH',
+        mentioned_business_name: null,
+      });
+      expect(text).toBe('Got it: cement, 50 bags @ 1490. Reply YES to confirm, or send a correction.');
     });
   });
 
@@ -479,7 +509,7 @@ describe('WhatsappParsingService', () => {
 
       expect(sendTextMessageMock).toHaveBeenCalledWith(
         '923001234567',
-        'Got it: cement, 50 bags @ 1490. Reply YES to confirm, or send a correction.',
+        'Got it: cement, 50 bags @ 1490 (General Contractor). Reply YES to confirm, or send a correction.',
       );
       expect(result).toEqual({ sent: true });
     });

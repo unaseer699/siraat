@@ -578,6 +578,119 @@ describe('WhatsappConfirmationService', () => {
       expect(draftUpdateMock).not.toHaveBeenCalled();
     });
 
+    // ─── Category-only correction (CATEGORY-CORRECTION UX) ────────────────
+    // A short reply like "actually tile work" re-parses to trade_category
+    // set but item/quantity/rate null — too vague to be a real expense
+    // re-description, but a real category correction. Must merge onto the
+    // existing draft rather than wipe item/quantity/rate with nulls.
+
+    it('merges a category-only correction: updates trade_category, preserves the existing item/quantity/rate/confidence', async () => {
+      const draft = pendingDraft({
+        parsed_item: 'cement',
+        parsed_quantity: 50,
+        parsed_unit: 'bags',
+        parsed_rate: 1490,
+        parsed_trade_category: 'MASON_GREY_STRUCTURE',
+        confidence: 'HIGH',
+      });
+      extractExpenseMock.mockResolvedValue({
+        extraction: {
+          item: null,
+          quantity: null,
+          unit: null,
+          rate: null,
+          trade_category: 'TILE_WORK',
+          confidence: 'LOW',
+          mentioned_business_name: null,
+        },
+        raw: { ok: true },
+      });
+
+      await service.handleReply(draft, replyMessage({ message_text: 'actually tile work' }));
+
+      expect(draftUpdateMock).toHaveBeenCalledWith(
+        { id: draft.id },
+        { parsed_trade_category: 'TILE_WORK', status: 'PENDING' },
+      );
+      // The summary sent back reflects the merged draft, not the mostly-null extraction.
+      expect(sendTextMessageMock).toHaveBeenCalledWith(
+        '923001234567',
+        expect.stringContaining('cement, 50 bags @ 1490 (Tile Work)'),
+      );
+    });
+
+    it('treats a correction with real new expense data as a full overwrite even if it also changes the category — no regression', async () => {
+      const draft = pendingDraft({
+        parsed_item: 'cement',
+        parsed_quantity: 50,
+        parsed_unit: 'bags',
+        parsed_rate: 1490,
+        parsed_trade_category: 'MASON_GREY_STRUCTURE',
+      });
+      extractExpenseMock.mockResolvedValue({
+        extraction: {
+          item: 'tiles',
+          quantity: 20,
+          unit: 'boxes',
+          rate: 800,
+          trade_category: 'TILE_WORK',
+          confidence: 'HIGH',
+          mentioned_business_name: null,
+        },
+        raw: { ok: true },
+      });
+
+      await service.handleReply(draft, replyMessage({ message_text: 'actually it was 20 boxes of tiles @ 800 for tile work' }));
+
+      expect(draftUpdateMock).toHaveBeenCalledWith(
+        { id: draft.id },
+        expect.objectContaining({
+          parsed_item: 'tiles',
+          parsed_quantity: 20,
+          parsed_unit: 'boxes',
+          parsed_rate: 800,
+          parsed_trade_category: 'TILE_WORK',
+          status: 'PENDING',
+        }),
+      );
+    });
+
+    it('does not partial-merge when the reply has nothing usable at all — no category, no expense data (existing overwrite-with-nulls behavior)', async () => {
+      const draft = pendingDraft({
+        parsed_item: 'cement',
+        parsed_quantity: 50,
+        parsed_unit: 'bags',
+        parsed_rate: 1490,
+        parsed_trade_category: 'MASON_GREY_STRUCTURE',
+      });
+      extractExpenseMock.mockResolvedValue({
+        extraction: {
+          item: null,
+          quantity: null,
+          unit: null,
+          rate: null,
+          trade_category: null,
+          confidence: 'LOW',
+          mentioned_business_name: null,
+        },
+        raw: { ok: true },
+      });
+
+      await service.handleReply(draft, replyMessage({ message_text: 'yeah I guess' }));
+
+      expect(draftUpdateMock).toHaveBeenCalledWith(
+        { id: draft.id },
+        expect.objectContaining({
+          parsed_item: null,
+          parsed_quantity: null,
+          parsed_unit: null,
+          parsed_rate: null,
+          parsed_trade_category: null,
+          status: 'PENDING',
+        }),
+      );
+    });
+
     it('logs and does not throw when the outbound updated-summary reply fails to send', async () => {
       sendTextMessageMock.mockRejectedValue(new Error('network unreachable'));
       extractExpenseMock.mockResolvedValue({

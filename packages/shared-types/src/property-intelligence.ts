@@ -134,6 +134,19 @@ export const TradeCategorySchema = z.enum([
 export type TradeCategory = z.infer<typeof TradeCategorySchema>;
 export const TRADE_CATEGORIES = TradeCategorySchema.options;
 
+// Single source of truth for a human-readable TradeCategory label (e.g.
+// MASON_GREY_STRUCTURE -> "Mason Grey Structure") — shared so the frontend's
+// TRADE_CATEGORY_OPTIONS (apps/frontend/src/lib/tradeCategories.ts) and the
+// backend's WhatsApp draft-summary text (apps/backend/src/whatsapp) can't
+// drift into two different label algorithms for the same enum.
+export function tradeCategoryLabel(category: TradeCategory): string {
+  return category
+    .toLowerCase()
+    .split('_')
+    .map((w) => w[0].toUpperCase() + w.slice(1))
+    .join(' ');
+}
+
 // ─── SUPPLIER DIRECTORY Chunk 1 ──────────────────────────────────────────────
 // Same organization as TradeCategory above — a Supplier is the material-supply
 // counterpart to Contractor (trades), living in the same property_intelligence

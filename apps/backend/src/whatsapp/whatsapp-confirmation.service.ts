@@ -306,6 +306,48 @@ export class WhatsappConfirmationService {
             raw: { skipped: 'empty_message_text' },
           };
 
+    // CATEGORY-CORRECTION UX — a short reply like "actually tile work" has
+    // no item/quantity/rate for the AI to extract, only a category. Without
+    // this check, the block below would overwrite the draft's real
+    // item/quantity/rate with nulls just because the founder was only
+    // fixing the category. Detected as: a valid trade_category came back,
+    // but item/quantity/rate all came back null — i.e. the reply was too
+    // short/vague to be a real re-description of the expense, yet the AI
+    // still recognized a category in it. A reply with real new expense data
+    // (any of item/quantity/rate present) is a full correction as before,
+    // even if it also changes the category.
+    const isCategoryOnlyCorrection =
+      outcome.extraction.trade_category !== null &&
+      outcome.extraction.item === null &&
+      outcome.extraction.quantity === null &&
+      outcome.extraction.rate === null;
+
+    if (isCategoryOnlyCorrection) {
+      await this.draftRepo.update(
+        { id: draft.id },
+        {
+          parsed_trade_category: outcome.extraction.trade_category,
+          // Explicit, not incidental — this loop can run more than once
+          // (correction after correction) before a confirmation ever lands.
+          status: 'PENDING',
+        },
+      );
+
+      await this.sendReplySafely(
+        message.wa_id,
+        buildDraftSummaryText({
+          item: draft.parsed_item,
+          quantity: draft.parsed_quantity,
+          unit: draft.parsed_unit,
+          rate: draft.parsed_rate,
+          trade_category: outcome.extraction.trade_category,
+          confidence: draft.confidence,
+          mentioned_business_name: draft.parsed_mentioned_business,
+        }),
+      );
+      return;
+    }
+
     await this.draftRepo.update(
       { id: draft.id },
       {

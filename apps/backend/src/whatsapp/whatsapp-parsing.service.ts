@@ -1,6 +1,7 @@
 import { BadGatewayException, BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
+import { tradeCategoryLabel } from '@siraat/shared-types';
 import { WhatsappAiClient, type ExpenseExtraction } from './whatsapp-ai.client';
 import { WhatsappOutboundClient } from './whatsapp-outbound.client';
 import { WhatsappBusinessLinkService } from './whatsapp-business-link.service';
@@ -56,8 +57,15 @@ export function buildDraftSummaryText(extraction: ExpenseExtraction): string {
     parts.push(`${extraction.quantity}`);
   }
   const rateSuffix = extraction.rate != null ? ` @ ${extraction.rate}` : '';
+  // CATEGORY-CORRECTION UX — surfaces the AI-parsed trade category so a
+  // miscategorized expense (e.g. cement filed under MASON_GREY_STRUCTURE
+  // when it was actually TILE_WORK) is catchable before confirming, instead
+  // of only discoverable after the fact. Reuses the same label shown in the
+  // frontend's trade dropdowns (tradeCategoryLabel, @siraat/shared-types) —
+  // not a second, hand-rolled mapping.
+  const categorySuffix = extraction.trade_category ? ` (${tradeCategoryLabel(extraction.trade_category)})` : '';
 
-  return `Got it: ${parts.join(', ')}${rateSuffix}. Reply YES to confirm, or send a correction.`;
+  return `Got it: ${parts.join(', ')}${rateSuffix}${categorySuffix}. Reply YES to confirm, or send a correction.`;
 }
 
 // WHATSAPP INTEGRATION Phase 2 — AI PARSING. Turns one RECEIVED inbound
