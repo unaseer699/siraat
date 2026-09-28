@@ -202,6 +202,27 @@ const CreateProjectBodySchema = z.object({
 });
 type CreateProjectBody = z.infer<typeof CreateProjectBodySchema>;
 
+// --- PATCH /v1/admin/projects/:id (PROJECT EDIT) ---
+// Administrative metadata only — start_date/property_ref/record_type/id stay
+// fixed. Unknown/non-editable keys are silently stripped by z.object's
+// default ("strip unknown keys") behavior, same as every other schema in
+// this file — a body containing only non-editable keys is therefore
+// equivalent to an empty body and rejected by the refine below.
+const UpdateProjectBodySchema = z
+  .object({
+    name: z.string().min(1).optional(),
+    city: z
+      .string()
+      .transform((v) => v.trim())
+      .refine((v) => v.length <= 100, { message: 'city must be at most 100 characters' })
+      .transform((v) => (v === '' ? null : v))
+      .optional(),
+    owner_contact: z.string().min(1).optional(),
+    status: z.enum(PROJECT_STATUSES).optional(),
+  })
+  .refine((data) => Object.keys(data).length > 0, { message: 'At least one field must be provided' });
+type UpdateProjectBody = z.infer<typeof UpdateProjectBodySchema>;
+
 // --- POST /v1/admin/projects/:id/sections ---
 // category reuses the shared TradeCategorySchema (now extended with
 // KITCHEN_WORK/MISCELLANEOUS) rather than a separate enum.
@@ -559,6 +580,14 @@ export class AdminController {
   @HttpCode(201)
   createProject(@Body(new ZodValidationPipe(CreateProjectBodySchema)) body: CreateProjectBody) {
     return this.adminSvc.createProject(body);
+  }
+
+  @Patch('projects/:id')
+  updateProject(
+    @Param('id') id: string,
+    @Body(new ZodValidationPipe(UpdateProjectBodySchema)) body: UpdateProjectBody,
+  ) {
+    return this.adminSvc.updateProject(id, body);
   }
 
   // ADMIN PROJECTS LIST — list view, same pagination pattern as GET
