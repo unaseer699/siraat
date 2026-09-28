@@ -307,6 +307,7 @@ describe('AdminService', () => {
 
   // ConstructionProjectService mocks
   let createProjectMock: jest.Mock;
+  let updateProjectMock: jest.Mock;
   let listProjectsMock: jest.Mock;
   let findProjectByIdMock: jest.Mock;
   let createSectionMock: jest.Mock;
@@ -367,6 +368,7 @@ describe('AdminService', () => {
     createMaterialRateMock     = jest.fn().mockResolvedValue(MATERIAL_RATE_RESULT);
     listMaterialRatesMock      = jest.fn().mockResolvedValue([MATERIAL_RATE_RESULT]);
     createProjectMock          = jest.fn().mockResolvedValue(PROJECT_RESULT);
+    updateProjectMock          = jest.fn().mockResolvedValue({ ...PROJECT_RESULT, city: 'Karachi' });
     listProjectsMock           = jest.fn().mockResolvedValue(PROJECT_LIST_RESPONSE);
     findProjectByIdMock        = jest.fn().mockResolvedValue(PROJECT_RESULT);
     createSectionMock          = jest.fn().mockResolvedValue(SECTION_RESULT);
@@ -444,6 +446,7 @@ describe('AdminService', () => {
           provide: ConstructionProjectService,
           useValue: {
             createProject: createProjectMock,
+            updateProject: updateProjectMock,
             listProjects: listProjectsMock,
             findProjectById: findProjectByIdMock,
             createSection: createSectionMock,
@@ -1160,6 +1163,22 @@ describe('AdminService', () => {
 
     expect(createProjectMock).toHaveBeenCalledWith(input);
     expect(result).toBe(PROJECT_RESULT);
+  });
+
+  // ADMIN PROJECT EDIT — thin passthrough (see admin.service.ts's comment on
+  // updateProject for why there's no separate existence check here, unlike
+  // createProjectSection below).
+  it('updateProject delegates to ConstructionProjectService.updateProject', async () => {
+    const result = await svc.updateProject(PROJECT_ID, { city: 'Karachi' });
+
+    expect(updateProjectMock).toHaveBeenCalledWith(PROJECT_ID, { city: 'Karachi' });
+    expect(result).toEqual({ ...PROJECT_RESULT, city: 'Karachi' });
+  });
+
+  it('updateProject propagates NotFoundException from ConstructionProjectService for an unknown project', async () => {
+    updateProjectMock.mockRejectedValue(new NotFoundException('Project non-existent-uuid not found'));
+
+    await expect(svc.updateProject('non-existent-uuid', { city: 'Karachi' })).rejects.toThrow(NotFoundException);
   });
 
   // ADMIN PROJECTS LIST

@@ -30,6 +30,18 @@ export interface CreateProjectInput {
   city?: string | null;
 }
 
+// ADMIN PROJECT EDIT — PATCH /v1/admin/projects/:id. Administrative metadata
+// only: name/city/owner_contact/status. Not start_date/property_ref/
+// record_type/id — those are identity or WhatsApp-linkage fields, not
+// correctable metadata. All optional; the controller's Zod schema requires
+// at least one to actually be present.
+export interface UpdateProjectInput {
+  name?: string;
+  city?: string | null;
+  owner_contact?: string;
+  status?: ConstructionProjectStatus;
+}
+
 export interface ProjectResult {
   id: string;
   name: string;
@@ -282,6 +294,61 @@ export class ConstructionProjectService {
   async findProjectById(id: string): Promise<ProjectResult | null> {
     const entity = await this.projectRepo.findOneBy({ id });
     return entity ? toProjectResult(entity) : null;
+  }
+
+  // ADMIN PROJECT EDIT — project metadata is administrative, not a financial
+  // claim like ProjectExpenseEntity: there's no ACTIVE/CORRECTED/VOID lineage
+  // for a project row itself, and nothing else in construction_intelligence
+  // logs an Observation against a project's own id. Editing in place is safe
+  // under Law 3 as long as the change is captured in the append-only
+  // Observation ledger below — the same trade-off PropertyIntelligenceService.
+  // updateCandidateSociety makes for CandidateSocietyEntity, for the same
+  // reason (see that method's comment).
+  //
+  // Owns its own existence check, unlike createProjectSection/editProjectExpense
+  // above (where AdminService checks the project exists before a *different*
+  // entity is resolved) — this method already has to load the full project
+  // row to diff old vs. new values, so a separate pre-check would just be the
+  // same query run twice.
+  async updateProject(id: string, data: UpdateProjectInput): Promise<ProjectResult> {
+    const entity = await this.projectRepo.findOneBy({ id });
+    if (!entity) throw new NotFoundException(`Project ${id} not found`);
+
+    const changes: Array<{ field: string; old: string; new: string }> = [];
+
+    if (data.name !== undefined && data.name !== entity.name) {
+      changes.push({ field: 'name', old: entity.name, new: data.name });
+      entity.name = data.name;
+    }
+    if (data.city !== undefined && data.city !== entity.city) {
+      changes.push({ field: 'city', old: entity.city ?? 'null', new: data.city ?? 'null' });
+      entity.city = data.city;
+    }
+    if (data.owner_contact !== undefined && data.owner_contact !== entity.owner_contact) {
+      changes.push({ field: 'owner_contact', old: entity.owner_contact, new: data.owner_contact });
+      entity.owner_contact = data.owner_contact;
+    }
+    if (data.status !== undefined && data.status !== entity.status) {
+      changes.push({ field: 'status', old: entity.status, new: data.status });
+      entity.status = data.status;
+    }
+
+    const saved = await this.projectRepo.save(entity);
+
+    // Fire-and-forget, one Observation per field that actually changed — same
+    // pattern as editExpense/voidExpense below. A field submitted unchanged
+    // (or not submitted at all) logs nothing.
+    for (const change of changes) {
+      void this.ciSvc.logObservation({
+        entity_ref: saved.id,
+        metric: 'project_edit',
+        old_value: change.old,
+        new_value: change.new,
+        source_ref: `Edited project ${saved.id} (${change.field})`,
+      });
+    }
+
+    return toProjectResult(saved);
   }
 
   // ADMIN PROJECTS LIST — GET /v1/admin/projects. Same pagination pattern as

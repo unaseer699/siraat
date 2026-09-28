@@ -214,6 +214,138 @@ describe('ConstructionProjectService', () => {
     });
   });
 
+  // ADMIN PROJECT EDIT
+  describe('updateProject', () => {
+    function buildExistingProject(overrides: object = {}) {
+      return {
+        id: 'proj-a-uuid',
+        name: 'Bahria 1180',
+        property_ref: null,
+        owner_contact: '+92 300 1112222',
+        start_date: '2026-01-15',
+        status: 'ACTIVE' as const,
+        record_type: 'FACT' as const,
+        city: null,
+        ...overrides,
+      };
+    }
+
+    it('throws NotFoundException for an unknown project id and never saves', async () => {
+      projectFindOneByMock.mockResolvedValue(null);
+
+      await expect(service.updateProject('non-existent-uuid', { city: 'Lahore' })).rejects.toThrow(
+        NotFoundException,
+      );
+      expect(projectSaveMock).not.toHaveBeenCalled();
+    });
+
+    it('updates city and returns the new value', async () => {
+      projectFindOneByMock.mockResolvedValue(buildExistingProject());
+
+      const result = await service.updateProject('proj-a-uuid', { city: 'Karachi' });
+
+      expect(result.city).toBe('Karachi');
+      expect(projectSaveMock).toHaveBeenCalledWith(expect.objectContaining({ city: 'Karachi' }));
+    });
+
+    it('updates name, owner_contact and status together', async () => {
+      projectFindOneByMock.mockResolvedValue(buildExistingProject());
+
+      const result = await service.updateProject('proj-a-uuid', {
+        name: 'Bahria 1180 — Phase 2',
+        owner_contact: '+92 300 9998888',
+        status: 'COMPLETE',
+      });
+
+      expect(result.name).toBe('Bahria 1180 — Phase 2');
+      expect(result.owner_contact).toBe('+92 300 9998888');
+      expect(result.status).toBe('COMPLETE');
+    });
+
+    it('leaves start_date and property_ref untouched even if somehow present in the input', async () => {
+      projectFindOneByMock.mockResolvedValue(buildExistingProject());
+
+      // UpdateProjectInput has no start_date/property_ref key at all — this
+      // confirms the service itself never reads/writes them even if a caller
+      // upstream of the Zod schema somehow forwarded extra fields.
+      const result = await service.updateProject('proj-a-uuid', { city: 'Karachi' } as never);
+
+      expect(result.start_date).toBe('2026-01-15');
+      expect(result.property_ref).toBeNull();
+    });
+
+    it('logs one Observation per field that actually changed, with old and new values', async () => {
+      projectFindOneByMock.mockResolvedValue(buildExistingProject({ city: 'Lahore' }));
+
+      await service.updateProject('proj-a-uuid', { city: 'Karachi', status: 'COMPLETE' });
+
+      expect(logObservationMock).toHaveBeenCalledTimes(2);
+      expect(logObservationMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          entity_ref: 'proj-a-uuid',
+          metric: 'project_edit',
+          old_value: 'Lahore',
+          new_value: 'Karachi',
+        }),
+      );
+      expect(logObservationMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          entity_ref: 'proj-a-uuid',
+          metric: 'project_edit',
+          old_value: 'ACTIVE',
+          new_value: 'COMPLETE',
+        }),
+      );
+    });
+
+    it('logs the null sentinel when city is cleared to null', async () => {
+      projectFindOneByMock.mockResolvedValue(buildExistingProject({ city: 'Lahore' }));
+
+      await service.updateProject('proj-a-uuid', { city: null });
+
+      expect(logObservationMock).toHaveBeenCalledWith(
+        expect.objectContaining({ old_value: 'Lahore', new_value: 'null' }),
+      );
+    });
+
+    it('logs no Observation for a field submitted with its current, unchanged value', async () => {
+      projectFindOneByMock.mockResolvedValue(buildExistingProject({ city: 'Karachi' }));
+
+      await service.updateProject('proj-a-uuid', { city: 'Karachi' });
+
+      expect(logObservationMock).not.toHaveBeenCalled();
+    });
+
+    it('logs no Observation at all when no field actually changes', async () => {
+      const existing = buildExistingProject();
+      projectFindOneByMock.mockResolvedValue(existing);
+
+      await service.updateProject('proj-a-uuid', {
+        name: existing.name,
+        owner_contact: existing.owner_contact,
+        status: existing.status,
+      });
+
+      expect(logObservationMock).not.toHaveBeenCalled();
+    });
+
+    it('still returns the updated project when logObservation fails', async () => {
+      projectFindOneByMock.mockResolvedValue(buildExistingProject());
+      // updateProject never awaits logObservation (`void this.ciSvc.logObservation(...)`,
+      // same fire-and-forget shape as editExpense/voidExpense above) — the
+      // no-op .catch here only silences Jest's unhandled-rejection warning
+      // for this deliberately-rejected mock; it isn't what makes the update
+      // succeed, the missing `await` in updateProject already is.
+      const rejection = Promise.reject(new Error('observation write failed'));
+      rejection.catch(() => {});
+      logObservationMock.mockReturnValue(rejection);
+
+      const result = await service.updateProject('proj-a-uuid', { city: 'Karachi' });
+
+      expect(result.city).toBe('Karachi');
+    });
+  });
+
   // ADMIN PROJECTS LIST
   describe('listProjects', () => {
     const PROJECT_A = { id: 'proj-a-uuid', name: 'Bahria 1180', status: 'ACTIVE', start_date: '2026-01-15', property_ref: null, owner_contact: '+92 300 1112222', record_type: 'FACT' };

@@ -23,6 +23,7 @@ import {
 import {
   ConstructionProjectService,
   type CreateProjectInput,
+  type UpdateProjectInput,
   type ProjectResult,
   type ProjectListResponse,
   type CreateSectionInput,
@@ -533,6 +534,16 @@ export class AdminService {
   // POST /v1/admin/projects — no existence check needed, this is the create path.
   async createProject(data: CreateProjectInput): Promise<ProjectResult> {
     return this.cpSvc.createProject(data);
+  }
+
+  // PATCH /v1/admin/projects/:id — thin passthrough. Unlike
+  // createProjectSection/editProjectExpense below, there's no separate
+  // "does the project it belongs to exist" check needed here: this route
+  // edits the project row itself, and ConstructionProjectService.updateProject
+  // already loads that exact row to diff old vs. new values, throwing its own
+  // NotFoundException if it's missing.
+  async updateProject(id: string, data: UpdateProjectInput): Promise<ProjectResult> {
+    return this.cpSvc.updateProject(id, data);
   }
 
   // GET /v1/admin/projects — admin projects list. Same plain-passthrough

@@ -9,6 +9,7 @@ import {
   createSectionExpense,
   editProjectExpense,
   voidProjectExpense,
+  updateProject,
   searchContractorsByName,
   searchSuppliers,
   EXPENSE_UNIT_OPTIONS,
@@ -17,6 +18,8 @@ import {
   type ExpenseStatus,
   type ExpenseUnit,
   type CreateExpenseBody,
+  type UpdateProjectBody,
+  type ConstructionProjectStatus,
 } from '@/lib/api';
 import { TRADE_CATEGORY_OPTIONS } from '@/lib/tradeCategories';
 import { CopyLinkButton } from '@/components/CopyLinkButton';
@@ -51,6 +54,118 @@ function formatQtyRateBreakdown(expense: ExpenseResult): string | null {
 
 function tradeLabel(value: string): string {
   return TRADE_CATEGORY_OPTIONS.find((t) => t.value === value)?.label ?? value;
+}
+
+// ADMIN PROJECT EDIT — same closed status list as admin/new-project/page.tsx's
+// STATUS_OPTIONS.
+const PROJECT_STATUS_OPTIONS: ConstructionProjectStatus[] = ['ACTIVE', 'COMPLETE', 'ON_HOLD'];
+
+interface ProjectEditDraft {
+  name: string;
+  city: string;
+  owner_contact: string;
+  status: ConstructionProjectStatus;
+}
+
+// ADMIN PROJECT EDIT — small pre-filled form for the four administrative
+// fields (name/city/owner_contact/status), matching the EditRow pattern used
+// by admin/house-plans/page.tsx: shared fieldGroupStyle/inputStyle/labelStyle,
+// primaryButtonStyle/plainButtonStyle for Save/Cancel.
+function EditProjectForm({
+  draft,
+  onChange,
+  onSave,
+  onCancel,
+  saving,
+  error,
+}: {
+  draft: ProjectEditDraft;
+  onChange: (next: ProjectEditDraft) => void;
+  onSave: () => void;
+  onCancel: () => void;
+  saving: boolean;
+  error: string | null;
+}) {
+  function handleSubmit(e: FormEvent) {
+    e.preventDefault();
+    onSave();
+  }
+
+  return (
+    <form
+      onSubmit={handleSubmit}
+      style={{
+        display: 'flex',
+        flexDirection: 'column',
+        gap: '12px',
+        padding: '16px',
+        background: '#f9fafb',
+        border: '1px solid var(--border)',
+        borderRadius: RADIUS.md,
+      }}
+    >
+      <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+        <div style={{ ...fieldGroupStyle, flex: 2, minWidth: '200px' }}>
+          <label style={labelStyle}>Name</label>
+          <input
+            type="text"
+            value={draft.name}
+            onChange={(e) => onChange({ ...draft, name: e.target.value })}
+            required
+            style={inputStyle}
+          />
+        </div>
+        <div style={{ ...fieldGroupStyle, flex: 1, minWidth: '140px' }}>
+          <label style={labelStyle}>City</label>
+          <input
+            type="text"
+            value={draft.city}
+            onChange={(e) => onChange({ ...draft, city: e.target.value })}
+            maxLength={100}
+            style={inputStyle}
+          />
+        </div>
+      </div>
+
+      <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+        <div style={{ ...fieldGroupStyle, flex: 2, minWidth: '200px' }}>
+          <label style={labelStyle}>Owner contact</label>
+          <input
+            type="text"
+            value={draft.owner_contact}
+            onChange={(e) => onChange({ ...draft, owner_contact: e.target.value })}
+            required
+            style={inputStyle}
+          />
+        </div>
+        <div style={{ ...fieldGroupStyle, flex: 1, minWidth: '140px' }}>
+          <label style={labelStyle}>Status</label>
+          <select
+            value={draft.status}
+            onChange={(e) => onChange({ ...draft, status: e.target.value as ConstructionProjectStatus })}
+            style={inputStyle}
+          >
+            {PROJECT_STATUS_OPTIONS.map((s) => (
+              <option key={s} value={s}>
+                {s.replace('_', ' ')}
+              </option>
+            ))}
+          </select>
+        </div>
+      </div>
+
+      {error && <p style={{ fontSize: '13px', color: 'var(--error)' }}>{error}</p>}
+
+      <div style={{ display: 'flex', gap: '8px' }}>
+        <button type="submit" disabled={saving} style={primaryButtonStyle(saving)}>
+          {saving ? 'Saving…' : 'Save'}
+        </button>
+        <button type="button" onClick={onCancel} disabled={saving} style={plainButtonStyle}>
+          Cancel
+        </button>
+      </div>
+    </form>
+  );
 }
 
 // ─── PROJECT COST TRACKER Chunk 2 — vendor directory link (optional) ───────
@@ -588,6 +703,12 @@ export default function AdminProjectPage({ params }: Props) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  // ADMIN PROJECT EDIT
+  const [editingProject, setEditingProject] = useState(false);
+  const [projectDraft, setProjectDraft] = useState<ProjectEditDraft | null>(null);
+  const [projectSaving, setProjectSaving] = useState(false);
+  const [projectEditError, setProjectEditError] = useState<string | null>(null);
+
   const [addingSection, setAddingSection] = useState(false);
   const [newSectionCategory, setNewSectionCategory] = useState<TradeCategory>(TRADE_CATEGORY_OPTIONS[0].value);
   const [sectionSubmitting, setSectionSubmitting] = useState(false);
@@ -684,6 +805,47 @@ export default function AdminProjectPage({ params }: Props) {
     const next = !showHistory;
     setShowHistory(next);
     if (next) refetchHistory();
+  }
+
+  // ADMIN PROJECT EDIT — opens pre-filled with the project's current values.
+  function startEditProject() {
+    if (!project) return;
+    setProjectDraft({
+      name: project.name,
+      city: project.city ?? '',
+      owner_contact: project.owner_contact,
+      status: project.status,
+    });
+    setProjectEditError(null);
+    setEditingProject(true);
+  }
+
+  function cancelEditProject() {
+    setEditingProject(false);
+    setProjectDraft(null);
+    setProjectEditError(null);
+  }
+
+  async function saveEditProject() {
+    if (!projectDraft || !project) return;
+    setProjectSaving(true);
+    setProjectEditError(null);
+    try {
+      const body: UpdateProjectBody = {
+        name: projectDraft.name,
+        city: projectDraft.city,
+        owner_contact: projectDraft.owner_contact,
+        status: projectDraft.status,
+      };
+      await updateProject(project.id, body);
+      setEditingProject(false);
+      setProjectDraft(null);
+      await refetchProject();
+    } catch (err) {
+      setProjectEditError(err instanceof Error ? err.message : 'Failed to update project');
+    } finally {
+      setProjectSaving(false);
+    }
   }
 
   async function handleAddSection(e: FormEvent) {
@@ -884,6 +1046,11 @@ export default function AdminProjectPage({ params }: Props) {
             </p>
           </div>
           <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+            {!editingProject && (
+              <button onClick={startEditProject} style={plainButtonStyle}>
+                Edit project
+              </button>
+            )}
             <Link href={`/project/${project.id}`} style={plainButtonLinkStyle}>
               View dashboard →
             </Link>
@@ -893,6 +1060,17 @@ export default function AdminProjectPage({ params }: Props) {
             />
           </div>
         </div>
+
+        {editingProject && projectDraft && (
+          <EditProjectForm
+            draft={projectDraft}
+            onChange={setProjectDraft}
+            onSave={saveEditProject}
+            onCancel={cancelEditProject}
+            saving={projectSaving}
+            error={projectEditError}
+          />
+        )}
 
         <div
           style={{

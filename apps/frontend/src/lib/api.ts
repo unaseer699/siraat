@@ -747,6 +747,23 @@ export async function createProject(data: CreateProjectBody): Promise<ProjectRes
   });
 }
 
+// ADMIN PROJECT EDIT — administrative metadata only (name/city/owner_contact/
+// status); start_date/property_ref/record_type/id aren't editable. Partial:
+// only the fields present are changed, same convention as UpdateHousePlanBody.
+export interface UpdateProjectBody {
+  name?: string;
+  city?: string | null;
+  owner_contact?: string;
+  status?: ConstructionProjectStatus;
+}
+
+export async function updateProject(id: string, data: UpdateProjectBody): Promise<ProjectResult> {
+  return apiFetch(`/v1/admin/projects/${id}`, {
+    method: 'PATCH',
+    body: JSON.stringify(data),
+  });
+}
+
 // ADMIN PROJECTS LIST — a lighter-weight row than ProjectResult (no
 // property_ref/owner_contact/record_type), plus `total`: the ACTIVE-only
 // expense sum across every section, same figure the project detail page's
