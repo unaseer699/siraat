@@ -9,6 +9,7 @@ import {
 import { TRADE_CATEGORY_OPTIONS } from '@/lib/tradeCategories';
 import { RADIUS } from '@/styles/tokens';
 import WhatsappBadge from '@/components/WhatsappBadge';
+import VendorLabel from '@/components/VendorLabel';
 
 interface Props {
   params: { id: string };
@@ -49,7 +50,7 @@ function ExpenseLine({ expense }: { expense: ExpenseResult }) {
           {expense.source === 'WHATSAPP' && <WhatsappBadge />}
         </span>
         <span style={{ fontSize: '12px', color: 'var(--muted)' }}>
-          {expense.vendor_name} · {formatDate(expense.expense_date)}
+          <VendorLabel vendor_name={expense.vendor_name} source={expense.source} /> · {formatDate(expense.expense_date)}
         </span>
       </div>
       <span

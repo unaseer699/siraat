@@ -24,6 +24,7 @@ import {
 import { TRADE_CATEGORY_OPTIONS } from '@/lib/tradeCategories';
 import { CopyLinkButton } from '@/components/CopyLinkButton';
 import WhatsappBadge from '@/components/WhatsappBadge';
+import VendorLabel from '@/components/VendorLabel';
 import { fieldGroupStyle, inputStyle, labelStyle } from '../../constants';
 import { AdminNav } from '../../AdminNav';
 import { TRUST_GREEN, RADIUS } from '@/styles/tokens';
@@ -579,7 +580,7 @@ function ExpenseRow({
         </div>
       </td>
       <td style={tdStyle}>
-        {expense.vendor_name}
+        <VendorLabel vendor_name={expense.vendor_name} source={expense.source} />
         {(expense.linked_contractor_id || expense.linked_supplier_id) && (
           <span style={{ fontSize: '11px', color: TRUST_GREEN, marginLeft: '6px' }}>✓ linked</span>
         )}
@@ -629,7 +630,9 @@ function HistoryExpenseRow({ expense }: { expense: ExpenseResult }) {
           )}
         </div>
       </td>
-      <td style={tdStyle}>{expense.vendor_name}</td>
+      <td style={tdStyle}>
+        <VendorLabel vendor_name={expense.vendor_name} source={expense.source} />
+      </td>
       <td style={{ ...tdStyle, textAlign: 'right' }}>
         <div style={{ textDecoration: 'line-through' }}>
           {expense.amount < 0 ? '−' : ''}
