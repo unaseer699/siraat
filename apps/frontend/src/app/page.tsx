@@ -490,16 +490,32 @@ function HomeView() {
         />
       </div>
 
-      {/* TOOLS PAGE (P2) — quiet secondary line, not a card, so it doesn't
-          compete with the three primary feature cards above. Same restrained
-          styling as the hero's "See how we verify every claim →" link. */}
-      <p style={{ fontSize: '13px', color: 'var(--muted)', textAlign: 'center', margin: 0 }}>
-        Looking for contractors, suppliers or house plans?
-        <br />
-        <Link href="/tools" style={{ fontSize: '13px', fontWeight: 600, color: 'var(--muted)' }}>
-          Browse Tools →
-        </Link>
-      </p>
+      {/* TOOLS PAGE (P2, corrected) — a left accent bar + readable text keep
+          this legible without promoting it to a card: no background fill,
+          no border-radius, no shadow, just a line with an accent, still
+          visually lighter-weight than the three primary cards above it. */}
+      <div style={{ width: '100%', maxWidth: '720px', display: 'flex', justifyContent: 'center' }}>
+        <p
+          style={{
+            borderLeft: `3px solid ${TRUST_GREEN}`,
+            paddingLeft: '14px',
+            margin: 0,
+            fontSize: '13px',
+            color: 'var(--text)',
+            textAlign: 'left',
+          }}
+        >
+          Looking for contractors, suppliers or house plans?
+          <br />
+          <Link
+            href="/tools"
+            className="tools-link"
+            style={{ fontSize: '13px', fontWeight: 600, color: TRUST_GREEN }}
+          >
+            Browse Tools →
+          </Link>
+        </p>
+      </div>
 
       <SecondarySearch
         onSearch={handleSearch}

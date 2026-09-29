@@ -35,3 +35,10 @@ a { color: var(--brand); text-decoration: none; }
 .qa-card:hover {
   border-color: var(--brand);
 }
+
+/* Homepage "Browse Tools" line (apps/frontend/src/app/page.tsx) — same
+   minimal hover convention as .qa-card above: an underline appears on
+   hover, nothing else (no transform/shadow). */
+.tools-link:hover {
+  text-decoration: underline;
+}
