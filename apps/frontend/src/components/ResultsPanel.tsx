@@ -153,9 +153,16 @@ export function ResultsPanel({ result, compareSelection, onToggleCompare }: Prop
         >
           {meta.label}
         </span>
-        <span style={{ fontSize: '14px', color: 'var(--muted)' }}>
-          {result.recommendations.length} result{result.recommendations.length !== 1 ? 's' : ''}
-        </span>
+        {/* HOMEPAGE REDESIGN — a numeric "0 results" chip next to "Limited
+            Data"/"Not Covered" read as broken; the state pill plus the
+            explanatory block below (NOT_COVERED message, DEGRADED_SUCCESS
+            missing_evidence) already say why there's nothing to show, so the
+            count is only useful when there's something to count. */}
+        {result.recommendations.length > 0 && (
+          <span style={{ fontSize: '14px', color: 'var(--muted)' }}>
+            {result.recommendations.length} result{result.recommendations.length !== 1 ? 's' : ''}
+          </span>
+        )}
       </div>
 
       {result.state === 'NOT_COVERED' && (
