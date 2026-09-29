@@ -1,15 +1,12 @@
 'use client';
 
-import { Suspense, useEffect, useRef, useState, type ComponentType } from 'react';
+import { Suspense, useEffect, useRef, useState, type ComponentType, type CSSProperties } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import {
   Scale,
   Building2,
   ShieldCheck,
-  Wrench,
-  Package,
-  Home as HomeIcon,
   Check,
   FileCheck,
   MapPin,
@@ -36,38 +33,43 @@ import {
 // Static, always-true methodology claims — describe HOW Siraat works, not
 // current data volume, so these are never wired to a live count.
 const TRUST_STRIP_ITEMS = [
-  'Verified against CDA and RDA records',
+  'Verified against CDA & RDA records',
   'Human-reviewed evidence',
   'No fabricated data',
 ];
 
-// A count of 0 (fresh install / no data yet) is shown as an honest "Just
-// getting started" rather than a bare "0" that could read as a broken/errored
-// metric — same honesty principle the platform applies to its own coverage
-// data (see NOT_COVERED state elsewhere). Carried over unchanged from the
-// prior pass; only the card presentation below has changed.
-function statValue(count: number): string {
-  return count === 0 ? 'Just getting started' : count.toLocaleString();
-}
+// HOMEPAGE REDESIGN (P0, 29 Sep) — nearest existing routes for the two hero
+// CTAs, chosen per the brief's own rule ("nearest existing ... route"). Both
+// are exact matches, not fallbacks: /browse is the existing society browse/
+// list page, /construction-estimate is the existing cost-estimate flow.
+const CHECK_SOCIETY_HREF = '/browse';
+const ESTIMATE_BUILD_COST_HREF = '/construction-estimate';
+
+// Equal visual weight per the brief — both hero CTAs share this style, only
+// the label differs.
+const heroCtaStyle: CSSProperties = {
+  flex: '1 1 220px',
+  textAlign: 'center',
+  padding: '14px 20px',
+  background: 'var(--brand)',
+  color: '#fff',
+  borderRadius: RADIUS.md,
+  fontSize: '15px',
+  fontWeight: 700,
+  textDecoration: 'none',
+};
 
 // Trust-style hero band: flat tinted container (TRUST_GREEN_BG/BORDER/TEXT,
 // imported from tokens.ts) with a
-// small evidence-badge pill, title, tagline, a distinct white bordered search
-// card, and the trust strip attached directly beneath. Single rounded shell
-// (border-radius + overflow:hidden on the outer wrapper) rather than juggling
-// single-sided border-radius on two separate stacked elements — the hero
-// zone and trust-strip zone inside it have no radius of their own at all.
-function HeroBand({
-  onSearch,
-  loading,
-  initialValue,
-  showHint,
-}: {
-  onSearch: (query: string, opts?: { skipUrlUpdate?: boolean }) => void;
-  loading: boolean;
-  initialValue: string;
-  showHint: boolean;
-}) {
+// small evidence-badge pill, title, tagline, two equal-weight CTA buttons
+// (HOMEPAGE REDESIGN — replaces the old free-text search as the primary hero
+// action; search still exists further down the page as a secondary
+// capability, see SecondarySearch below), and the trust strip attached
+// directly beneath. Single rounded shell (border-radius + overflow:hidden on
+// the outer wrapper) rather than juggling single-sided border-radius on two
+// separate stacked elements — the hero zone and trust-strip zone inside it
+// have no radius of their own at all.
+function HeroBand() {
   return (
     <div
       style={{
@@ -122,23 +124,34 @@ function HeroBand({
             background: '#fff',
             border: '1px solid var(--border)',
             borderRadius: RADIUS.lg,
-            padding: '20px',
+            padding: '24px 20px',
             display: 'flex',
             flexDirection: 'column',
             alignItems: 'center',
-            gap: '12px',
+            gap: '14px',
             boxShadow: '0 1px 3px rgba(0,0,0,0.08)',
           }}
         >
-          <SearchBar onSearch={onSearch} loading={loading} initialValue={initialValue} />
+          <div
+            style={{
+              width: '100%',
+              display: 'flex',
+              gap: '12px',
+              flexWrap: 'wrap',
+              justifyContent: 'center',
+            }}
+          >
+            <Link href={CHECK_SOCIETY_HREF} style={heroCtaStyle}>
+              Check a Society
+            </Link>
+            <Link href={ESTIMATE_BUILD_COST_HREF} style={heroCtaStyle}>
+              Estimate Build Cost
+            </Link>
+          </div>
 
-          {showHint && (
-            <p style={{ color: 'var(--muted)', fontSize: '13px', textAlign: 'center' }}>
-              Search in: Islamabad, Rawalpindi
-              <br />
-              e.g. &ldquo;10 Marla plot in Islamabad under 2.5 Crore&rdquo;
-            </p>
-          )}
+          <a href="#how-we-verify" style={{ fontSize: '13px', fontWeight: 600, color: 'var(--muted)' }}>
+            See how we verify every claim →
+          </a>
         </div>
       </div>
 
@@ -167,25 +180,79 @@ function HeroBand({
   );
 }
 
-// Icon-square + number + label, side by side (not stacked) — replaces the
-// prior plain-inline-row stat presentation. Numbers are unchanged: still
-// straight off the live fetchPlatformStats() call passed in from HomeView,
-// with the same statValue() zero-state fallback, just presented as cards.
+// HOMEPAGE REDESIGN — free-text search demoted from the primary hero action
+// to this small, visually quiet section further down the page. Left fully
+// functional (same handleSearch/ResultsPanel/compare-selection wiring as
+// before this change) rather than removed: /compare's empty-state copy
+// ("select 2 or 3 societies... using the checkbox on each result") still
+// refers to this exact flow, so removing it would strand that page.
+function SecondarySearch({
+  onSearch,
+  loading,
+  initialValue,
+  showHint,
+}: {
+  onSearch: (query: string, opts?: { skipUrlUpdate?: boolean }) => void;
+  loading: boolean;
+  initialValue: string;
+  showHint: boolean;
+}) {
+  return (
+    <div
+      style={{
+        width: '100%',
+        maxWidth: '640px',
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        gap: '10px',
+      }}
+    >
+      <p style={{ fontSize: '12px', fontWeight: 600, color: 'var(--muted)' }}>Or search a specific property</p>
+      <SearchBar onSearch={onSearch} loading={loading} initialValue={initialValue} />
+      {showHint && (
+        <p style={{ color: 'var(--muted)', fontSize: '12px', textAlign: 'center' }}>
+          Search in: Islamabad, Rawalpindi
+          <br />
+          e.g. &ldquo;10 Marla plot in Islamabad under 2.5 Crore&rdquo;
+        </p>
+      )}
+    </div>
+  );
+}
+
+// HOMEPAGE REDESIGN — real counts only, never a per-card "Just getting
+// started" placeholder. Three cards each showing the same empty-state text
+// side by side read as a broken product, not an honest early one, so the
+// fallback below only fires when every count is genuinely zero — never for a
+// small-but-real count (8 societies stays "8 societies…", it never falls
+// back just because the number is modest).
+//
+// ASSUMPTION (flagged per the brief's own rule for unmatched copy): the
+// brief's third line reads "Z cities with active material rates", but no
+// existing backend field measures that — cities_covered (PlatformStatsResponse)
+// is PropertyIntelligenceService.listDistinctCities(), i.e. distinct society
+// cities, not cities with material-rate activity, and there's no cross-
+// referenced count of the two. Labeling it "material rates" would be a false
+// claim next to this same page's "No fabricated data" trust-strip item, so
+// this uses the honest label for the real field instead: "cities covered".
 function StatCardsRow({ stats }: { stats: PlatformStatsResponse | null }) {
   if (!stats) return null;
 
-  // Three cards each reading "Just getting started" side by side looks like
-  // a broken/empty product, not an honest early one — collapse to a single
-  // line in that one case instead. Any one metric being non-zero still
-  // shows the normal three-card row (statValue already handles that count
-  // honestly on its own); this only fires when all three are genuinely zero.
   const allZero =
     stats.verified_societies_count === 0 && stats.total_evidence_count === 0 && stats.cities_covered.length === 0;
 
   if (allZero) {
     return (
       <p style={{ fontSize: '13px', color: 'var(--muted)', textAlign: 'center' }}>
-        Just getting started — verified evidence is on its way.
+        Deep coverage starting in Islamabad &amp; Rawalpindi.{' '}
+        {/* Founder decision (correction to original brief): "Request a
+            society" overpromised against its actual destination since no
+            request-flow route exists — /browse is the nearest existing page
+            to see what's covered, so the link text says that instead. */}
+        <Link href="/browse" style={{ fontWeight: 600, color: 'var(--brand)' }}>
+          Explore what&rsquo;s available →
+        </Link>
       </p>
     );
   }
@@ -193,31 +260,31 @@ function StatCardsRow({ stats }: { stats: PlatformStatsResponse | null }) {
   const items: {
     icon: ComponentType<LucideProps>;
     color: string;
-    value: string;
-    label: string;
+    count: number;
+    phrase: string;
     href?: string;
     aria: string;
   }[] = [
     {
       icon: Building2,
       color: ACCENT_BLUE,
-      value: statValue(stats.verified_societies_count),
-      label: 'Societies',
+      count: stats.verified_societies_count,
+      phrase: 'societies with evidence profiles',
       href: '/browse',
       aria: 'Browse verified societies',
     },
     {
       icon: FileCheck,
       color: TRUST_GREEN,
-      value: statValue(stats.total_evidence_count),
-      label: 'Evidence',
+      count: stats.total_evidence_count,
+      phrase: 'verified observations',
       aria: 'Evidence items on record',
     },
     {
       icon: MapPin,
       color: WARNING_AMBER,
-      value: statValue(stats.cities_covered.length),
-      label: 'Cities',
+      count: stats.cities_covered.length,
+      phrase: 'cities covered',
       aria: 'Cities covered',
     },
   ];
@@ -237,6 +304,7 @@ function StatCardsRow({ stats }: { stats: PlatformStatsResponse | null }) {
         const card = (
           <div
             style={{
+              minWidth: 0,
               background: '#fff',
               border: '1px solid var(--border)',
               borderRadius: RADIUS.md,
@@ -260,23 +328,29 @@ function StatCardsRow({ stats }: { stats: PlatformStatsResponse | null }) {
             >
               <Icon size={20} color={item.color} aria-hidden="true" />
             </div>
-            <div style={{ display: 'flex', flexDirection: 'column' }}>
-              <span style={{ fontSize: '20px', fontWeight: 700, color: 'var(--text)' }}>{item.value}</span>
-              <span style={{ fontSize: '12px', color: 'var(--muted)', fontWeight: 600 }}>{item.label}</span>
-            </div>
+            {/* minWidth: 0 — without it, a flex child defaults to its content's
+                min-content size (the longest unbreakable word), which can force
+                this whole grid track wider than its minmax() minimum and
+                overflow the viewport on narrow phones instead of wrapping. */}
+            <span style={{ minWidth: 0, fontSize: '13px', color: 'var(--text)', lineHeight: 1.35 }}>
+              <strong style={{ fontSize: '16px', fontWeight: 800 }}>{item.count.toLocaleString()}</strong>{' '}
+              {item.phrase}
+            </span>
           </div>
         );
         return item.href ? (
           <Link
-            key={item.label}
+            key={item.phrase}
             href={item.href}
             aria-label={item.aria}
-            style={{ color: 'inherit', textDecoration: 'none' }}
+            style={{ minWidth: 0, color: 'inherit', textDecoration: 'none' }}
           >
             {card}
           </Link>
         ) : (
-          <div key={item.label}>{card}</div>
+          <div key={item.phrase} style={{ minWidth: 0 }}>
+            {card}
+          </div>
         );
       })}
     </div>
@@ -295,12 +369,14 @@ function QuickAccessCard({
   title,
   subtitle,
   ariaLabel,
+  id,
 }: {
   href?: string;
   icon: ComponentType<LucideProps>;
   title: string;
   subtitle: string;
   ariaLabel: string;
+  id?: string;
 }) {
   const content = (
     <div
@@ -330,14 +406,19 @@ function QuickAccessCard({
 
   if (!href) {
     return (
-      <div style={{ flex: '1 1 220px', minWidth: '220px' }} aria-label={ariaLabel}>
+      <div id={id} style={{ flex: '1 1 220px', minWidth: '220px', scrollMarginTop: '24px' }} aria-label={ariaLabel}>
         {content}
       </div>
     );
   }
 
   return (
-    <Link href={href} aria-label={ariaLabel} style={{ flex: '1 1 220px', minWidth: '220px', display: 'block' }}>
+    <Link
+      href={href}
+      id={id}
+      aria-label={ariaLabel}
+      style={{ flex: '1 1 220px', minWidth: '220px', display: 'block', scrollMarginTop: '24px' }}
+    >
       {content}
     </Link>
   );
@@ -434,15 +515,15 @@ function HomeView() {
         </Link>
       </div>
 
-      <HeroBand
-        onSearch={handleSearch}
-        loading={loading}
-        initialValue={searchParams.get('q') ?? ''}
-        showHint={!result && !loading && !error}
-      />
+      <HeroBand />
 
       <StatCardsRow stats={stats} />
 
+      {/* HOMEPAGE REDESIGN — down from six equal-weight cards to the two
+          highest-value pillars plus the methodology card the hero's "See how
+          we verify" link scrolls to. Contractors/Suppliers/House Plans move
+          out of the primary homepage per the brief; their pages are
+          untouched and still reachable directly (e.g. from Browse). */}
       <div
         style={{
           width: '100%',
@@ -455,7 +536,7 @@ function HomeView() {
         <QuickAccessCard
           href={compareHref}
           icon={Scale}
-          title="Compare"
+          title="Compare Societies"
           subtitle="See societies side by side"
           ariaLabel="Compare societies"
         />
@@ -467,35 +548,20 @@ function HomeView() {
           ariaLabel="Construction cost estimate"
         />
         <QuickAccessCard
+          id="how-we-verify"
           icon={ShieldCheck}
           title="How We Verify"
-          subtitle="Evidence behind every score"
+          subtitle="Evidence behind every claim"
           ariaLabel="How Siraat verifies societies"
         />
-        <QuickAccessCard
-          href="/contractors"
-          icon={Wrench}
-          title="Contractors"
-          subtitle="Find verified trades near you"
-          ariaLabel="Find contractors"
-        />
-        {/* SUPPLIER DIRECTORY Chunk 3 — 5th quick-access spot, same pattern as Contractors above. */}
-        <QuickAccessCard
-          href="/suppliers"
-          icon={Package}
-          title="Suppliers"
-          subtitle="Find verified material suppliers"
-          ariaLabel="Find suppliers"
-        />
-        {/* HOUSE PLANS DIRECTORY Chunk 2 — 6th quick-access spot, same pattern as Suppliers above. */}
-        <QuickAccessCard
-          href="/house-plans"
-          icon={HomeIcon}
-          title="House Plans"
-          subtitle="Browse ready-made floor plans"
-          ariaLabel="Browse house plans"
-        />
       </div>
+
+      <SecondarySearch
+        onSearch={handleSearch}
+        loading={loading}
+        initialValue={searchParams.get('q') ?? ''}
+        showHint={!result && !loading && !error}
+      />
 
       {error && (
         <div
