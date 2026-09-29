@@ -174,6 +174,22 @@ function HeroBand({
 function StatCardsRow({ stats }: { stats: PlatformStatsResponse | null }) {
   if (!stats) return null;
 
+  // Three cards each reading "Just getting started" side by side looks like
+  // a broken/empty product, not an honest early one — collapse to a single
+  // line in that one case instead. Any one metric being non-zero still
+  // shows the normal three-card row (statValue already handles that count
+  // honestly on its own); this only fires when all three are genuinely zero.
+  const allZero =
+    stats.verified_societies_count === 0 && stats.total_evidence_count === 0 && stats.cities_covered.length === 0;
+
+  if (allZero) {
+    return (
+      <p style={{ fontSize: '13px', color: 'var(--muted)', textAlign: 'center' }}>
+        Just getting started — verified evidence is on its way.
+      </p>
+    );
+  }
+
   const items: {
     icon: ComponentType<LucideProps>;
     color: string;
