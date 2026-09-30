@@ -298,13 +298,23 @@ describe('ConstructionProjectService', () => {
       );
     });
 
-    it('logs the null sentinel when city is cleared to null', async () => {
+    it('logs an honest empty new_value (not the literal string "null") when city is cleared to null', async () => {
       projectFindOneByMock.mockResolvedValue(buildExistingProject({ city: 'Lahore' }));
 
       await service.updateProject('proj-a-uuid', { city: null });
 
       expect(logObservationMock).toHaveBeenCalledWith(
-        expect.objectContaining({ old_value: 'Lahore', new_value: 'null' }),
+        expect.objectContaining({ old_value: 'Lahore', new_value: '' }),
+      );
+    });
+
+    it('logs a real null old_value (not the literal string "null") when city had no prior value', async () => {
+      projectFindOneByMock.mockResolvedValue(buildExistingProject({ city: null }));
+
+      await service.updateProject('proj-a-uuid', { city: 'Karachi' });
+
+      expect(logObservationMock).toHaveBeenCalledWith(
+        expect.objectContaining({ old_value: null, new_value: 'Karachi' }),
       );
     });
 

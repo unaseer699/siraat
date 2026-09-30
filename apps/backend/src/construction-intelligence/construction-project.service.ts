@@ -314,14 +314,20 @@ export class ConstructionProjectService {
     const entity = await this.projectRepo.findOneBy({ id });
     if (!entity) throw new NotFoundException(`Project ${id} not found`);
 
-    const changes: Array<{ field: string; old: string; new: string }> = [];
+    // old is string | null (not just string) so a cleared/never-set field logs
+    // the Observation ledger's own "no prior value" representation (see
+    // ObservationEntity.old_value) instead of the literal text "null". new_value
+    // has no such nullable column, so a field cleared to null logs '' there —
+    // the same "no value" sentinel this codebase already uses elsewhere (e.g.
+    // HousePlanEntity.preview_image_ref) where the column itself isn't nullable.
+    const changes: Array<{ field: string; old: string | null; new: string }> = [];
 
     if (data.name !== undefined && data.name !== entity.name) {
       changes.push({ field: 'name', old: entity.name, new: data.name });
       entity.name = data.name;
     }
     if (data.city !== undefined && data.city !== entity.city) {
-      changes.push({ field: 'city', old: entity.city ?? 'null', new: data.city ?? 'null' });
+      changes.push({ field: 'city', old: entity.city, new: data.city ?? '' });
       entity.city = data.city;
     }
     if (data.owner_contact !== undefined && data.owner_contact !== entity.owner_contact) {

@@ -101,6 +101,54 @@ describe('AdminController — PATCH /v1/admin/projects/:id (integration)', () =>
     expect(updateProjectMock).not.toHaveBeenCalled();
   });
 
+  // WEEK 1 TECH DEBT — name/owner_contact validation: trim, reject
+  // empty-after-trim, max length (same 100-char ceiling as city).
+  it('trims name and owner_contact before forwarding to AdminService', async () => {
+    const res = await patch(
+      '/v1/admin/projects/proj-uuid-0001',
+      { name: '  Bahria 1180  ', owner_contact: '  +92 300 1112222  ' },
+      API_KEY,
+    );
+
+    expect(res.statusCode).toBe(200);
+    expect(updateProjectMock).toHaveBeenCalledWith('proj-uuid-0001', {
+      name: 'Bahria 1180',
+      owner_contact: '+92 300 1112222',
+    });
+  });
+
+  it('rejects a whitespace-only name as a validation error', async () => {
+    const res = await patch('/v1/admin/projects/proj-uuid-0001', { name: '   ' }, API_KEY);
+
+    expect(res.statusCode).toBe(400);
+    expect(JSON.parse(res.payload).error_code).toBe('VALIDATION_ERROR');
+    expect(updateProjectMock).not.toHaveBeenCalled();
+  });
+
+  it('rejects a whitespace-only owner_contact as a validation error', async () => {
+    const res = await patch('/v1/admin/projects/proj-uuid-0001', { owner_contact: '   ' }, API_KEY);
+
+    expect(res.statusCode).toBe(400);
+    expect(JSON.parse(res.payload).error_code).toBe('VALIDATION_ERROR');
+    expect(updateProjectMock).not.toHaveBeenCalled();
+  });
+
+  it('rejects a name over 100 characters as a validation error', async () => {
+    const res = await patch('/v1/admin/projects/proj-uuid-0001', { name: 'x'.repeat(101) }, API_KEY);
+
+    expect(res.statusCode).toBe(400);
+    expect(JSON.parse(res.payload).error_code).toBe('VALIDATION_ERROR');
+    expect(updateProjectMock).not.toHaveBeenCalled();
+  });
+
+  it('rejects an owner_contact over 100 characters as a validation error', async () => {
+    const res = await patch('/v1/admin/projects/proj-uuid-0001', { owner_contact: 'x'.repeat(101) }, API_KEY);
+
+    expect(res.statusCode).toBe(400);
+    expect(JSON.parse(res.payload).error_code).toBe('VALIDATION_ERROR');
+    expect(updateProjectMock).not.toHaveBeenCalled();
+  });
+
   // Non-editable fields are silently stripped (z.object's default "strip
   // unknown keys" behavior) rather than causing a hard rejection when at
   // least one editable field is also present — start_date is ignored here,

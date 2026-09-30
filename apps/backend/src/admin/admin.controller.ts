@@ -208,16 +208,30 @@ type CreateProjectBody = z.infer<typeof CreateProjectBodySchema>;
 // default ("strip unknown keys") behavior, same as every other schema in
 // this file — a body containing only non-editable keys is therefore
 // equivalent to an empty body and rejected by the refine below.
+// name/owner_contact trim + reject-empty-after-trim + max length, same
+// 100-char ceiling as city's existing check just below — unlike city, an
+// empty result here is rejected rather than treated as "clear the field":
+// name/owner_contact have no honest empty state to clear to.
 const UpdateProjectBodySchema = z
   .object({
-    name: z.string().min(1).optional(),
+    name: z
+      .string()
+      .transform((v) => v.trim())
+      .refine((v) => v.length > 0, { message: 'name must not be empty' })
+      .refine((v) => v.length <= 100, { message: 'name must be at most 100 characters' })
+      .optional(),
     city: z
       .string()
       .transform((v) => v.trim())
       .refine((v) => v.length <= 100, { message: 'city must be at most 100 characters' })
       .transform((v) => (v === '' ? null : v))
       .optional(),
-    owner_contact: z.string().min(1).optional(),
+    owner_contact: z
+      .string()
+      .transform((v) => v.trim())
+      .refine((v) => v.length > 0, { message: 'owner_contact must not be empty' })
+      .refine((v) => v.length <= 100, { message: 'owner_contact must be at most 100 characters' })
+      .optional(),
     status: z.enum(PROJECT_STATUSES).optional(),
   })
   .refine((data) => Object.keys(data).length > 0, { message: 'At least one field must be provided' });
