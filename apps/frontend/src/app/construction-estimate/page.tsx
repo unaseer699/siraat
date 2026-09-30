@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import type { EstimateRequest, EstimateResponse } from '@siraat/shared-types';
+import type { BoqRequest, BoqResponse } from '@siraat/shared-types';
 import { fetchConstructionEstimate } from '@/lib/api';
 import { EstimateForm } from '@/components/EstimateForm';
 import { EstimateResults } from '@/components/EstimateResults';
@@ -9,10 +9,10 @@ import { BackLink } from '@/components/BackLink';
 
 export default function ConstructionEstimatePage() {
   const [loading, setLoading] = useState(false);
-  const [result, setResult] = useState<EstimateResponse | null>(null);
+  const [result, setResult] = useState<BoqResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  async function handleSubmit(req: EstimateRequest) {
+  async function handleSubmit(req: BoqRequest) {
     setLoading(true);
     setError(null);
     setResult(null);
@@ -43,10 +43,10 @@ export default function ConstructionEstimatePage() {
 
       <header style={{ textAlign: 'center' }}>
         <h1 style={{ fontSize: '30px', fontWeight: 800, letterSpacing: '-0.5px' }}>
-          Construction Cost Estimate
+          Material + Works BOQ Estimate
         </h1>
         <p style={{ color: 'var(--muted)', marginTop: '4px' }}>
-          Grey-structure material cost, broken down by source and freshness
+          Bill of quantities for materials and works, priced only where verified rates exist
         </p>
       </header>
 

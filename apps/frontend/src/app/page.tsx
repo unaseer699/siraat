@@ -478,7 +478,7 @@ function HomeView() {
           href="/construction-estimate"
           icon={Building2}
           title="Cost Estimate"
-          subtitle="Real material cost breakdown"
+          subtitle="Full material + works BOQ"
           ariaLabel="Construction cost estimate"
         />
         <QuickAccessCard

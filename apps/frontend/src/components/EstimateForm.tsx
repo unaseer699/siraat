@@ -1,31 +1,24 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import type { EstimateRequest, QualityTier } from '@siraat/shared-types';
+import type { BoqRequest, BoqAreaUnit, BoqFloors, FinishLevel } from '@siraat/shared-types';
 import { fetchPlatformStats } from '@/lib/api';
 
 interface EstimateFormProps {
-  onSubmit: (req: EstimateRequest) => void;
+  onSubmit: (req: BoqRequest) => void;
   loading: boolean;
 }
 
-const QUALITY_TIERS: { value: QualityTier; label: string }[] = [
+const FINISH_LEVELS: { value: FinishLevel; label: string }[] = [
   { value: 'ECONOMY', label: 'Economy' },
   { value: 'STANDARD', label: 'Standard' },
   { value: 'PREMIUM', label: 'Premium' },
 ];
 
-const AREA_OPTIONS: { value: number; label: string }[] = [
-  { value: 3, label: '3 Marla' },
-  { value: 5, label: '5 Marla' },
-  { value: 7, label: '7 Marla' },
-  { value: 10, label: '10 Marla' },
-  { value: 20, label: '1 Kanal (20 Marla)' },
-  { value: 40, label: '2 Kanal (40 Marla)' },
-];
+const FLOOR_OPTIONS: BoqFloors[] = [1, 2, 3];
 
 // Sentinel select value for "enter it manually" — distinct from any real city
-// name or area size, so it can't collide with a fetched/listed option.
+// name, so it can't collide with a fetched/listed option.
 const OTHER = 'OTHER';
 
 const fieldStyle = {
@@ -39,15 +32,18 @@ const fieldStyle = {
 
 const selectStyle = { ...fieldStyle, background: '#fff', cursor: 'pointer' };
 
+const labelTextStyle = { fontSize: '13px', fontWeight: 600, color: 'var(--muted)' };
+
 export function EstimateForm({ onSubmit, loading }: EstimateFormProps) {
   const [cities, setCities] = useState<string[]>([]);
   const [citySelect, setCitySelect] = useState('');
   const [cityManual, setCityManual] = useState('');
 
-  const [areaSelect, setAreaSelect] = useState('');
-  const [areaManual, setAreaManual] = useState('');
-
-  const [qualityTier, setQualityTier] = useState<QualityTier>('STANDARD');
+  const [area, setArea] = useState('');
+  const [areaUnit, setAreaUnit] = useState<BoqAreaUnit>('MARLA');
+  const [floors, setFloors] = useState<BoqFloors>(1);
+  const [basement, setBasement] = useState(false);
+  const [finishLevel, setFinishLevel] = useState<FinishLevel>('STANDARD');
 
   useEffect(() => {
     let cancelled = false;
@@ -65,14 +61,21 @@ export function EstimateForm({ onSubmit, loading }: EstimateFormProps) {
   }, []);
 
   const city = citySelect === OTHER ? cityManual.trim() : citySelect;
-  const areaMarla = areaSelect === OTHER ? Number(areaManual) : Number(areaSelect);
+  const areaNumber = Number(area);
 
-  const canSubmit = city.length > 0 && areaSelect.length > 0 && areaMarla > 0;
+  const canSubmit = city.length > 0 && area.length > 0 && areaNumber > 0;
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!canSubmit) return;
-    onSubmit({ city, area_marla: areaMarla, quality_tier: qualityTier });
+    onSubmit({
+      city,
+      area: areaNumber,
+      area_unit: areaUnit,
+      floors,
+      basement,
+      finish_level: finishLevel,
+    });
   }
 
   return (
@@ -87,7 +90,7 @@ export function EstimateForm({ onSubmit, loading }: EstimateFormProps) {
       }}
     >
       <label style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-        <span style={{ fontSize: '13px', fontWeight: 600, color: 'var(--muted)' }}>City</span>
+        <span style={labelTextStyle}>City</span>
         <select
           value={citySelect}
           onChange={(e) => setCitySelect(e.target.value)}
@@ -117,50 +120,66 @@ export function EstimateForm({ onSubmit, loading }: EstimateFormProps) {
       </label>
 
       <label style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-        <span style={{ fontSize: '13px', fontWeight: 600, color: 'var(--muted)' }}>
-          Area (Marla)
-        </span>
-        <select
-          value={areaSelect}
-          onChange={(e) => setAreaSelect(e.target.value)}
-          aria-label="Area in Marla"
-          style={selectStyle}
-        >
-          <option value="" disabled>
-            Select a size…
-          </option>
-          {AREA_OPTIONS.map((a) => (
-            <option key={a.value} value={a.value}>
-              {a.label}
-            </option>
-          ))}
-          <option value={OTHER}>Other (enter custom size)</option>
-        </select>
-        {areaSelect === OTHER && (
+        <span style={labelTextStyle}>Total covered area (sum of all floors)</span>
+        <div style={{ display: 'flex', gap: '8px' }}>
           <input
             type="number"
             min={0}
             step="any"
-            value={areaManual}
-            onChange={(e) => setAreaManual(e.target.value)}
-            placeholder="e.g. 12.5"
-            aria-label="Area in Marla (custom)"
-            style={{ ...fieldStyle, marginTop: '4px' }}
+            value={area}
+            onChange={(e) => setArea(e.target.value)}
+            placeholder="e.g. 2250"
+            aria-label="Total covered area"
+            style={{ ...fieldStyle, flex: 1 }}
           />
-        )}
+          <select
+            value={areaUnit}
+            onChange={(e) => setAreaUnit(e.target.value as BoqAreaUnit)}
+            aria-label="Area unit"
+            style={{ ...selectStyle, width: '110px', flexShrink: 0 }}
+          >
+            <option value="SQFT">sq ft</option>
+            <option value="MARLA">Marla</option>
+          </select>
+        </div>
       </label>
 
       <label style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-        <span style={{ fontSize: '13px', fontWeight: 600, color: 'var(--muted)' }}>
-          Quality tier
-        </span>
+        <span style={labelTextStyle}>Number of floors</span>
         <select
-          value={qualityTier}
-          onChange={(e) => setQualityTier(e.target.value as QualityTier)}
-          aria-label="Quality tier"
+          value={floors}
+          onChange={(e) => setFloors(Number(e.target.value) as BoqFloors)}
+          aria-label="Number of floors"
           style={selectStyle}
         >
-          {QUALITY_TIERS.map((t) => (
+          {FLOOR_OPTIONS.map((f) => (
+            <option key={f} value={f}>
+              {f}
+            </option>
+          ))}
+        </select>
+      </label>
+
+      <label style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+        <input
+          type="checkbox"
+          checked={basement}
+          onChange={(e) => setBasement(e.target.checked)}
+          aria-label="Basement"
+          style={{ width: '18px', height: '18px' }}
+        />
+        <span style={labelTextStyle}>Basement</span>
+      </label>
+
+      <label style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+        <span style={labelTextStyle}>Finish level</span>
+        <select
+          value={finishLevel}
+          onChange={(e) => setFinishLevel(e.target.value as FinishLevel)}
+          aria-label="Finish level"
+          style={selectStyle}
+        >
+          {FINISH_LEVELS.map((t) => (
             <option key={t.value} value={t.value}>
               {t.label}
             </option>
@@ -183,7 +202,7 @@ export function EstimateForm({ onSubmit, loading }: EstimateFormProps) {
           opacity: loading || !canSubmit ? 0.7 : 1,
         }}
       >
-        {loading ? 'Estimating…' : 'Estimate cost'}
+        {loading ? 'Estimating…' : 'Generate BOQ'}
       </button>
     </form>
   );

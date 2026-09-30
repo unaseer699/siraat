@@ -1,22 +1,52 @@
 import { z } from 'zod';
 import { RecordTypeSchema } from './market-intelligence';
 
-// ─── POST /v1/construction-intelligence/estimates ─────────────────────────────
+// ─── POST /v1/construction-intelligence/estimates — MATERIAL + WORKS BOQ ──────
+// v1 replaces the original grey-structure-only (5 material) estimate entirely —
+// see boq-catalog.ts for the approved Step 0 ratios/formulas this is built from.
 
-export const QualityTierSchema = z.enum(['ECONOMY', 'STANDARD', 'PREMIUM']);
-export type QualityTier = z.infer<typeof QualityTierSchema>;
+export const FinishLevelSchema = z.enum(['ECONOMY', 'STANDARD', 'PREMIUM']);
+export type FinishLevel = z.infer<typeof FinishLevelSchema>;
 
-export const EstimateRequestSchema = z.object({
+export const BoqAreaUnitSchema = z.enum(['SQFT', 'MARLA']);
+export type BoqAreaUnit = z.infer<typeof BoqAreaUnitSchema>;
+
+export const BoqFloorsSchema = z.union([z.literal(1), z.literal(2), z.literal(3)]);
+export type BoqFloors = z.infer<typeof BoqFloorsSchema>;
+
+export const BoqRequestSchema = z.object({
   city: z.string().min(1),
-  area_marla: z.number().positive(),
-  quality_tier: QualityTierSchema,
+  area: z.number().positive(),
+  area_unit: BoqAreaUnitSchema,
+  floors: BoqFloorsSchema,
+  basement: z.boolean(),
+  finish_level: FinishLevelSchema,
 });
-export type EstimateRequest = z.infer<typeof EstimateRequestSchema>;
+export type BoqRequest = z.infer<typeof BoqRequestSchema>;
 
-// The five core grey-structure materials an estimate is built from. A city needs
-// at least one non-stale rate for each of these to reach a FULL estimate.
-export const CoreMaterialKeySchema = z.enum(['CEMENT', 'STEEL', 'BRICKS', 'SAND', 'CRUSH']);
-export type CoreMaterialKey = z.infer<typeof CoreMaterialKeySchema>;
+// The exact 15-item v1 list (Step 0, approved) — 6 Core Materials + 9
+// Additional Works & Items. Do not add items beyond this list (brief's own
+// constraint) without a fresh Step-0-style review of its ratio/sourcing.
+export const BoqItemKeySchema = z.enum([
+  // Core Materials
+  'CEMENT',
+  'STEEL',
+  'BRICKS',
+  'SAND',
+  'CRUSH',
+  'PAINT',
+  // Additional Works & Items
+  'EXCAVATION',
+  'BORING',
+  'PLUMBING_ROUGH_IN',
+  'ELECTRICAL_ROUGH_IN',
+  'MARBLE_STAIRS',
+  'WINDOWS',
+  'DOORS',
+  'KITCHEN_WOODWORK',
+  'HARDWARE',
+]);
+export type BoqItemKey = z.infer<typeof BoqItemKeySchema>;
 
 // WHATSAPP INTEGRATION Phase 6a — FIELD_REPORTED: founder/site-reported
 // actual purchase prices confirmed over WhatsApp (first-party FACT, not a
@@ -66,31 +96,59 @@ export const MaterialRateItemSchema = z.object({
 });
 export type MaterialRateItem = z.infer<typeof MaterialRateItemSchema>;
 
-// One line of the "show your work" breakdown — always present for all 5 core
-// materials, even when no rate could be found (unit_rate/subtotal null, is_stale
-// true), so the caller can see exactly what's missing rather than a silent gap.
-export const EstimateLineItemSchema = z.object({
-  material_key: CoreMaterialKeySchema,
-  material_name: z.string(),
-  quantity: z.number(),
+// One line of the BOQ table — always present for all 15 items, even the 9
+// with no sourced quantity ratio (Step 0 Tier C: available=false, quantity/
+// unit_rate/subtotal all null, notes explains why). "Always show quantities"
+// per the brief means always show the ROW; it does not mean fabricating a
+// number for an item with no defensible ratio — that's exactly what Tier C's
+// available=false honestly represents instead.
+export const BoqLineItemSchema = z.object({
+  item_key: BoqItemKeySchema,
+  item_name: z.string(),
   unit: z.string(),
+  // null only for Tier C items (available=false) — never a fabricated number.
+  quantity: z.number().nullable(),
   unit_rate: z.number().nullable(),
   subtotal: z.number().nullable(),
   source_tier: MaterialRateSourceTierSchema.nullable(),
   source_name: z.string().nullable(),
   recorded_date: z.string().nullable(),
   is_stale: z.boolean(),
+  // One of the 6 Core Materials (Step 0's definition of "major") — grand
+  // total requires a verified rate for every major item, nothing else.
+  is_major: z.boolean(),
+  // false = Step 0 Tier C: no standard planning-stage quantity ratio exists
+  // for this item in any source found — quantity is intentionally not
+  // estimated, not merely "not yet priced" (that's what a null unit_rate on
+  // an available=true item means).
+  available: z.boolean(),
+  notes: z.string().nullable(),
 });
-export type EstimateLineItem = z.infer<typeof EstimateLineItemSchema>;
+export type BoqLineItem = z.infer<typeof BoqLineItemSchema>;
 
-export const EstimateResponseSchema = z.discriminatedUnion('state', [
+// Discriminated three-state shape per CLAUDE.md Law 4 — kept for architectural
+// consistency with every other recommendation/Score-like GENERATED payload in
+// this codebase (Law 5's trust telemetry below), even though NOT_COVERED is
+// never actually emitted by BoqEstimatorService in v1: quantities are pure
+// geometry/ratio math with no dependency on a city having any rate data at
+// all, so there is no "nothing to show" condition the old grey-structure-only
+// estimate had (that one required at least one rate row to exist before
+// returning anything). The type stays three-state so a future capability
+// that DOES have a real "not covered" condition doesn't need a breaking change.
+export const BoqResponseSchema = z.discriminatedUnion('state', [
   z.object({
     state: z.literal('FULL'),
     id: z.string().uuid(),
     city: z.string(),
-    area_marla: z.number(),
-    quality_tier: QualityTierSchema,
-    line_items: z.array(EstimateLineItemSchema),
+    area: z.number(),
+    area_unit: BoqAreaUnitSchema,
+    // Always the converted covered area in sqft, per "1 marla = 225 sqft"
+    // stated on every results page regardless of which unit was entered.
+    area_sqft: z.number(),
+    floors: BoqFloorsSchema,
+    basement: z.boolean(),
+    finish_level: FinishLevelSchema,
+    line_items: z.array(BoqLineItemSchema),
     total_estimate: z.number(),
     confidence_score: z.number().min(0).max(1),
     is_stale: z.literal(false),
@@ -104,15 +162,19 @@ export const EstimateResponseSchema = z.discriminatedUnion('state', [
     state: z.literal('DEGRADED_SUCCESS'),
     id: z.string().uuid(),
     city: z.string(),
-    area_marla: z.number(),
-    quality_tier: QualityTierSchema,
-    line_items: z.array(EstimateLineItemSchema),
-    // Deliberately null, not a partial sum — a grand total missing e.g. steel or
-    // cement would understate cost badly enough to actively mislead. The honest
-    // partial figure is exposed separately as partial_subtotal.
+    area: z.number(),
+    area_unit: BoqAreaUnitSchema,
+    area_sqft: z.number(),
+    floors: BoqFloorsSchema,
+    basement: z.boolean(),
+    finish_level: FinishLevelSchema,
+    line_items: z.array(BoqLineItemSchema),
+    // Deliberately null, not a partial sum — a grand total missing a major
+    // item (e.g. steel or cement) would understate cost badly enough to
+    // actively mislead. The honest partial figure is partial_subtotal instead.
     total_estimate: z.null(),
     partial_subtotal: z.number().nullable(),
-    missing_materials: z.array(z.string()),
+    missing_major_items: z.array(z.string()),
     confidence_score: z.number().min(0).max(1),
     is_stale: z.literal(true),
     staleness_threshold_days: z.number(),
@@ -128,4 +190,4 @@ export const EstimateResponseSchema = z.discriminatedUnion('state', [
     demand_count: z.number().nullable().default(null),
   }),
 ]);
-export type EstimateResponse = z.infer<typeof EstimateResponseSchema>;
+export type BoqResponse = z.infer<typeof BoqResponseSchema>;

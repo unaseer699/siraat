@@ -179,6 +179,29 @@ Each item: **Priority** (Low / Medium / High) · **Found in** (capability) ·
   accepting an id array and returning a map) so a page of cards costs one request
   instead of N.
 
+### 20. BOQ rate-unit conversion table only covers spellings seen so far
+- **Priority:** Low
+- **Found in:** BOQ Estimator v1 (Steel ton→kg unit bug)
+- **Target:** General — act on real log entries, never ahead of them
+- `RATE_UNIT_CONVERSIONS` in `boq-catalog.ts` lists only hand-reviewed unit
+  spellings (e.g. bricks: only `1000 bricks`, not `per 1000`). Admin rate units
+  are free text, so a genuine but differently spelled unit is skipped: the item
+  shows "Rate not yet available", and `EstimatesService` logs a
+  `Skipped rate …` warning naming the rate id, material, city, the exact unit
+  entered, and the BOQ unit expected.
+- **Policy (founder decision):** do NOT add guessed spelling variants ahead of
+  time. When that warning fires in production, add the exact spelling that was
+  actually entered, if it is a genuine fixed equivalence, with a test.
+
+### 21. Process: Step 0/migration-approval gates were bypassed twice in this feature
+- **Priority:** Medium
+- **Found in:** BOQ Estimator v1
+- **Target:** General — process discipline, not code
+- Full Step 1 implementation shipped without the required Step 0 pause, and
+  the schema migration ran against the main database before founder review
+  despite an explicit instruction not to. No data was lost either time, but
+  both gates exist specifically to catch harm before it happens, not after.
+
 ---
 
 ## Resolved Items

@@ -8,8 +8,8 @@ import type {
   PropertyDetail,
   DeveloperProfile,
   DeveloperStats,
-  EstimateRequest,
-  EstimateResponse,
+  BoqRequest,
+  BoqResponse,
   MaterialRateItem,
   CreateMaterialRateBody,
   PlatformStatsResponse,
@@ -185,8 +185,8 @@ export async function fetchPropertyDetail(propertyId: string): Promise<PropertyD
 }
 
 export async function fetchConstructionEstimate(
-  req: EstimateRequest,
-): Promise<EstimateResponse> {
+  req: BoqRequest,
+): Promise<BoqResponse> {
   return apiFetch('/v1/construction-intelligence/estimates', {
     method: 'POST',
     body: JSON.stringify(req),
