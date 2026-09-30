@@ -967,3 +967,68 @@ export interface ContractorSearchResult {
 export async function searchContractorsByName(query: string): Promise<ContractorSearchResult[]> {
   return apiFetch(`/v1/admin/contractors/search?q=${encodeURIComponent(query)}`);
 }
+
+// ─── WHATSAPP REVIEW QUEUE (Week 1 tech debt) ────────────────────────────
+// Frontend for the WHATSAPP INTEGRATION Phase 4 admin review-queue
+// endpoints (admin.controller.ts) — unmapped senders and stuck drafts,
+// previously API-only.
+
+export interface WhatsappUnmappedMessage {
+  id: string;
+  wa_message_id: string;
+  wa_id: string;
+  message_type: string;
+  message_text: string | null;
+  wa_timestamp: string;
+  project_ref: string | null;
+  status: 'RECEIVED' | 'UNMAPPED' | 'PARSED';
+  created_at: string;
+}
+
+// GET /v1/admin/whatsapp-unmapped
+export async function fetchUnmappedWhatsappMessages(): Promise<WhatsappUnmappedMessage[]> {
+  return apiFetch('/v1/admin/whatsapp-unmapped');
+}
+
+export type WhatsappDraftStatus = 'PENDING' | 'CONFIRMED' | 'REJECTED' | 'EDITED' | 'VOID';
+export type WhatsappDraftConfidence = 'HIGH' | 'MEDIUM' | 'LOW';
+
+export interface WhatsappDraft {
+  id: string;
+  inbound_message_id: string;
+  project_ref: string;
+  parsed_item: string | null;
+  parsed_quantity: number | null;
+  parsed_unit: string | null;
+  parsed_rate: number | null;
+  parsed_trade_category: TradeCategory | null;
+  parsed_mentioned_business: string | null;
+  confidence: WhatsappDraftConfidence;
+  status: WhatsappDraftStatus;
+  void_reason: string | null;
+  created_at: string;
+  // Derived by WhatsappParsingService.listDrafts — a PENDING draft nobody
+  // ever replied to, past the confirmation staleness window.
+  stale: boolean;
+}
+
+// GET /v1/admin/whatsapp-drafts?status= — defaults to PENDING on the backend
+// when status is omitted (matches WhatsappParsingService.listDrafts).
+export async function fetchWhatsappDrafts(status?: WhatsappDraftStatus): Promise<WhatsappDraft[]> {
+  const qs = status ? `?status=${status}` : '';
+  return apiFetch(`/v1/admin/whatsapp-drafts${qs}`);
+}
+
+// POST /v1/admin/whatsapp-drafts/:id/void — manual resolution for a stuck
+// PENDING draft; reason is optional (unlike expense voiding).
+export async function voidWhatsappDraft(id: string, reason: string | null): Promise<WhatsappDraft> {
+  return apiFetch(`/v1/admin/whatsapp-drafts/${id}/void`, {
+    method: 'POST',
+    body: JSON.stringify({ reason }),
+  });
+}
+
+// POST /v1/admin/whatsapp-drafts/:id/resend-prompt
+export async function resendWhatsappDraftPrompt(id: string): Promise<{ sent: true }> {
+  return apiFetch(`/v1/admin/whatsapp-drafts/${id}/resend-prompt`, { method: 'POST' });
+}

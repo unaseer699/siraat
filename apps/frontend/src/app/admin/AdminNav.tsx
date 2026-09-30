@@ -2,7 +2,14 @@ import Link from 'next/link';
 import type { CSSProperties } from 'react';
 import { AdminLogoutButton } from './AdminLogoutButton';
 
-type AdminSection = 'candidates' | 'material-rates' | 'contractors' | 'suppliers' | 'house-plans' | 'projects';
+type AdminSection =
+  | 'candidates'
+  | 'material-rates'
+  | 'contractors'
+  | 'suppliers'
+  | 'house-plans'
+  | 'projects'
+  | 'whatsapp-review';
 
 const SECTIONS: { key: AdminSection; href: string; label: string }[] = [
   { key: 'candidates', href: '/admin/candidates', label: 'Candidate Societies' },
@@ -23,6 +30,9 @@ const SECTIONS: { key: AdminSection; href: string; label: string }[] = [
   // points there instead of straight into the create form. That form is
   // still reachable via the list page's "+ New Project" button.
   { key: 'projects', href: '/admin/projects', label: 'Projects' },
+  // WEEK 1 TECH DEBT — WHATSAPP REVIEW QUEUE. Unmapped senders + stuck
+  // drafts, previously API-only (no frontend page existed for it).
+  { key: 'whatsapp-review', href: '/admin/whatsapp-review', label: 'WhatsApp Review' },
 ];
 
 // Shared nav row so the admin tools are reachable from one another instead of
