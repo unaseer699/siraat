@@ -1,3 +1,4 @@
+ // sync-check: force Cloudways to re-sync this directory (remove after verifying deploy)
 import type { BoqItemKey, BoqFloors, FinishLevel } from '@siraat/shared-types';
 
 // MATERIAL + WORKS BOQ ESTIMATOR v1 — replaces the old grey-structure-only
