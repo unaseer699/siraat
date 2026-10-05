@@ -545,7 +545,7 @@ export class AdminService {
     const key = `house-plans/${housePlanId}/images/${imageId}/${data.filename}`;
     const buffer = Buffer.from(data.data_base64, 'base64');
     await this.storageSvc.uploadFile(key, buffer, data.content_type);
-    await this.piSvc.updateHousePlanImageFile(imageId, key);
+    await this.piSvc.updateHousePlanImageFile(imageId, key, data.content_type);
 
     return {
       id: image.id,
@@ -555,6 +555,7 @@ export class AdminService {
       price: Number(image.price),
       display_order: image.display_order,
       has_file: true,
+      content_type: data.content_type,
     };
   }
 

@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState, type CSSProperties } from 'react';
-import { Lock, ImageOff, X } from 'lucide-react';
+import { Lock, ImageOff, FileText, X, ExternalLink } from 'lucide-react';
 import { fetchHousePlanImages, fetchHousePlanImageFileUrl, type HousePlanImage } from '@/lib/api';
 import { HOUSE_PLAN_IMAGE_TYPE_OPTIONS } from '@/lib/housePlanImageTypes';
 import { RADIUS, TRUST_GREEN } from '@/styles/tokens';
@@ -35,12 +35,13 @@ function GalleryTile({
 }: {
   housePlanId: string;
   image: HousePlanImage;
-  onOpenImage: (url: string, label: string) => void;
+  onOpenImage: (url: string, label: string, isPdf: boolean) => void;
   onOpenLocked: (image: HousePlanImage) => void;
 }) {
   const [url, setUrl] = useState<string | null>(null);
   const [failed, setFailed] = useState(false);
 
+  const isPdf = image.content_type === 'application/pdf';
   const unlockable = image.access_tier === 'FREE' && image.has_file;
 
   useEffect(() => {
@@ -58,8 +59,12 @@ function GalleryTile({
     };
   }, [housePlanId, image.id, unlockable]);
 
-  const showImage = unlockable && url && !failed;
-  const clickable = showImage || image.access_tier === 'GATED';
+  // A PDF (common for a 3D-render walkthrough with several camera angles in
+  // one file) never renders as the tile thumbnail — <img> can't show it —
+  // but it's still "unlockable": the tile opens it in the PDF viewer below.
+  const showImage = unlockable && url && !failed && !isPdf;
+  const showPdfTile = unlockable && url && !failed && isPdf;
+  const clickable = showImage || showPdfTile || image.access_tier === 'GATED';
 
   const tileStyle: CSSProperties = {
     position: 'relative',
@@ -81,8 +86,8 @@ function GalleryTile({
   };
 
   function handleClick() {
-    if (showImage && url) {
-      onOpenImage(url, typeLabel(image.image_type));
+    if ((showImage || showPdfTile) && url) {
+      onOpenImage(url, typeLabel(image.image_type), isPdf);
     } else if (image.access_tier === 'GATED') {
       onOpenLocked(image);
     }
@@ -97,12 +102,17 @@ function GalleryTile({
         <>
           {image.access_tier === 'GATED' ? (
             <Lock size={22} color="var(--muted)" aria-hidden="true" />
+          ) : showPdfTile ? (
+            <FileText size={22} color="var(--muted)" aria-hidden="true" />
           ) : (
             <ImageOff size={22} color="var(--muted)" aria-hidden="true" />
           )}
           <span style={{ fontSize: '12px', fontWeight: 600, color: 'var(--muted)' }}>
             {typeLabel(image.image_type)}
           </span>
+          {showPdfTile && (
+            <span style={{ fontSize: '11px', color: 'var(--muted)' }}>Tap to view</span>
+          )}
         </>
       )}
       <span
@@ -139,9 +149,23 @@ function GalleryTile({
   );
 }
 
-// Fullscreen lightbox for a FREE image — tap/click the backdrop or the X to
-// close. No zoom/pan, just a bigger look than the grid tile allows.
-function Lightbox({ url, label, onClose }: { url: string; label: string; onClose: () => void }) {
+// Fullscreen viewer for a FREE image or PDF — tap/click the backdrop or the
+// X to close. An image gets the plain lightbox treatment (no zoom/pan, just
+// a bigger look); a PDF (a multi-page 3D-render walkthrough, say) gets an
+// embedded viewer so it can be scrolled/paged through right here, plus an
+// "Open in new tab" fallback since in-iframe PDF rendering is inconsistent
+// on mobile browsers.
+function Lightbox({
+  url,
+  label,
+  isPdf,
+  onClose,
+}: {
+  url: string;
+  label: string;
+  isPdf: boolean;
+  onClose: () => void;
+}) {
   return (
     <div
       onClick={onClose}
@@ -178,13 +202,43 @@ function Lightbox({ url, label, onClose }: { url: string; label: string; onClose
       >
         <X size={20} color="#fff" />
       </button>
-      {/* eslint-disable-next-line @next/next/no-img-element -- presigned URL */}
-      <img
-        src={url}
-        alt={label}
-        onClick={(e) => e.stopPropagation()}
-        style={{ maxWidth: '100%', maxHeight: '85vh', borderRadius: RADIUS.md, objectFit: 'contain' }}
-      />
+      {isPdf ? (
+        <div
+          onClick={(e) => e.stopPropagation()}
+          style={{ width: '100%', maxWidth: '900px', height: '85vh', display: 'flex', flexDirection: 'column', gap: '10px' }}
+        >
+          <iframe
+            src={url}
+            title={label}
+            style={{ width: '100%', flex: 1, border: 'none', borderRadius: RADIUS.md, background: '#fff' }}
+          />
+          <a
+            href={url}
+            target="_blank"
+            rel="noopener noreferrer"
+            style={{
+              alignSelf: 'center',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              color: '#fff',
+              fontSize: '13px',
+              fontWeight: 600,
+              textDecoration: 'none',
+            }}
+          >
+            <ExternalLink size={14} /> Open in new tab
+          </a>
+        </div>
+      ) : (
+        // eslint-disable-next-line @next/next/no-img-element -- presigned URL
+        <img
+          src={url}
+          alt={label}
+          onClick={(e) => e.stopPropagation()}
+          style={{ maxWidth: '100%', maxHeight: '85vh', borderRadius: RADIUS.md, objectFit: 'contain' }}
+        />
+      )}
       <p style={{ color: '#fff', fontSize: '13px', fontWeight: 600, marginTop: '12px' }}>{label}</p>
     </div>
   );
@@ -292,7 +346,7 @@ export function HousePlanGallery({
   contactWhatsapp: string;
 }) {
   const [images, setImages] = useState<HousePlanImage[] | null>(null);
-  const [lightbox, setLightbox] = useState<{ url: string; label: string } | null>(null);
+  const [lightbox, setLightbox] = useState<{ url: string; label: string; isPdf: boolean } | null>(null);
   const [lockedImage, setLockedImage] = useState<HousePlanImage | null>(null);
 
   useEffect(() => {
@@ -322,7 +376,7 @@ export function HousePlanGallery({
             key={img.id}
             housePlanId={housePlanId}
             image={img}
-            onOpenImage={(url, label) => setLightbox({ url, label })}
+            onOpenImage={(url, label, isPdf) => setLightbox({ url, label, isPdf })}
             onOpenLocked={setLockedImage}
           />
         ))}
@@ -331,7 +385,9 @@ export function HousePlanGallery({
         Locked images are real renders from the plan&apos;s architect — contact us on WhatsApp to unlock.
       </p>
 
-      {lightbox && <Lightbox url={lightbox.url} label={lightbox.label} onClose={() => setLightbox(null)} />}
+      {lightbox && (
+        <Lightbox url={lightbox.url} label={lightbox.label} isPdf={lightbox.isPdf} onClose={() => setLightbox(null)} />
+      )}
       {lockedImage && (
         <LockedImageModal
           image={lockedImage}

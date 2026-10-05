@@ -178,6 +178,7 @@ function toHousePlanImageResult(e: HousePlanImageEntity): HousePlanImage {
     price: Number(e.price),
     display_order: e.display_order,
     has_file: Boolean(e.storage_ref),
+    content_type: e.content_type,
   };
 }
 
@@ -837,8 +838,8 @@ export class PropertyIntelligenceService {
     return this.housePlanImageRepo.findOneBy({ id: imageId });
   }
 
-  async updateHousePlanImageFile(imageId: string, storageRef: string): Promise<void> {
-    await this.housePlanImageRepo.update({ id: imageId }, { storage_ref: storageRef });
+  async updateHousePlanImageFile(imageId: string, storageRef: string, contentType: string): Promise<void> {
+    await this.housePlanImageRepo.update({ id: imageId }, { storage_ref: storageRef, content_type: contentType });
   }
 
   async updateHousePlanImageTier(

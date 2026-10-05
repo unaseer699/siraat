@@ -275,6 +275,12 @@ export interface HousePlanImage {
   price: number;
   display_order: number;
   has_file: boolean;
+  // MIME type of the uploaded file, e.g. 'image/jpeg' or 'application/pdf'.
+  // 3D renders are often delivered as a multi-page PDF (several camera
+  // angles/walkthrough stills in one file) rather than a single image, so
+  // the gallery needs this to pick img vs. a PDF viewer. Null until a file
+  // is uploaded.
+  content_type: string | null;
 }
 
 export interface HousePlanImageListResponse {

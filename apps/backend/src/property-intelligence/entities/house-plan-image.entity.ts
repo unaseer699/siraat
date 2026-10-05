@@ -37,6 +37,13 @@ export class HousePlanImageEntity {
   @Column({ type: 'text', nullable: true })
   storage_ref: string | null;
 
+  // MIME type of the uploaded file. 3D renders are often a multi-page PDF
+  // walkthrough rather than a single image, so the gallery needs this to
+  // choose img vs. a PDF viewer at render time rather than guessing from
+  // the filename. Set together with storage_ref on upload; null until then.
+  @Column({ type: 'varchar', length: 100, nullable: true })
+  content_type: string | null;
+
   @Column({ type: 'int', default: 0 })
   display_order: number;
 

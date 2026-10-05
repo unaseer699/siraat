@@ -148,7 +148,11 @@ export function HousePlanAdminGallery({ housePlanId }: { housePlanId: string }) 
                 {HOUSE_PLAN_IMAGE_TYPE_OPTIONS.find((o) => o.value === img.image_type)?.label}
               </span>
               <span style={{ fontSize: '12px', color: img.has_file ? 'var(--text)' : 'var(--muted)' }}>
-                {img.has_file ? 'File uploaded' : 'No file yet'}
+                {img.has_file
+                  ? img.content_type === 'application/pdf'
+                    ? 'PDF uploaded'
+                    : 'Image uploaded'
+                  : 'No file yet'}
               </span>
               <select
                 value={img.access_tier}
@@ -245,7 +249,13 @@ export function HousePlanAdminGallery({ housePlanId }: { housePlanId: string }) 
         </div>
         <div style={{ ...fieldGroupStyle, minWidth: '180px' }}>
           <label style={labelStyle}>File (optional)</label>
-          <input type="file" accept="image/*" onChange={(e) => setNewFile(e.target.files?.[0] ?? null)} />
+          {/* 3D renders are often delivered as a multi-page PDF walkthrough
+              rather than a single image, so this accepts both. */}
+          <input
+            type="file"
+            accept="image/*,application/pdf"
+            onChange={(e) => setNewFile(e.target.files?.[0] ?? null)}
+          />
         </div>
         <button
           type="submit"
