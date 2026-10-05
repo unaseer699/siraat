@@ -11,6 +11,9 @@ import {
   Check,
   FileCheck,
   MapPin,
+  HardHat,
+  Package,
+  Home,
   type LucideProps,
 } from 'lucide-react';
 import type {
@@ -58,6 +61,23 @@ const heroCtaStyle: CSSProperties = {
   borderRadius: RADIUS.md,
   fontSize: '15px',
   fontWeight: 700,
+  textDecoration: 'none',
+};
+
+// REDESIGN — the pill style for the "Looking for something else?" quick
+// links (Contractors/Suppliers/House Plans), replacing the old single
+// "Browse Tools →" accent-bar line.
+const quickLinkPillStyle: CSSProperties = {
+  display: 'inline-flex',
+  alignItems: 'center',
+  gap: '6px',
+  padding: '8px 14px',
+  border: '1px solid var(--border)',
+  borderRadius: '99px',
+  background: '#fff',
+  fontSize: '13px',
+  fontWeight: 600,
+  color: 'var(--text)',
   textDecoration: 'none',
 };
 
@@ -474,6 +494,7 @@ function HomeView() {
           title="Compare Societies"
           subtitle="See societies side by side"
           ariaLabel="Compare societies"
+          tint={ACCENT_BLUE}
         />
         <QuickAccessCard
           href="/construction-estimate"
@@ -481,6 +502,7 @@ function HomeView() {
           title="Cost Estimate"
           subtitle="Full material + works BOQ"
           ariaLabel="Construction cost estimate"
+          tint={WARNING_AMBER}
         />
         <QuickAccessCard
           id="how-we-verify"
@@ -488,34 +510,33 @@ function HomeView() {
           title="How We Verify"
           subtitle="Evidence behind every claim"
           ariaLabel="How Siraat verifies societies"
+          tint={TRUST_GREEN}
         />
       </div>
 
-      {/* TOOLS PAGE (P2, corrected) — a left accent bar + readable text keep
-          this legible without promoting it to a card: no background fill,
-          no border-radius, no shadow, just a line with an accent, still
-          visually lighter-weight than the three primary cards above it. */}
-      <div style={{ width: '100%', maxWidth: '720px', display: 'flex', justifyContent: 'center' }}>
-        <p
-          style={{
-            borderLeft: `3px solid ${TRUST_GREEN}`,
-            paddingLeft: '14px',
-            margin: 0,
-            fontSize: '13px',
-            color: 'var(--text)',
-            textAlign: 'left',
-          }}
-        >
-          Looking for contractors, suppliers or house plans?
-          <br />
-          <Link
-            href="/tools"
-            className="tools-link"
-            style={{ fontSize: '13px', fontWeight: 600, color: TRUST_GREEN }}
-          >
-            Browse Tools →
-          </Link>
+      {/* REDESIGN — replaces the single generic "Browse Tools →" line (which
+          routed through an extra page) with direct links to the three
+          destinations it used to bundle together, styled as a lightweight
+          quick-link row rather than promoting them to full cards (they're
+          secondary to the three pillars above). */}
+      <div style={{ width: '100%', maxWidth: '720px', display: 'flex', flexDirection: 'column', gap: '10px', alignItems: 'center' }}>
+        <p style={{ fontSize: '12px', fontWeight: 600, color: 'var(--muted)', margin: 0 }}>
+          LOOKING FOR SOMETHING ELSE?
         </p>
+        <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', justifyContent: 'center' }}>
+          <Link href="/contractors" className="quick-link-pill" style={quickLinkPillStyle}>
+            <HardHat size={15} color={TRUST_GREEN} aria-hidden="true" />
+            Contractors
+          </Link>
+          <Link href="/suppliers" className="quick-link-pill" style={quickLinkPillStyle}>
+            <Package size={15} color={TRUST_GREEN} aria-hidden="true" />
+            Suppliers
+          </Link>
+          <Link href="/house-plans" className="quick-link-pill" style={quickLinkPillStyle}>
+            <Home size={15} color={TRUST_GREEN} aria-hidden="true" />
+            House Plans
+          </Link>
+        </div>
       </div>
 
       <SecondarySearch

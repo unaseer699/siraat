@@ -19,6 +19,7 @@ export function QuickAccessCard({
   subtitle,
   ariaLabel,
   id,
+  tint,
 }: {
   href?: string;
   icon: ComponentType<LucideProps>;
@@ -26,6 +27,10 @@ export function QuickAccessCard({
   subtitle: string;
   ariaLabel: string;
   id?: string;
+  // REDESIGN — optional accent color for the icon's circular badge. Omit to
+  // keep the original flat var(--brand) icon (e.g. /tools/page.tsx's reuse
+  // of this component, untouched by this pass).
+  tint?: string;
 }) {
   const content = (
     <div
@@ -34,18 +39,34 @@ export function QuickAccessCard({
         background: '#fff',
         border: '1px solid var(--border)',
         borderRadius: RADIUS.md,
-        padding: '24px 20px',
+        padding: '28px 20px',
         height: '100%',
         display: 'flex',
         flexDirection: 'column',
         alignItems: 'center',
         justifyContent: 'center',
-        gap: '10px',
+        gap: '14px',
         textAlign: 'center',
         boxShadow: '0 1px 3px rgba(0,0,0,0.08)',
       }}
     >
-      <Icon size={26} color="var(--brand)" aria-hidden="true" />
+      {tint ? (
+        <div
+          style={{
+            width: '48px',
+            height: '48px',
+            borderRadius: '50%',
+            background: `${tint}18`,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+          }}
+        >
+          <Icon size={24} color={tint} aria-hidden="true" />
+        </div>
+      ) : (
+        <Icon size={26} color="var(--brand)" aria-hidden="true" />
+      )}
       <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
         <h3 style={{ fontSize: '14px', fontWeight: 700, color: 'var(--text)' }}>{title}</h3>
         <p style={{ fontSize: '12px', color: 'var(--muted)' }}>{subtitle}</p>
