@@ -1,10 +1,10 @@
 'use client';
 
 import { useEffect, useState, type CSSProperties } from 'react';
-import { Lock, ImageOff } from 'lucide-react';
+import { Lock, ImageOff, X } from 'lucide-react';
 import { fetchHousePlanImages, fetchHousePlanImageFileUrl, type HousePlanImage } from '@/lib/api';
 import { HOUSE_PLAN_IMAGE_TYPE_OPTIONS } from '@/lib/housePlanImageTypes';
-import { RADIUS } from '@/styles/tokens';
+import { RADIUS, TRUST_GREEN } from '@/styles/tokens';
 
 function typeLabel(value: string): string {
   return HOUSE_PLAN_IMAGE_TYPE_OPTIONS.find((o) => o.value === value)?.label ?? value;
@@ -14,13 +14,30 @@ function formatPrice(price: number): string {
   return price > 0 ? `Rs. ${price.toLocaleString('en-PK')}` : 'Free';
 }
 
+// wa.me links need a bare digit string — no "+", spaces, or dashes. Same
+// helper as house-plan/[id]/page.tsx (and supplier/contractor profile pages).
+function toWaMeNumber(phone: string): string {
+  return phone.replace(/\D/g, '');
+}
+
 // HOUSE PLAN GALLERY — elevations + 3D render, shown below the floor-plan
 // cover image on the profile page. Every tile carries a price tag (Step 0
 // "no bait and switch" rule), free or gated. A GATED tile never resolves a
 // file URL — the backend refuses that (403) until an unlock flow exists —
-// so it always renders as a locked placeholder with its type and price;
-// there is nothing to click yet.
-function GalleryTile({ housePlanId, image }: { housePlanId: string; image: HousePlanImage }) {
+// so clicking one opens a message pointing at the WhatsApp unlock path
+// instead of an image. A FREE tile with a file opens a simple lightbox for
+// a closer look.
+function GalleryTile({
+  housePlanId,
+  image,
+  onOpenImage,
+  onOpenLocked,
+}: {
+  housePlanId: string;
+  image: HousePlanImage;
+  onOpenImage: (url: string, label: string) => void;
+  onOpenLocked: (image: HousePlanImage) => void;
+}) {
   const [url, setUrl] = useState<string | null>(null);
   const [failed, setFailed] = useState(false);
 
@@ -41,6 +58,9 @@ function GalleryTile({ housePlanId, image }: { housePlanId: string; image: House
     };
   }, [housePlanId, image.id, unlockable]);
 
+  const showImage = unlockable && url && !failed;
+  const clickable = showImage || image.access_tier === 'GATED';
+
   const tileStyle: CSSProperties = {
     position: 'relative',
     width: '100%',
@@ -53,12 +73,23 @@ function GalleryTile({ housePlanId, image }: { housePlanId: string; image: House
     alignItems: 'center',
     justifyContent: 'center',
     gap: '6px',
+    border: 'none',
+    padding: 0,
+    cursor: clickable ? 'pointer' : 'default',
+    font: 'inherit',
+    textAlign: 'center',
   };
 
-  const showImage = unlockable && url && !failed;
+  function handleClick() {
+    if (showImage && url) {
+      onOpenImage(url, typeLabel(image.image_type));
+    } else if (image.access_tier === 'GATED') {
+      onOpenLocked(image);
+    }
+  }
 
   return (
-    <div style={tileStyle}>
+    <button type="button" onClick={handleClick} disabled={!clickable} style={tileStyle}>
       {showImage ? (
         // eslint-disable-next-line @next/next/no-img-element -- presigned URL, not a static asset next/image can optimize
         <img src={url} alt={typeLabel(image.image_type)} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
@@ -104,12 +135,165 @@ function GalleryTile({ housePlanId, image }: { housePlanId: string; image: House
           {typeLabel(image.image_type)}
         </span>
       )}
+    </button>
+  );
+}
+
+// Fullscreen lightbox for a FREE image — tap/click the backdrop or the X to
+// close. No zoom/pan, just a bigger look than the grid tile allows.
+function Lightbox({ url, label, onClose }: { url: string; label: string; onClose: () => void }) {
+  return (
+    <div
+      onClick={onClose}
+      style={{
+        position: 'fixed',
+        inset: 0,
+        background: 'rgba(0,0,0,0.85)',
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'center',
+        zIndex: 1000,
+        padding: '24px',
+      }}
+    >
+      <button
+        type="button"
+        onClick={onClose}
+        aria-label="Close"
+        style={{
+          position: 'absolute',
+          top: '16px',
+          right: '16px',
+          background: 'rgba(255,255,255,0.15)',
+          border: 'none',
+          borderRadius: '999px',
+          width: '36px',
+          height: '36px',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          cursor: 'pointer',
+        }}
+      >
+        <X size={20} color="#fff" />
+      </button>
+      {/* eslint-disable-next-line @next/next/no-img-element -- presigned URL */}
+      <img
+        src={url}
+        alt={label}
+        onClick={(e) => e.stopPropagation()}
+        style={{ maxWidth: '100%', maxHeight: '85vh', borderRadius: RADIUS.md, objectFit: 'contain' }}
+      />
+      <p style={{ color: '#fff', fontSize: '13px', fontWeight: 600, marginTop: '12px' }}>{label}</p>
     </div>
   );
 }
 
-export function HousePlanGallery({ housePlanId }: { housePlanId: string }) {
+// Message shown when a GATED tile is tapped — explains why it's locked and
+// hands off to WhatsApp, same unlock path as the page's main CTA, with a
+// message naming which image was requested.
+function LockedImageModal({
+  image,
+  planTitle,
+  contactWhatsapp,
+  onClose,
+}: {
+  image: HousePlanImage;
+  planTitle: string;
+  contactWhatsapp: string;
+  onClose: () => void;
+}) {
+  const message = `Hi, I'd like to unlock the ${typeLabel(image.image_type)} (${formatPrice(image.price)}) for the "${planTitle}" house plan on Siraat.`;
+  const whatsappHref = `https://wa.me/${toWaMeNumber(contactWhatsapp)}?text=${encodeURIComponent(message)}`;
+
+  return (
+    <div
+      onClick={onClose}
+      style={{
+        position: 'fixed',
+        inset: 0,
+        background: 'rgba(0,0,0,0.5)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        zIndex: 1000,
+        padding: '24px',
+      }}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          background: '#fff',
+          borderRadius: 'var(--radius)',
+          padding: '24px',
+          maxWidth: '360px',
+          width: '100%',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '14px',
+          textAlign: 'center',
+        }}
+      >
+        <Lock size={28} color="var(--muted)" style={{ margin: '0 auto' }} aria-hidden="true" />
+        <div>
+          <p style={{ fontSize: '15px', fontWeight: 700 }}>{typeLabel(image.image_type)} is locked</p>
+          <p style={{ fontSize: '13px', color: 'var(--muted)', marginTop: '4px' }}>
+            This is a real render from the plan&apos;s architect, priced at {formatPrice(image.price)}. Contact us on
+            WhatsApp to unlock it.
+          </p>
+        </div>
+        <a
+          href={whatsappHref}
+          target="_blank"
+          rel="noopener noreferrer"
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: '8px',
+            padding: '12px 16px',
+            background: TRUST_GREEN,
+            color: '#fff',
+            borderRadius: 'var(--radius)',
+            fontSize: '14px',
+            fontWeight: 700,
+            textDecoration: 'none',
+          }}
+        >
+          Contact us on WhatsApp →
+        </a>
+        <button
+          type="button"
+          onClick={onClose}
+          style={{
+            background: 'none',
+            border: 'none',
+            fontSize: '13px',
+            color: 'var(--muted)',
+            cursor: 'pointer',
+            fontWeight: 600,
+          }}
+        >
+          Close
+        </button>
+      </div>
+    </div>
+  );
+}
+
+export function HousePlanGallery({
+  housePlanId,
+  planTitle,
+  contactWhatsapp,
+}: {
+  housePlanId: string;
+  planTitle: string;
+  contactWhatsapp: string;
+}) {
   const [images, setImages] = useState<HousePlanImage[] | null>(null);
+  const [lightbox, setLightbox] = useState<{ url: string; label: string } | null>(null);
+  const [lockedImage, setLockedImage] = useState<HousePlanImage | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -134,12 +318,28 @@ export function HousePlanGallery({ housePlanId }: { housePlanId: string }) {
       </p>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))', gap: '10px' }}>
         {images.map((img) => (
-          <GalleryTile key={img.id} housePlanId={housePlanId} image={img} />
+          <GalleryTile
+            key={img.id}
+            housePlanId={housePlanId}
+            image={img}
+            onOpenImage={(url, label) => setLightbox({ url, label })}
+            onOpenLocked={setLockedImage}
+          />
         ))}
       </div>
       <p style={{ fontSize: '11px', color: 'var(--muted)', marginTop: '8px' }}>
         Locked images are real renders from the plan&apos;s architect — contact us on WhatsApp to unlock.
       </p>
+
+      {lightbox && <Lightbox url={lightbox.url} label={lightbox.label} onClose={() => setLightbox(null)} />}
+      {lockedImage && (
+        <LockedImageModal
+          image={lockedImage}
+          planTitle={planTitle}
+          contactWhatsapp={contactWhatsapp}
+          onClose={() => setLockedImage(null)}
+        />
+      )}
     </div>
   );
 }
