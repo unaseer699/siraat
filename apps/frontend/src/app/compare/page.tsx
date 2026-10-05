@@ -32,6 +32,12 @@ interface SocietyColumn {
   error: string | null;
 }
 
+// UI REVIEW finding — the row-label column previously scrolled away with
+// everything else, so once a mobile user swiped right, the row titles
+// ("Confidence", "Price Range", ...) disappeared along with the column they
+// came to look at. `position: sticky` pins it to the left edge during
+// horizontal scroll; `background` is required for sticky to read correctly
+// over the scrolled content beneath it rather than showing it through.
 const rowLabelCellStyle = {
   padding: '12px 16px',
   fontSize: '13px',
@@ -40,6 +46,10 @@ const rowLabelCellStyle = {
   whiteSpace: 'nowrap' as const,
   borderBottom: '1px solid #e5e7eb',
   verticalAlign: 'middle' as const,
+  position: 'sticky' as const,
+  left: 0,
+  background: '#fff',
+  zIndex: 1,
 };
 
 const cellStyle = {
@@ -141,8 +151,22 @@ function CompareView() {
           {columns.length} societies selected
         </p>
 
-        <div style={{ overflowX: 'auto', marginTop: '20px', borderRadius: RADIUS.md }}>
-          <table style={{ borderCollapse: 'collapse', width: '100%', minWidth: `${180 + columns.length * 220}px` }}>
+        {/* UI REVIEW finding — the table scrolls horizontally on mobile (see
+            overflowX below) but gave no visual hint that it does, and with 3
+            societies compared there was no indicator that a third column sat
+            off-screen. The "Swipe" hint only shows under 700px (table fits
+            without scrolling above that on a typical phone-vs-tablet
+            breakpoint); the edge fade is always visible when scrollable. */}
+        <style>{`
+          @media (min-width: 700px) { .siraat-compare-hint { display: none; } }
+        `}</style>
+        <p className="siraat-compare-hint" style={{ fontSize: '12px', color: 'var(--muted)', marginTop: '12px' }}>
+          ← Swipe to see all {columns.length} societies →
+        </p>
+
+        <div style={{ position: 'relative', marginTop: columns.length > 1 ? '8px' : '20px' }}>
+          <div style={{ overflowX: 'auto', borderRadius: RADIUS.md }}>
+            <table style={{ borderCollapse: 'collapse', width: '100%', minWidth: `${180 + columns.length * 220}px` }}>
             <thead>
               <tr>
                 <th style={{ ...rowLabelCellStyle, background: '#f9fafb', borderBottom: '2px solid #e5e7eb' }} />
@@ -237,7 +261,24 @@ function CompareView() {
                 ))}
               </tr>
             </tbody>
-          </table>
+            </table>
+          </div>
+          {/* Right-edge fade — a constant visual cue that there's more to
+              scroll to, independent of viewport width (unlike the text hint
+              above, this doesn't need a breakpoint: it's just as true on a
+              narrow tablet as a phone). */}
+          <div
+            style={{
+              position: 'absolute',
+              top: 0,
+              right: 0,
+              bottom: 0,
+              width: '24px',
+              background: 'linear-gradient(to right, transparent, rgba(255,255,255,0.9))',
+              pointerEvents: 'none',
+              borderRadius: `0 ${RADIUS.md} ${RADIUS.md} 0`,
+            }}
+          />
         </div>
       </div>
     </main>

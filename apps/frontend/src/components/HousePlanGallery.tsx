@@ -93,8 +93,20 @@ function GalleryTile({
     }
   }
 
+  // UI REVIEW finding — this button's accessible name previously depended
+  // on which branch rendered (the <img alt> in the image case, a visible
+  // text span in the others), which is fragile rather than deliberate.
+  // An explicit aria-label makes the intent (open vs. locked vs.
+  // unavailable) unambiguous for every branch.
+  const ariaLabel =
+    showImage || showPdfTile
+      ? `View ${typeLabel(image.image_type)}${isPdf ? ' (PDF)' : ''}`
+      : image.access_tier === 'GATED'
+        ? `${typeLabel(image.image_type)} — locked, unlock to view`
+        : `${typeLabel(image.image_type)} — image unavailable`;
+
   return (
-    <button type="button" onClick={handleClick} disabled={!clickable} style={tileStyle}>
+    <button type="button" onClick={handleClick} disabled={!clickable} style={tileStyle} aria-label={ariaLabel}>
       {showImage ? (
         // eslint-disable-next-line @next/next/no-img-element -- presigned URL, not a static asset next/image can optimize
         <img src={url} alt={typeLabel(image.image_type)} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
@@ -320,6 +332,7 @@ function LockedImageModal({
         <button
           type="button"
           onClick={onClose}
+          aria-label="Close"
           style={{
             background: 'none',
             border: 'none',
