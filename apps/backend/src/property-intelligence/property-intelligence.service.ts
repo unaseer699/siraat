@@ -325,20 +325,21 @@ export class PropertyIntelligenceService {
   // society-header string (e.g. "Faisal hills") against the Society
   // directory, used only to populate PropertyListingEntity.society_ref/city
   // when publishing a draft listing. Deliberately loose (substring,
-  // case-insensitive, either direction) rather than exact — unlike
-  // findSocietyByNameAndCity's dedup check, a miss here is NOT an error: a
-  // forwarded listing is still published with society_ref left null (see
+  // case-insensitive) rather than exact — unlike findSocietyByNameAndCity's
+  // dedup check, a miss here is NOT an error: a forwarded listing is still
+  // published with society_ref left null (see
   // WhatsappListingParsingService.publishDraft) rather than blocked on a
   // perfect match existing. Returns the first match if more than one; no
-  // ranking beyond "found something."
+  // ranking beyond "found something." Kept to a single parameterized LIKE
+  // (no CONCAT/reverse-direction OR) — a match attempt must never be the
+  // thing that makes Publish fail.
   async findSocietyByNameFuzzy(nameRaw: string): Promise<SocietyResult | null> {
     const trimmed = nameRaw.trim();
     if (!trimmed) return null;
 
     const entity = await this.societyRepo
       .createQueryBuilder('s')
-      .where('LOWER(s.name) LIKE LOWER(:pattern)', { pattern: `%${trimmed}%` })
-      .orWhere('LOWER(:name) LIKE LOWER(CONCAT(\'%\', s.name, \'%\'))', { name: trimmed })
+      .where('s.name ILIKE :pattern', { pattern: `%${trimmed}%` })
       .getOne();
     return entity ? toSocietyResult(entity) : null;
   }
@@ -1140,7 +1141,17 @@ export class PropertyIntelligenceService {
     source_ref: string;
     expires_at: Date;
   }): Promise<PropertyListingSummary> {
-    const matchedSociety = await this.findSocietyByNameFuzzy(data.society_name_raw);
+    // Never let the match attempt block the publish itself — same
+    // "a nice-to-have enrichment must not take down the primary action"
+    // discipline as logObservation's own try/catch above.
+    let matchedSociety: SocietyResult | null = null;
+    try {
+      matchedSociety = await this.findSocietyByNameFuzzy(data.society_name_raw);
+    } catch (err) {
+      this.logger.warn(
+        `Society fuzzy-match failed for "${data.society_name_raw}" — publishing with society_ref left null: ${err instanceof Error ? err.message : String(err)}`,
+      );
+    }
 
     const entity = this.listingRepo.create({
       ...data,
