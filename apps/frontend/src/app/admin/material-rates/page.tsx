@@ -11,7 +11,8 @@ import {
 } from '@/lib/api';
 import { CANONICAL_CITY_OPTIONS, fieldGroupStyle, inputStyle, labelStyle } from '../constants';
 import { AdminNav } from '../AdminNav';
-import { TRUST_GREEN, WARNING_AMBER, NEUTRAL_GRAY } from '@/styles/tokens';
+import { SourceTierBadge } from '@/components/SourceTierBadge';
+import { TRUST_GREEN, WARNING_AMBER } from '@/styles/tokens';
 
 const SOURCE_TIER_OPTIONS: { value: MaterialRateSourceTier; label: string }[] = [
   { value: 'MARKET_REFERENCE', label: 'Market Reference' },
@@ -22,43 +23,9 @@ function todayIso(): string {
   return new Date().toISOString().slice(0, 10);
 }
 
-// Same visual convention as the public estimate table (EstimateResults.tsx) — a
-// filled green pill for supplier-verified rates, a plain outlined gray label for
-// market-reference ones, so the tier distinction reads consistently everywhere.
-function SourceTierBadge({ tier }: { tier: MaterialRateSourceTier }) {
-  if (tier === 'SUPPLIER_VERIFIED') {
-    return (
-      <span
-        style={{
-          display: 'inline-block',
-          fontSize: '11px',
-          fontWeight: 700,
-          color: TRUST_GREEN,
-          background: `${TRUST_GREEN}18`,
-          padding: '2px 10px',
-          borderRadius: '99px',
-        }}
-      >
-        Supplier Verified
-      </span>
-    );
-  }
-  return (
-    <span
-      style={{
-        display: 'inline-block',
-        fontSize: '11px',
-        fontWeight: 600,
-        color: NEUTRAL_GRAY,
-        border: `1px solid ${NEUTRAL_GRAY}50`,
-        padding: '1px 9px',
-        borderRadius: '99px',
-      }}
-    >
-      Market Reference
-    </span>
-  );
-}
+// SourceTierBadge imported from components/SourceTierBadge.tsx (UI REVIEW
+// finding — was duplicated locally here, in EstimateResults.tsx, and in
+// supplier/[id]/page.tsx).
 
 // SUPPLIER DIRECTORY Chunk 2b — search-as-you-type over GET
 // /admin/suppliers/search?q=, same shape and debounce as new-society/page.tsx's

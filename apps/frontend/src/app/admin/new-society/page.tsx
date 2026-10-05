@@ -3,6 +3,7 @@
 import { Suspense, useEffect, useRef, useState, type CSSProperties, type FormEvent } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
+import { Spinner } from '@/components/Spinner';
 import {
   createSociety,
   searchDevelopers,
@@ -573,7 +574,7 @@ function NewSocietyForm() {
 
 export default function NewSocietyPage() {
   return (
-    <Suspense fallback={null}>
+    <Suspense fallback={<Spinner />}>
       <NewSocietyForm />
     </Suspense>
   );

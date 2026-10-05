@@ -6,6 +6,8 @@ import type { HousePlanStyle, HousePlanSummary } from '@siraat/shared-types';
 import { fetchAdminHousePlans, updateHousePlan, deleteHousePlan } from '@/lib/api';
 import { HOUSE_PLAN_STYLE_OPTIONS } from '@/lib/housePlanStyles';
 import { HousePlanImage } from '@/components/HousePlanImage';
+import { paginationButtonStyle } from '@/styles/pagination';
+import { plainButtonStyle, primaryButtonStyle, dangerButtonStyle } from '../buttonStyles';
 import { HousePlanAdminGallery } from '@/components/HousePlanAdminGallery';
 import { AdminNav } from '../AdminNav';
 import { fieldGroupStyle, inputStyle, labelStyle } from '../constants';
@@ -391,53 +393,7 @@ export default function AdminHousePlansPage() {
 const thStyle: CSSProperties = { padding: '10px 14px', fontWeight: 700, fontSize: '12px' };
 const tdStyle: CSSProperties = { padding: '10px 14px', verticalAlign: 'middle' };
 
-const plainButtonStyle: CSSProperties = {
-  fontSize: '13px',
-  fontWeight: 600,
-  padding: '6px 12px',
-  border: '1px solid var(--border)',
-  borderRadius: 'var(--radius)',
-  background: '#fff',
-  cursor: 'pointer',
-};
+// plainButtonStyle/primaryButtonStyle/dangerButtonStyle imported from
+// ../buttonStyles (UI REVIEW finding — were duplicated locally here, in
+// admin/candidates/page.tsx, and in admin/whatsapp-review/page.tsx).
 
-function primaryButtonStyle(disabled: boolean): CSSProperties {
-  return {
-    fontSize: '13px',
-    fontWeight: 600,
-    padding: '8px 16px',
-    border: 'none',
-    borderRadius: 'var(--radius)',
-    background: disabled ? 'var(--muted)' : '#111',
-    color: '#fff',
-    cursor: disabled ? 'not-allowed' : 'pointer',
-    alignSelf: 'flex-start',
-  };
-}
-
-function dangerButtonStyle(disabled: boolean): CSSProperties {
-  return {
-    fontSize: '13px',
-    fontWeight: 600,
-    padding: '6px 12px',
-    border: '1px solid var(--error)',
-    borderRadius: 'var(--radius)',
-    background: '#fff',
-    color: 'var(--error)',
-    cursor: disabled ? 'not-allowed' : 'pointer',
-    opacity: disabled ? 0.6 : 1,
-  };
-}
-
-function paginationButtonStyle(disabled: boolean): CSSProperties {
-  return {
-    padding: '8px 16px',
-    border: '1px solid var(--border)',
-    borderRadius: 'var(--radius)',
-    background: disabled ? '#f3f4f6' : '#fff',
-    color: disabled ? 'var(--muted)' : 'var(--text)',
-    fontSize: '13px',
-    fontWeight: 600,
-    cursor: disabled ? 'not-allowed' : 'pointer',
-  };
-}

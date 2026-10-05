@@ -1,8 +1,10 @@
 'use client';
 
-import { Suspense, useEffect, useState, type CSSProperties } from 'react';
+import { Suspense, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
+import { Spinner } from '@/components/Spinner';
+import { paginationButtonStyle } from '@/styles/pagination';
 import type { ContractorListResponse, SocietyVerificationStatus } from '@siraat/shared-types';
 import { fetchContractors, fetchPlatformStats } from '@/lib/api';
 import { TRADE_CATEGORY_OPTIONS } from '@/lib/tradeCategories';
@@ -113,18 +115,6 @@ function ContractorCard({ contractor }: { contractor: ContractorListResponse['co
   );
 }
 
-function paginationButtonStyle(disabled: boolean): CSSProperties {
-  return {
-    padding: '8px 16px',
-    border: '1px solid var(--border)',
-    borderRadius: 'var(--radius)',
-    background: disabled ? '#f3f4f6' : '#fff',
-    color: disabled ? 'var(--muted)' : 'var(--text)',
-    fontSize: '13px',
-    fontWeight: 600,
-    cursor: disabled ? 'not-allowed' : 'pointer',
-  };
-}
 
 function ContractorsView() {
   const router = useRouter();
@@ -164,6 +154,12 @@ function ContractorsView() {
       cancelled = true;
     };
   }, [trade, city, page]);
+
+  // UI REVIEW finding — scroll to top on every page change, matching
+  // browse/page.tsx; see its comment for why not on filter change.
+  useEffect(() => {
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }, [page]);
 
   function updateParams(next: { trade?: string; city?: string; page?: number }) {
     const params = new URLSearchParams(searchParams.toString());
@@ -267,19 +263,36 @@ function ContractorsView() {
           </div>
         )}
 
-        {loading ? (
-          <p style={{ color: 'var(--muted)', fontSize: '14px' }}>Loading contractors…</p>
+        {loading && !data ? (
+          <Spinner label="Loading contractors…" />
         ) : data && data.contractors.length === 0 ? (
           <p style={{ color: 'var(--muted)', fontSize: '14px' }}>
             {trade || city ? 'No contractors match these filters.' : 'No contractors on record yet.'}
           </p>
         ) : data ? (
-          <>
+          <div style={{ position: 'relative' }}>
+            {loading && (
+              <div
+                style={{
+                  position: 'absolute',
+                  inset: 0,
+                  background: 'rgba(255,255,255,0.6)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  zIndex: 1,
+                }}
+              >
+                <Spinner />
+              </div>
+            )}
             <div
               style={{
                 display: 'grid',
                 gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))',
                 gap: '16px',
+                opacity: loading ? 0.5 : 1,
+                transition: 'opacity 0.15s',
               }}
             >
               {data.contractors.map((c) => (
@@ -308,7 +321,7 @@ function ContractorsView() {
                 </button>
               </div>
             )}
-          </>
+          </div>
         ) : null}
       </div>
     </main>
@@ -317,7 +330,7 @@ function ContractorsView() {
 
 export default function ContractorsPage() {
   return (
-    <Suspense fallback={null}>
+    <Suspense fallback={<Spinner />}>
       <ContractorsView />
     </Suspense>
   );

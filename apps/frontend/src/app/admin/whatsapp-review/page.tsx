@@ -12,6 +12,7 @@ import {
   type WhatsappDraftStatus,
 } from '@/lib/api';
 import { AdminNav } from '../AdminNav';
+import { plainButtonStyle, dangerButtonStyle } from '../buttonStyles';
 
 // WEEK 1 TECH DEBT — TASK A. Frontend for the WHATSAPP INTEGRATION Phase 4
 // admin review-queue endpoints (admin.controller.ts): unmapped senders (no
@@ -307,26 +308,6 @@ const staleBadgeStyle: CSSProperties = {
   marginLeft: '8px',
 };
 
-const plainButtonStyle: CSSProperties = {
-  fontSize: '13px',
-  fontWeight: 600,
-  padding: '6px 12px',
-  border: '1px solid var(--border)',
-  borderRadius: 'var(--radius)',
-  background: '#fff',
-  cursor: 'pointer',
-};
-
-function dangerButtonStyle(disabled: boolean): CSSProperties {
-  return {
-    fontSize: '13px',
-    fontWeight: 600,
-    padding: '6px 12px',
-    border: '1px solid var(--error)',
-    borderRadius: 'var(--radius)',
-    background: '#fff',
-    color: 'var(--error)',
-    cursor: disabled ? 'not-allowed' : 'pointer',
-    opacity: disabled ? 0.6 : 1,
-  };
-}
+// plainButtonStyle/dangerButtonStyle imported from ../buttonStyles (UI
+// REVIEW finding — were duplicated locally here, in admin/candidates/
+// page.tsx, and in admin/house-plans/page.tsx).

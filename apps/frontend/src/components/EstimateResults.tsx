@@ -1,9 +1,10 @@
 'use client';
 
 import Link from 'next/link';
-import type { BoqResponse, BoqLineItem, MaterialRateSourceTier } from '@siraat/shared-types';
+import type { BoqResponse, BoqLineItem } from '@siraat/shared-types';
 import { ConfidenceGauge } from './ConfidenceGauge';
-import { TRUST_GREEN, WARNING_AMBER, DANGER_RED, NEUTRAL_GRAY, RADIUS } from '../styles/tokens';
+import { SourceTierBadge } from './SourceTierBadge';
+import { TRUST_GREEN, WARNING_AMBER, DANGER_RED, RADIUS } from '../styles/tokens';
 
 function ordinal(n: number): string {
   const s = ['th', 'st', 'nd', 'rd'];
@@ -48,45 +49,8 @@ const cellStyle = {
   verticalAlign: 'middle' as const,
 };
 
-// "Not the same visual weight as verified data" — a filled green pill for supplier-
-// verified rates, versus a plain outlined gray label for market-reference ones.
-function SourceTierBadge({ tier }: { tier: MaterialRateSourceTier | null }) {
-  if (tier === 'SUPPLIER_VERIFIED') {
-    return (
-      <span
-        style={{
-          display: 'inline-block',
-          fontSize: '11px',
-          fontWeight: 700,
-          color: TRUST_GREEN,
-          background: `${TRUST_GREEN}18`,
-          padding: '2px 10px',
-          borderRadius: '99px',
-        }}
-      >
-        Supplier Verified
-      </span>
-    );
-  }
-  if (tier === 'MARKET_REFERENCE' || tier === 'FIELD_REPORTED') {
-    return (
-      <span
-        style={{
-          display: 'inline-block',
-          fontSize: '11px',
-          fontWeight: 600,
-          color: NEUTRAL_GRAY,
-          border: `1px solid ${NEUTRAL_GRAY}50`,
-          padding: '1px 9px',
-          borderRadius: '99px',
-        }}
-      >
-        {tier === 'FIELD_REPORTED' ? 'Field Reported' : 'Market Reference'}
-      </span>
-    );
-  }
-  return null;
-}
+// SourceTierBadge moved to components/SourceTierBadge.tsx — see that file's
+// comment (UI REVIEW finding: this was duplicated in 3 places).
 
 // Excavation and Paint quantities come from generic geometric approximations
 // (see computeExcavationCft / computePaintLiters in boq-catalog.ts), not a

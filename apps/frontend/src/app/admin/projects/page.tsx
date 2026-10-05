@@ -4,6 +4,7 @@ import { useEffect, useState, type CSSProperties } from 'react';
 import Link from 'next/link';
 import { fetchAdminProjects, type ProjectListItem } from '@/lib/api';
 import { AdminNav } from '../AdminNav';
+import { paginationButtonStyle } from '@/styles/pagination';
 
 // ADMIN PROJECTS LIST — same PAGE_SIZE as admin/house-plans/page.tsx (the
 // other real list+pagination page in this admin).
@@ -170,15 +171,3 @@ const newProjectButtonStyle: CSSProperties = {
   whiteSpace: 'nowrap',
 };
 
-function paginationButtonStyle(disabled: boolean): CSSProperties {
-  return {
-    padding: '8px 16px',
-    border: '1px solid var(--border)',
-    borderRadius: 'var(--radius)',
-    background: disabled ? '#f3f4f6' : '#fff',
-    color: disabled ? 'var(--muted)' : 'var(--text)',
-    fontSize: '13px',
-    fontWeight: 600,
-    cursor: disabled ? 'not-allowed' : 'pointer',
-  };
-}

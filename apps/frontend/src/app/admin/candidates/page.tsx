@@ -8,6 +8,7 @@ import {
   deleteCandidateSociety,
   type CandidateSociety,
 } from '@/lib/api';
+import { plainButtonStyle, primaryButtonStyle, dangerButtonStyle } from '../buttonStyles';
 import { AdminNav } from '../AdminNav';
 
 type StatusFilter = 'ALL' | CandidateSociety['status'];
@@ -341,15 +342,9 @@ const statusBadgeStyle: CSSProperties = {
   color: 'var(--text)',
 };
 
-const plainButtonStyle: CSSProperties = {
-  fontSize: '13px',
-  fontWeight: 600,
-  padding: '6px 12px',
-  border: '1px solid var(--border)',
-  borderRadius: 'var(--radius)',
-  background: '#fff',
-  cursor: 'pointer',
-};
+// plainButtonStyle/primaryButtonStyle/dangerButtonStyle imported from
+// ../buttonStyles (UI REVIEW finding — were duplicated locally here, in
+// admin/house-plans/page.tsx, and in admin/whatsapp-review/page.tsx).
 
 const plainButtonLinkStyle: CSSProperties = {
   fontSize: '13px',
@@ -360,29 +355,3 @@ const plainButtonLinkStyle: CSSProperties = {
   display: 'inline-block',
 };
 
-function primaryButtonStyle(disabled: boolean): CSSProperties {
-  return {
-    fontSize: '13px',
-    fontWeight: 600,
-    padding: '6px 12px',
-    border: 'none',
-    borderRadius: 'var(--radius)',
-    background: disabled ? 'var(--muted)' : '#111',
-    color: '#fff',
-    cursor: disabled ? 'not-allowed' : 'pointer',
-  };
-}
-
-function dangerButtonStyle(disabled: boolean): CSSProperties {
-  return {
-    fontSize: '13px',
-    fontWeight: 600,
-    padding: '6px 12px',
-    border: '1px solid var(--error)',
-    borderRadius: 'var(--radius)',
-    background: '#fff',
-    color: 'var(--error)',
-    cursor: disabled ? 'not-allowed' : 'pointer',
-    opacity: disabled ? 0.6 : 1,
-  };
-}

@@ -4,6 +4,7 @@ import { EvidenceDrawer } from '@/components/EvidenceDrawer';
 import { CopyLinkButton } from '@/components/CopyLinkButton';
 import { BackLink } from '@/components/BackLink';
 import StatCard from '@/components/StatCard';
+import { SourceTierBadge } from '@/components/SourceTierBadge';
 import { MATERIAL_CATEGORY_OPTIONS } from '@/lib/materialCategories';
 import { TRUST_GREEN, WARNING_AMBER, DANGER_RED, NEUTRAL_GRAY, REVOKED_SLATE, REVOKED_SLATE_BG, REVOKED_SLATE_BORDER } from '@/styles/tokens';
 import type { VerificationResponse, SocietyVerificationStatus, MaterialRateItem } from '@siraat/shared-types';
@@ -165,44 +166,9 @@ function ClaimCard({ claim, isAdverse }: { claim: VerificationResponse; isAdvers
   );
 }
 
-// SUPPLIER DIRECTORY Chunk 3 — the "Not the same visual weight as verified
-// data" convention (same as EstimateResults.tsx's SourceTierBadge and the
-// admin material-rates table): a filled green pill for supplier-verified
-// rates, a plain outlined gray label for market-reference ones.
-function SourceTierBadge({ tier }: { tier: MaterialRateItem['source_tier'] }) {
-  if (tier === 'SUPPLIER_VERIFIED') {
-    return (
-      <span
-        style={{
-          display: 'inline-block',
-          fontSize: '11px',
-          fontWeight: 700,
-          color: TRUST_GREEN,
-          background: `${TRUST_GREEN}18`,
-          padding: '2px 10px',
-          borderRadius: '99px',
-        }}
-      >
-        Supplier Verified
-      </span>
-    );
-  }
-  return (
-    <span
-      style={{
-        display: 'inline-block',
-        fontSize: '11px',
-        fontWeight: 600,
-        color: NEUTRAL_GRAY,
-        border: `1px solid ${NEUTRAL_GRAY}50`,
-        padding: '1px 9px',
-        borderRadius: '99px',
-      }}
-    >
-      Market Reference
-    </span>
-  );
-}
+// SourceTierBadge imported from components/SourceTierBadge.tsx (UI REVIEW
+// finding — was duplicated locally here, in EstimateResults.tsx, and in
+// admin/material-rates/page.tsx).
 
 // Linked active material rate submissions — via findMaterialRatesBySupplierId
 // (SUPPLIER DIRECTORY Chunk 1), read-only public view of what the admin

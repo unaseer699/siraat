@@ -3,6 +3,7 @@
 import { Suspense, useEffect, useRef, useState, type ComponentType, type CSSProperties } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
+import { Spinner } from '@/components/Spinner';
 import {
   Scale,
   Building2,
@@ -554,7 +555,7 @@ function HomeView() {
 
 export default function HomePage() {
   return (
-    <Suspense fallback={null}>
+    <Suspense fallback={<Spinner />}>
       <HomeView />
     </Suspense>
   );

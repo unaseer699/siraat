@@ -3,6 +3,7 @@
 import { Suspense, useEffect, useState, type CSSProperties, type FormEvent } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
+import { Spinner } from '@/components/Spinner';
 import type { MaterialCategory } from '@siraat/shared-types';
 import {
   addClaimToSupplier,
@@ -367,7 +368,7 @@ function NewSupplierForm() {
 
 export default function NewSupplierPage() {
   return (
-    <Suspense fallback={null}>
+    <Suspense fallback={<Spinner />}>
       <NewSupplierForm />
     </Suspense>
   );

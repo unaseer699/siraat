@@ -1,8 +1,10 @@
 'use client';
 
-import { Suspense, useEffect, useState, type CSSProperties } from 'react';
+import { Suspense, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
+import { Spinner } from '@/components/Spinner';
+import { paginationButtonStyle } from '@/styles/pagination';
 import type { SocietyListResponse, SocietyBrowseSummary } from '@siraat/shared-types';
 import { fetchSocieties, fetchPlatformStats } from '@/lib/api';
 import { BackLink } from '@/components/BackLink';
@@ -107,18 +109,6 @@ function SocietyCard({ society }: { society: SocietyBrowseSummary }) {
   );
 }
 
-function paginationButtonStyle(disabled: boolean): CSSProperties {
-  return {
-    padding: '8px 16px',
-    border: '1px solid var(--border)',
-    borderRadius: 'var(--radius)',
-    background: disabled ? '#f3f4f6' : '#fff',
-    color: disabled ? 'var(--muted)' : 'var(--text)',
-    fontSize: '13px',
-    fontWeight: 600,
-    cursor: disabled ? 'not-allowed' : 'pointer',
-  };
-}
 
 function BrowseView() {
   const router = useRouter();
@@ -157,6 +147,16 @@ function BrowseView() {
       cancelled = true;
     };
   }, [city, page]);
+
+  // UI REVIEW finding — Prev/Next previously left the scroll position
+  // wherever it was on the old page's content, so on a long list the user
+  // stayed scrolled to the bottom after clicking Next. Scroll to top on
+  // every page change (deliberately not on city change, which already
+  // resets page to 1 via updateParams and the user is still looking at the
+  // filter control they just used).
+  useEffect(() => {
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }, [page]);
 
   function updateParams(next: { city?: string; page?: number }) {
     const params = new URLSearchParams(searchParams.toString());
@@ -232,19 +232,41 @@ function BrowseView() {
           </div>
         )}
 
-        {loading ? (
-          <p style={{ color: 'var(--muted)', fontSize: '14px' }}>Loading societies…</p>
+        {loading && !data ? (
+          <Spinner label="Loading societies…" />
         ) : data && data.societies.length === 0 ? (
           <p style={{ color: 'var(--muted)', fontSize: '14px' }}>
             {city ? `No societies found in ${city}.` : 'No societies on record yet.'}
           </p>
         ) : data ? (
-          <>
+          // UI REVIEW finding — a page change previously swapped the whole
+          // grid + Prev/Next controls out for plain "Loading…" text, so the
+          // controls disappeared and reappeared on every click (layout
+          // jump). Keep the stale page's content visible, dimmed, with a
+          // spinner overlay instead, so the controls stay put.
+          <div style={{ position: 'relative' }}>
+            {loading && (
+              <div
+                style={{
+                  position: 'absolute',
+                  inset: 0,
+                  background: 'rgba(255,255,255,0.6)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  zIndex: 1,
+                }}
+              >
+                <Spinner />
+              </div>
+            )}
             <div
               style={{
                 display: 'grid',
                 gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))',
                 gap: '16px',
+                opacity: loading ? 0.5 : 1,
+                transition: 'opacity 0.15s',
               }}
             >
               {data.societies.map((s) => (
@@ -273,7 +295,7 @@ function BrowseView() {
                 </button>
               </div>
             )}
-          </>
+          </div>
         ) : null}
       </div>
     </main>
@@ -282,7 +304,7 @@ function BrowseView() {
 
 export default function BrowsePage() {
   return (
-    <Suspense fallback={null}>
+    <Suspense fallback={<Spinner />}>
       <BrowseView />
     </Suspense>
   );

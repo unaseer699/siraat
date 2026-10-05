@@ -3,6 +3,8 @@
 import { Suspense, useEffect, useState, type CSSProperties } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
+import { Spinner } from '@/components/Spinner';
+import { paginationButtonStyle } from '@/styles/pagination';
 import type { HousePlanListResponse } from '@siraat/shared-types';
 import { fetchHousePlans } from '@/lib/api';
 import { HOUSE_PLAN_STYLE_OPTIONS } from '@/lib/housePlanStyles';
@@ -71,18 +73,6 @@ const selectStyle: CSSProperties = {
   background: '#fff',
 };
 
-function paginationButtonStyle(disabled: boolean): CSSProperties {
-  return {
-    padding: '8px 16px',
-    border: '1px solid var(--border)',
-    borderRadius: 'var(--radius)',
-    background: disabled ? '#f3f4f6' : '#fff',
-    color: disabled ? 'var(--muted)' : 'var(--text)',
-    fontSize: '13px',
-    fontWeight: 600,
-    cursor: disabled ? 'not-allowed' : 'pointer',
-  };
-}
 
 function HousePlansView() {
   const router = useRouter();
@@ -122,6 +112,12 @@ function HousePlansView() {
       cancelled = true;
     };
   }, [areaMin, areaMax, bedrooms, style, page]);
+
+  // UI REVIEW finding — scroll to top on every page change, matching
+  // browse/page.tsx; see its comment for why not on filter change.
+  useEffect(() => {
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }, [page]);
 
   function updateParams(next: {
     area_min?: string;
@@ -241,19 +237,36 @@ function HousePlansView() {
           </div>
         )}
 
-        {loading ? (
-          <p style={{ color: 'var(--muted)', fontSize: '14px' }}>Loading house plans…</p>
+        {loading && !data ? (
+          <Spinner label="Loading house plans…" />
         ) : data && data.house_plans.length === 0 ? (
           <p style={{ color: 'var(--muted)', fontSize: '14px' }}>
             {hasFilters ? 'No house plans match these filters.' : 'No house plans on record yet.'}
           </p>
         ) : data ? (
-          <>
+          <div style={{ position: 'relative' }}>
+            {loading && (
+              <div
+                style={{
+                  position: 'absolute',
+                  inset: 0,
+                  background: 'rgba(255,255,255,0.6)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  zIndex: 1,
+                }}
+              >
+                <Spinner />
+              </div>
+            )}
             <div
               style={{
                 display: 'grid',
                 gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))',
                 gap: '16px',
+                opacity: loading ? 0.5 : 1,
+                transition: 'opacity 0.15s',
               }}
             >
               {data.house_plans.map((p) => (
@@ -282,7 +295,7 @@ function HousePlansView() {
                 </button>
               </div>
             )}
-          </>
+          </div>
         ) : null}
       </div>
     </main>
@@ -291,7 +304,7 @@ function HousePlansView() {
 
 export default function HousePlansPage() {
   return (
-    <Suspense fallback={null}>
+    <Suspense fallback={<Spinner />}>
       <HousePlansView />
     </Suspense>
   );

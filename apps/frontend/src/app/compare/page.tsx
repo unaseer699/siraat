@@ -3,6 +3,7 @@
 import { Suspense, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
+import { Spinner } from '@/components/Spinner';
 import type { SocietyScoreResponse, VerificationResponse } from '@siraat/shared-types';
 import { fetchSocietyScore, fetchSocietyVerifications } from '@/lib/api';
 import { BackLink } from '@/components/BackLink';
@@ -253,7 +254,7 @@ const pageStyle = {
 
 export default function ComparePage() {
   return (
-    <Suspense fallback={null}>
+    <Suspense fallback={<Spinner />}>
       <CompareView />
     </Suspense>
   );

@@ -3,6 +3,7 @@
 import { Suspense, useEffect, useState, type CSSProperties, type FormEvent } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
+import { Spinner } from '@/components/Spinner';
 import type { TradeCategory } from '@siraat/shared-types';
 import {
   addClaimToContractor,
@@ -368,7 +369,7 @@ function NewContractorForm() {
 
 export default function NewContractorPage() {
   return (
-    <Suspense fallback={null}>
+    <Suspense fallback={<Spinner />}>
       <NewContractorForm />
     </Suspense>
   );
