@@ -139,6 +139,11 @@ export function EvidenceDrawer({ evidence, triggerLabel = 'View all evidence' }:
                   cursor: 'pointer',
                   color: 'var(--muted)',
                   lineHeight: 1,
+                  // MOBILE REVIEW finding — the glyph alone was ~20x20px,
+                  // under the ~32px touch-target guideline, on the only
+                  // control that dismisses this full-screen drawer.
+                  padding: '8px',
+                  margin: '-8px',
                 }}
               >
                 ×

@@ -39,7 +39,9 @@ export function WatchButton({ societyId, societyName }: Props) {
         background: watching ? 'var(--brand)' : 'none',
         border: `1px solid ${watching ? 'var(--brand)' : 'var(--border)'}`,
         borderRadius: '4px',
-        padding: '6px 12px',
+        // MOBILE REVIEW finding — 6px 12px netted a ~28px-tall target, just
+        // under the ~32px touch-target guideline.
+        padding: '10px 14px',
         cursor: 'pointer',
       }}
     >

@@ -1,6 +1,6 @@
 import type { Metadata, Viewport } from 'next';
 import './globals.css';
-import { HomeButton } from '@/components/HomeButton';
+import { AppHeader } from '@/components/HomeButton';
 import { ServiceWorkerRegister } from '@/components/ServiceWorkerRegister';
 
 export const metadata: Metadata = {
@@ -25,7 +25,12 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="en">
       <body>
-        <HomeButton />
+        {/* MOBILE REVIEW — AppHeader (components/HomeButton.tsx) replaces the
+            old `position: fixed` HomeButton. It's sticky and occupies real
+            document-flow height, so it can never overlap a page's own
+            top-left content (BackLink, AdminNav) the way the fixed pill
+            did on narrow viewports — see that file's comment. */}
+        <AppHeader />
         <ServiceWorkerRegister />
         {children}
       </body>

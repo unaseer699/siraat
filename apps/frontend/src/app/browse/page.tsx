@@ -195,7 +195,7 @@ function BrowseView() {
           </p>
         </div>
 
-        <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+        <div style={{ display: 'flex', gap: '12px', alignItems: 'center', flexWrap: 'wrap' }}>
           <label style={{ fontSize: '13px', fontWeight: 600 }}>City</label>
           <select
             value={city}

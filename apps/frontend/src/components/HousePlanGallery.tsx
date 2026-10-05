@@ -340,6 +340,10 @@ function LockedImageModal({
             color: 'var(--muted)',
             cursor: 'pointer',
             fontWeight: 600,
+            // MOBILE REVIEW finding — plain text with no padding was a thin
+            // horizontal tap strip, under the ~32px touch-target guideline.
+            padding: '10px 14px',
+            margin: '-10px -14px',
           }}
         >
           Close
