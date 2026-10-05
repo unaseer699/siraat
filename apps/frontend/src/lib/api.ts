@@ -1192,9 +1192,15 @@ export async function voidWhatsappDraft(id: string, reason: string | null): Prom
   });
 }
 
-// POST /v1/admin/whatsapp-drafts/:id/resend-prompt
+// POST /v1/admin/whatsapp-drafts/:id/resend-prompt — explicit empty JSON
+// body for the same reason publishWhatsappListingDraft below needs one (see
+// its comment): apiFetch always sets Content-Type: application/json, and a
+// bodiless POST with that header trips Fastify's FST_ERR_CTP_EMPTY_JSON_BODY.
 export async function resendWhatsappDraftPrompt(id: string): Promise<{ sent: true }> {
-  return apiFetch(`/v1/admin/whatsapp-drafts/${id}/resend-prompt`, { method: 'POST' });
+  return apiFetch(`/v1/admin/whatsapp-drafts/${id}/resend-prompt`, {
+    method: 'POST',
+    body: JSON.stringify({}),
+  });
 }
 
 // ─── WHATSAPP LISTING INGESTION ──────────────────────────────────────────
@@ -1258,9 +1264,15 @@ export async function fetchWhatsappListingDrafts(
 }
 
 // POST /v1/admin/whatsapp-listing-drafts/:id/publish — the one-click
-// publish action (no confirm-reply loop, unlike expense drafts).
+// publish action (no confirm-reply loop, unlike expense drafts). Sends an
+// explicit empty JSON body — apiFetch always sets Content-Type:
+// application/json, and Fastify's JSON body parser (FST_ERR_CTP_EMPTY_JSON_BODY)
+// rejects a request that declares that content-type but sends no body at all.
 export async function publishWhatsappListingDraft(id: string): Promise<WhatsappDraftListing> {
-  return apiFetch(`/v1/admin/whatsapp-listing-drafts/${id}/publish`, { method: 'POST' });
+  return apiFetch(`/v1/admin/whatsapp-listing-drafts/${id}/publish`, {
+    method: 'POST',
+    body: JSON.stringify({}),
+  });
 }
 
 // POST /v1/admin/whatsapp-listing-drafts/:id/reject
