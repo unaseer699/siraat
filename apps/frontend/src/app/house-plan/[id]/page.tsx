@@ -24,7 +24,12 @@ export default async function HousePlanProfilePage({ params }: Props) {
   let plan;
   try {
     plan = await fetchHousePlan(params.id);
-  } catch {
+  } catch (err) {
+    // Surface the real cause in Vercel's function logs instead of masking
+    // every failure (network error, timeout, bad JSON, a genuine 404) behind
+    // the same generic not-found page — that blind spot is why a connection
+    // -level failure here shows nothing in Cloudways' logs either.
+    console.error('[house-plan/[id]] fetchHousePlan failed', params.id, err);
     notFound();
   }
 
