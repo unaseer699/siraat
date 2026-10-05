@@ -559,6 +559,52 @@ export class AdminService {
     };
   }
 
+  // Large-file path — see StorageService.getPresignedUploadUrl. The browser
+  // PUTs the raw file straight to the bucket with the URL this returns, so
+  // the file itself never passes through this server (or, for the deployed
+  // app, through Vercel's proxy route and its 4.5MB body cap).
+  async requestHousePlanImageUploadUrl(
+    housePlanId: string,
+    imageId: string,
+    data: { filename: string; content_type: string },
+  ): Promise<{ upload_url: string; key: string; content_type: string }> {
+    const image = await this.piSvc.findHousePlanImageById(imageId);
+    if (!image || image.house_plan_id !== housePlanId) {
+      throw new NotFoundException(`Image ${imageId} not found for house plan ${housePlanId}`);
+    }
+
+    const key = `house-plans/${housePlanId}/images/${imageId}/${data.filename}`;
+    const upload_url = await this.storageSvc.getPresignedUploadUrl(key, data.content_type);
+    return { upload_url, key, content_type: data.content_type };
+  }
+
+  // Called once the browser's direct PUT (above) has completed — persists
+  // storage_ref/content_type exactly as uploadHousePlanImageFile does, minus
+  // the actual file transfer.
+  async finalizeHousePlanImageUpload(
+    housePlanId: string,
+    imageId: string,
+    data: { key: string; content_type: string },
+  ): Promise<HousePlanImage> {
+    const image = await this.piSvc.findHousePlanImageById(imageId);
+    if (!image || image.house_plan_id !== housePlanId) {
+      throw new NotFoundException(`Image ${imageId} not found for house plan ${housePlanId}`);
+    }
+
+    await this.piSvc.updateHousePlanImageFile(imageId, data.key, data.content_type);
+
+    return {
+      id: image.id,
+      house_plan_id: image.house_plan_id,
+      image_type: image.image_type,
+      access_tier: image.access_tier,
+      price: Number(image.price),
+      display_order: image.display_order,
+      has_file: true,
+      content_type: data.content_type,
+    };
+  }
+
   async updateHousePlanImage(
     imageId: string,
     data: Partial<{ access_tier: HousePlanAccessTier; price: number; display_order: number }>,

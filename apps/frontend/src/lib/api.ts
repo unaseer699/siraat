@@ -794,6 +794,48 @@ export async function deleteHousePlanImage(housePlanId: string, imageId: string)
   return apiFetch(`/v1/admin/house-plans/${housePlanId}/images/${imageId}`, { method: 'DELETE' });
 }
 
+// Large-file upload path — a 3D-render PDF can be several MB, and the
+// base64 JSON body from uploadHousePlanImageFile above would trip Vercel's
+// ~4.5MB serverless request-body cap (base64 inflates size by ~33% on top
+// of the file's own size). This instead: (1) asks the backend for a
+// presigned PUT URL, (2) PUTs the raw file straight to that URL — note this
+// call deliberately does NOT go through apiFetch/the proxy; it's an
+// absolute, pre-signed URL to the storage bucket itself, so the file bytes
+// never pass through this app's own server at all — then (3) tells the
+// backend the upload is done so it can record storage_ref/content_type.
+export async function requestHousePlanImageUploadUrl(
+  housePlanId: string,
+  imageId: string,
+  data: { filename: string; content_type: string },
+): Promise<{ upload_url: string; key: string; content_type: string }> {
+  return apiFetch(`/v1/admin/house-plans/${housePlanId}/images/${imageId}/upload-url`, {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
+}
+
+export async function uploadFileToPresignedUrl(uploadUrl: string, file: File): Promise<void> {
+  const res = await fetch(uploadUrl, {
+    method: 'PUT',
+    headers: { 'Content-Type': file.type || 'application/octet-stream' },
+    body: file,
+  });
+  if (!res.ok) {
+    throw new Error(`Direct upload to storage failed: ${res.status} ${await res.text()}`);
+  }
+}
+
+export async function finalizeHousePlanImageUpload(
+  housePlanId: string,
+  imageId: string,
+  data: { key: string; content_type: string },
+): Promise<HousePlanImage> {
+  return apiFetch(`/v1/admin/house-plans/${housePlanId}/images/${imageId}/finalize-upload`, {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
+}
+
 // PROJECT COST TRACKER Chunk 2 — an organized, immutable expense ledger per
 // construction project.
 

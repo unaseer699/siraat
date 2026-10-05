@@ -5,27 +5,14 @@ import type { HousePlanImage, HousePlanImageType, HousePlanAccessTier } from '@/
 import {
   fetchAdminHousePlanImages,
   createHousePlanImage,
-  uploadHousePlanImageFile,
+  requestHousePlanImageUploadUrl,
+  uploadFileToPresignedUrl,
+  finalizeHousePlanImageUpload,
   updateHousePlanImage,
   deleteHousePlanImage,
 } from '@/lib/api';
 import { HOUSE_PLAN_IMAGE_TYPE_OPTIONS } from '@/lib/housePlanImageTypes';
 import { fieldGroupStyle, inputStyle, labelStyle } from '@/app/admin/constants';
-
-// Same base64-encode approach as admin/new-house-plan/page.tsx's fileToBase64
-// — no multipart plugin on this Fastify backend.
-function fileToBase64(file: File): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => {
-      const result = reader.result as string;
-      const commaIndex = result.indexOf(',');
-      resolve(commaIndex >= 0 ? result.slice(commaIndex + 1) : result);
-    };
-    reader.onerror = () => reject(reader.error ?? new Error('Failed to read file'));
-    reader.readAsDataURL(file);
-  });
-}
 
 // HOUSE PLAN GALLERY (admin) — expand-row panel, same embedding convention as
 // EditRow in admin/house-plans/page.tsx. Manages the elevation/3D-render set
@@ -67,12 +54,15 @@ export function HousePlanAdminGallery({ housePlanId }: { housePlanId: string }) 
         price: Number(newPrice) || 0,
       });
       if (newFile) {
-        const data_base64 = await fileToBase64(newFile);
-        await uploadHousePlanImageFile(housePlanId, created.id, {
+        // Goes straight to the bucket (not through this app's server) so a
+        // multi-MB 3D-render PDF never hits Vercel's request-body cap — see
+        // requestHousePlanImageUploadUrl's comment in lib/api.ts.
+        const { upload_url, key, content_type } = await requestHousePlanImageUploadUrl(housePlanId, created.id, {
           filename: newFile.name,
           content_type: newFile.type || 'application/octet-stream',
-          data_base64,
         });
+        await uploadFileToPresignedUrl(upload_url, newFile);
+        await finalizeHousePlanImageUpload(housePlanId, created.id, { key, content_type });
       }
       setNewFile(null);
       setNewPrice('0');

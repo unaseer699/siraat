@@ -210,6 +210,30 @@ const UpdateHousePlanImageBodySchema = z.object({
 });
 type UpdateHousePlanImageBody = z.infer<typeof UpdateHousePlanImageBodySchema>;
 
+// --- POST /v1/admin/house-plans/:id/images/:imageId/upload-url ---
+// Large-file path (a 3D-render PDF can be several MB) — see
+// StorageService.getPresignedUploadUrl for why this exists alongside the
+// base64 /upload route above, which stays for small images. Returns a
+// presigned PUT URL the browser uploads the raw file bytes to directly,
+// never touching this app's own request body limit.
+
+const RequestHousePlanImageUploadUrlBodySchema = z.object({
+  filename: z.string().min(1),
+  content_type: z.string().min(1),
+});
+type RequestHousePlanImageUploadUrlBody = z.infer<typeof RequestHousePlanImageUploadUrlBodySchema>;
+
+// --- POST /v1/admin/house-plans/:id/images/:imageId/finalize-upload ---
+// Called after the browser's direct PUT to the presigned URL succeeds —
+// persists storage_ref/content_type the same way the base64 /upload route
+// does, just without having carried the file through this server.
+
+const FinalizeHousePlanImageUploadBodySchema = z.object({
+  key: z.string().min(1),
+  content_type: z.string().min(1),
+});
+type FinalizeHousePlanImageUploadBody = z.infer<typeof FinalizeHousePlanImageUploadBodySchema>;
+
 // --- PATCH /v1/admin/candidate-societies/:id (ADMIN CRUD PHASE 1 Chunk 1) ---
 // All fields optional (partial update) — status is the field this exists
 // for (manual override, e.g. reverting an accidental ONBOARDED back to
@@ -653,6 +677,24 @@ export class AdminController {
     @Body(new ZodValidationPipe(UploadHousePlanImageFileBodySchema)) body: UploadHousePlanImageFileBody,
   ) {
     return this.adminSvc.uploadHousePlanImageFile(id, imageId, body);
+  }
+
+  @Post('house-plans/:id/images/:imageId/upload-url')
+  requestHousePlanImageUploadUrl(
+    @Param('id') id: string,
+    @Param('imageId') imageId: string,
+    @Body(new ZodValidationPipe(RequestHousePlanImageUploadUrlBodySchema)) body: RequestHousePlanImageUploadUrlBody,
+  ) {
+    return this.adminSvc.requestHousePlanImageUploadUrl(id, imageId, body);
+  }
+
+  @Post('house-plans/:id/images/:imageId/finalize-upload')
+  finalizeHousePlanImageUpload(
+    @Param('id') id: string,
+    @Param('imageId') imageId: string,
+    @Body(new ZodValidationPipe(FinalizeHousePlanImageUploadBodySchema)) body: FinalizeHousePlanImageUploadBody,
+  ) {
+    return this.adminSvc.finalizeHousePlanImageUpload(id, imageId, body);
   }
 
   @Patch('house-plans/:id/images/:imageId')

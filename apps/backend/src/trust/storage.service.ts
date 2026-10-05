@@ -35,6 +35,20 @@ export class StorageService {
     return getSignedUrl(this.client, command, { expiresIn: PRESIGNED_TTL_SECONDS });
   }
 
+  // HOUSE PLAN GALLERY — large files (a multi-page 3D-render PDF walkthrough
+  // can easily be several MB) can't travel through the base64-JSON upload
+  // routes once the frontend sits behind Vercel: Vercel's Node serverless
+  // functions hard-cap the request body at 4.5MB, and base64 inflates the
+  // payload by ~33% on top of that, so even a ~3MB file can trip it. This
+  // hands the browser a short-lived presigned PUT URL instead, so the file
+  // goes straight from the browser to the bucket — Vercel's proxy route
+  // only ever sees the small JSON request for the URL itself, never the
+  // file bytes.
+  async getPresignedUploadUrl(key: string, contentType: string): Promise<string> {
+    const command = new PutObjectCommand({ Bucket: this.bucket, Key: key, ContentType: contentType });
+    return getSignedUrl(this.client, command, { expiresIn: PRESIGNED_TTL_SECONDS });
+  }
+
   // HOUSE PLANS DIRECTORY Chunk 1 — first upload path this service has ever
   // needed; every prior feature (Evidence included) only ever read
   // pre-existing files manually uploaded via MinIO's console, so file_ref/
