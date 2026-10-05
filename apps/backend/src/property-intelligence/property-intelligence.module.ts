@@ -9,6 +9,7 @@ import { HousePlanEntity } from './entities/house-plan.entity';
 import { HousePlanImageEntity } from './entities/house-plan-image.entity';
 import { CandidateSocietyEntity } from './entities/candidate-society.entity';
 import { ObservationEntity } from './entities/observation.entity';
+import { PropertyListingEntity } from './entities/property-listing.entity';
 import { PropertyIntelligenceService } from './property-intelligence.service';
 import { PropertyIntelligenceController } from './property-intelligence.controller';
 import { TrustModule } from '../trust/trust.module';
@@ -26,6 +27,7 @@ import { ConstructionIntelligenceModule } from '../construction-intelligence/con
       HousePlanImageEntity,
       CandidateSocietyEntity,
       ObservationEntity,
+      PropertyListingEntity,
     ]),
     TrustModule,
     // SUPPLIER DIRECTORY Chunk 1 — PropertyIntelligenceService injects

@@ -1196,3 +1196,80 @@ export async function voidWhatsappDraft(id: string, reason: string | null): Prom
 export async function resendWhatsappDraftPrompt(id: string): Promise<{ sent: true }> {
   return apiFetch(`/v1/admin/whatsapp-drafts/${id}/resend-prompt`, { method: 'POST' });
 }
+
+// ─── WHATSAPP LISTING INGESTION ──────────────────────────────────────────
+
+export interface WhatsappListingForwarder {
+  id: string;
+  wa_id: string;
+  label: string;
+  created_by: string;
+  created_at: string;
+}
+
+// GET /v1/admin/whatsapp-listing-forwarders
+export async function fetchListingForwarders(): Promise<WhatsappListingForwarder[]> {
+  return apiFetch('/v1/admin/whatsapp-listing-forwarders');
+}
+
+// POST /v1/admin/whatsapp-listing-forwarders
+export async function createListingForwarder(data: {
+  wa_id: string;
+  label: string;
+  created_by: string;
+}): Promise<WhatsappListingForwarder> {
+  return apiFetch('/v1/admin/whatsapp-listing-forwarders', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
+}
+
+// DELETE /v1/admin/whatsapp-listing-forwarders/:id
+export async function deleteListingForwarder(id: string): Promise<void> {
+  await apiFetch(`/v1/admin/whatsapp-listing-forwarders/${id}`, { method: 'DELETE' });
+}
+
+export type WhatsappDraftListingStatus = 'PENDING_REVIEW' | 'PUBLISHED' | 'REJECTED';
+
+export interface WhatsappDraftListing {
+  id: string;
+  inbound_message_id: string;
+  society_name_raw: string;
+  block: string | null;
+  plot_number: string;
+  size_raw: string | null;
+  size_marla: number | null;
+  price_lac: number | null;
+  status_raw: string | null;
+  raw_line: string;
+  status: WhatsappDraftListingStatus;
+  listing_ref: string | null;
+  review_note: string | null;
+  created_at: string;
+}
+
+// GET /v1/admin/whatsapp-listing-drafts?status= — defaults to
+// PENDING_REVIEW on the backend when status is omitted.
+export async function fetchWhatsappListingDrafts(
+  status?: WhatsappDraftListingStatus,
+): Promise<WhatsappDraftListing[]> {
+  const qs = status ? `?status=${status}` : '';
+  return apiFetch(`/v1/admin/whatsapp-listing-drafts${qs}`);
+}
+
+// POST /v1/admin/whatsapp-listing-drafts/:id/publish — the one-click
+// publish action (no confirm-reply loop, unlike expense drafts).
+export async function publishWhatsappListingDraft(id: string): Promise<WhatsappDraftListing> {
+  return apiFetch(`/v1/admin/whatsapp-listing-drafts/${id}/publish`, { method: 'POST' });
+}
+
+// POST /v1/admin/whatsapp-listing-drafts/:id/reject
+export async function rejectWhatsappListingDraft(
+  id: string,
+  reason: string | null,
+): Promise<WhatsappDraftListing> {
+  return apiFetch(`/v1/admin/whatsapp-listing-drafts/${id}/reject`, {
+    method: 'POST',
+    body: JSON.stringify({ reason }),
+  });
+}

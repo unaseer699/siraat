@@ -45,6 +45,11 @@ import {
   WhatsappBusinessLinkService,
   type ApproveSuggestedLinkInput,
 } from '../whatsapp/whatsapp-business-link.service';
+import {
+  WhatsappListingForwarderService,
+  type CreateListingForwarderInput,
+} from '../whatsapp/whatsapp-listing-forwarder.service';
+import { WhatsappListingParsingService } from '../whatsapp/whatsapp-listing-parsing.service';
 import type { WhatsappProjectMappingEntity } from '../whatsapp/entities/whatsapp-project-mapping.entity';
 import type {
   WhatsappDraftExpenseEntity,
@@ -52,6 +57,8 @@ import type {
 } from '../whatsapp/entities/whatsapp-draft-expense.entity';
 import type { WhatsappInboundMessageEntity } from '../whatsapp/entities/whatsapp-inbound-message.entity';
 import type { WhatsappSuggestedBusinessLinkEntity } from '../whatsapp/entities/whatsapp-suggested-business-link.entity';
+import type { WhatsappListingForwarderEntity } from '../whatsapp/entities/whatsapp-listing-forwarder.entity';
+import type { WhatsappDraftListingEntity, WhatsappDraftListingStatus } from '../whatsapp/entities/whatsapp-draft-listing.entity';
 
 export type { ClaimType };
 export type { CreateMaterialRateInput, MaterialRateResult };
@@ -195,6 +202,8 @@ export class AdminService {
     private readonly waSvc: WhatsappService,
     private readonly waParsingSvc: WhatsappParsingService,
     private readonly waLinkSvc: WhatsappBusinessLinkService,
+    private readonly waListingForwarderSvc: WhatsappListingForwarderService,
+    private readonly waListingParsingSvc: WhatsappListingParsingService,
   ) {}
 
   // CLEANUP — was AdminService's own CandidateSocietyEntity repository
@@ -871,5 +880,40 @@ export class AdminService {
   // POST /v1/admin/whatsapp-suggested-links/:id/reject
   async rejectWhatsappSuggestedLink(id: string, reason: string | null): Promise<WhatsappSuggestedBusinessLinkEntity> {
     return this.waLinkSvc.reject(id, reason);
+  }
+
+  // ─── WHATSAPP LISTING INGESTION ─────────────────────────────────────────
+  // Same plain-passthrough delegation as every other WhatsApp admin route
+  // above — all the actual logic lives on WhatsappListingForwarderService/
+  // WhatsappListingParsingService.
+
+  // POST /v1/admin/whatsapp-listing-forwarders
+  async createListingForwarder(data: CreateListingForwarderInput): Promise<WhatsappListingForwarderEntity> {
+    return this.waListingForwarderSvc.createForwarder(data);
+  }
+
+  // GET /v1/admin/whatsapp-listing-forwarders
+  async listListingForwarders(): Promise<WhatsappListingForwarderEntity[]> {
+    return this.waListingForwarderSvc.listForwarders();
+  }
+
+  // DELETE /v1/admin/whatsapp-listing-forwarders/:id
+  async deleteListingForwarder(id: string): Promise<void> {
+    return this.waListingForwarderSvc.deleteForwarder(id);
+  }
+
+  // GET /v1/admin/whatsapp-listing-drafts
+  async listWhatsappListingDrafts(status?: WhatsappDraftListingStatus): Promise<WhatsappDraftListingEntity[]> {
+    return this.waListingParsingSvc.listDrafts(status);
+  }
+
+  // POST /v1/admin/whatsapp-listing-drafts/:id/publish
+  async publishWhatsappListingDraft(id: string): Promise<WhatsappDraftListingEntity> {
+    return this.waListingParsingSvc.publishDraft(id);
+  }
+
+  // POST /v1/admin/whatsapp-listing-drafts/:id/reject
+  async rejectWhatsappListingDraft(id: string, note: string | null): Promise<WhatsappDraftListingEntity> {
+    return this.waListingParsingSvc.rejectDraft(id, note);
   }
 }

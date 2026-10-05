@@ -286,3 +286,32 @@ export interface HousePlanImage {
 export interface HousePlanImageListResponse {
   images: HousePlanImage[];
 }
+
+// ─── WHATSAPP LISTING INGESTION ─────────────────────────────────────────────
+// Real-estate-group inventory forwarded by the founder via WhatsApp (already
+// personally verified before forwarding — see WhatsappDraftListingEntity's
+// own comment on why that collapses the confirm-loop this codebase uses for
+// expenses down to a one-click admin Publish/Reject). A PropertyListing is a
+// FACT the moment an admin publishes it (the human review step IS the
+// verification — there is nothing further derived from it), scoped to a
+// Society once/if one is matched by name, but never required to be (a
+// forwarded block/society name may not match anything in the directory yet).
+export interface PropertyListingSummary {
+  id: string;
+  society_ref: string | null;
+  society_name_raw: string;
+  block: string | null;
+  plot_number: string;
+  size_marla: number | null;
+  price_lac: number | null;
+  status_raw: string | null;
+  is_siraat_affiliated: boolean;
+  record_type: 'FACT';
+  published_at: string;
+  expires_at: string;
+}
+
+export interface PropertyListingListResponse {
+  listings: PropertyListingSummary[];
+  total_count: number;
+}

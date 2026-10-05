@@ -40,6 +40,16 @@ export class PropertyIntelligenceController {
     });
   }
 
+  // WHATSAPP LISTING INGESTION — public, read-only. Only ever returns
+  // listings still inside their auto-expiry window (see
+  // PropertyIntelligenceService.listActivePropertyListings). Society search
+  // surfacing (showing these inline on Browse/society pages) is a deliberate
+  // follow-up, not blocked on this route existing.
+  @Get('listings')
+  async listListings(@Query('city') city?: string, @Query('society_id') society_id?: string) {
+    return this.piSvc.listActivePropertyListings({ city, society_id });
+  }
+
   // Watchlist Chunk 1 — session-based watchlist lives in the browser; this reports
   // what changed for a browser-supplied batch of society IDs since a given date.
   @Post('societies/changes')

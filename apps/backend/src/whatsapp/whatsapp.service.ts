@@ -12,6 +12,8 @@ import { WhatsappInboundMessageEntity } from './entities/whatsapp-inbound-messag
 import { WhatsappProjectMappingEntity } from './entities/whatsapp-project-mapping.entity';
 import { WhatsappParsingService } from './whatsapp-parsing.service';
 import { WhatsappConfirmationService } from './whatsapp-confirmation.service';
+import { WhatsappListingForwarderService } from './whatsapp-listing-forwarder.service';
+import { WhatsappListingParsingService } from './whatsapp-listing-parsing.service';
 import { maskPhone } from './whatsapp-phone.util';
 
 export { maskPhone };
@@ -150,6 +152,13 @@ export class WhatsappService {
     // provides it.
     @Optional()
     private readonly confirmationSvc?: WhatsappConfirmationService,
+    // WHATSAPP LISTING INGESTION — same @Optional() reasoning as the two
+    // above: lighter test setups don't need to know about listing routing
+    // at all. The real app (WhatsappModule) always provides both.
+    @Optional()
+    private readonly listingForwarderSvc?: WhatsappListingForwarderService,
+    @Optional()
+    private readonly listingParsingSvc?: WhatsappListingParsingService,
   ) {}
 
   // ── [SECURITY] Webhook verification handshake (GET) ──────────────────────
@@ -194,7 +203,14 @@ export class WhatsappService {
       return { stored: false, duplicate: true };
     }
 
-    const mapping = await this.mappingRepo.findOneBy({ wa_id: msg.from });
+    // WHATSAPP LISTING INGESTION — checked BEFORE the project-mapping lookup
+    // below: a sender on the listing-forwarder allowlist always routes to
+    // the listing flow, even if that same number also happens to have a
+    // project mapping (the two are independent concerns — reusing one
+    // WhatsApp number for both, per the founder's confirmed preference, not
+    // a dedicated second line).
+    const isListingForwarder = (await this.listingForwarderSvc?.isForwarder(msg.from)) ?? false;
+    const mapping = isListingForwarder ? null : await this.mappingRepo.findOneBy({ wa_id: msg.from });
     const entity = this.inboundRepo.create({
       wa_message_id: msg.id,
       wa_id: msg.from,
@@ -203,7 +219,7 @@ export class WhatsappService {
       wa_timestamp: msg.timestamp,
       raw_payload: msg.rawPayload,
       project_ref: mapping?.project_ref ?? null,
-      status: mapping ? 'RECEIVED' : 'UNMAPPED',
+      status: isListingForwarder ? 'LISTING_RECEIVED' : mapping ? 'RECEIVED' : 'UNMAPPED',
     });
 
     try {
@@ -233,6 +249,16 @@ export class WhatsappService {
   // duplicating the branching (per the Phase 4 brief). No-op for anything
   // other than a RECEIVED message (an UNMAPPED one has nothing to route).
   private async routeReceivedMessage(message: WhatsappInboundMessageEntity, contextId: string | null): Promise<void> {
+    // WHATSAPP LISTING INGESTION — own branch, no reply-threading/confirm
+    // lookup at all (a listing message is never a reply to a prior draft —
+    // the confirm-reply loop below is expense-only), fire-and-forget for the
+    // same reason Phase 2's AI parsing is: a slow/failed LLM call must never
+    // delay this method's caller or, in turn, the webhook's fast ack.
+    if (message.status === 'LISTING_RECEIVED') {
+      void this.listingParsingSvc?.parseAndStoreListingDrafts(message);
+      return;
+    }
+
     if (message.status !== 'RECEIVED') return;
 
     // WHATSAPP INTEGRATION Phase 3 — before treating this as a fresh

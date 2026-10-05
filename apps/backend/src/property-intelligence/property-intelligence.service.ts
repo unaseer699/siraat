@@ -19,6 +19,8 @@ import type {
   HousePlanImage,
   HousePlanImageType,
   HousePlanAccessTier,
+  PropertyListingSummary,
+  PropertyListingListResponse,
 } from '@siraat/shared-types';
 import { TrustService } from '../trust/trust.service';
 import {
@@ -34,6 +36,7 @@ import { HousePlanEntity } from './entities/house-plan.entity';
 import { HousePlanImageEntity } from './entities/house-plan-image.entity';
 import { CandidateSocietyEntity } from './entities/candidate-society.entity';
 import { ObservationEntity } from './entities/observation.entity';
+import { PropertyListingEntity } from './entities/property-listing.entity';
 
 // Watchlist Chunk 1: caps how many societies /societies/changes will check in one
 // request — an unbounded society_ids[] would mean an unbounded fan-out of per-society
@@ -182,6 +185,24 @@ function toHousePlanImageResult(e: HousePlanImageEntity): HousePlanImage {
   };
 }
 
+// WHATSAPP LISTING INGESTION
+function toListingResult(e: PropertyListingEntity): PropertyListingSummary {
+  return {
+    id: e.id,
+    society_ref: e.society_ref,
+    society_name_raw: e.society_name_raw,
+    block: e.block,
+    plot_number: e.plot_number,
+    size_marla: e.size_marla === null ? null : Number(e.size_marla),
+    price_lac: e.price_lac === null ? null : Number(e.price_lac),
+    status_raw: e.status_raw,
+    is_siraat_affiliated: e.is_siraat_affiliated,
+    record_type: e.record_type,
+    published_at: e.published_at.toISOString(),
+    expires_at: e.expires_at.toISOString(),
+  };
+}
+
 @Injectable()
 export class PropertyIntelligenceService {
   private readonly logger = new Logger(PropertyIntelligenceService.name);
@@ -212,6 +233,9 @@ export class PropertyIntelligenceService {
     private readonly candidateRepo: Repository<CandidateSocietyEntity>,
     @InjectRepository(ObservationEntity)
     private readonly observationRepo: Repository<ObservationEntity>,
+    // WHATSAPP LISTING INGESTION
+    @InjectRepository(PropertyListingEntity)
+    private readonly listingRepo: Repository<PropertyListingEntity>,
     private readonly trustSvc: TrustService,
     private readonly ciSvc: ConstructionIntelligenceService,
   ) {}
@@ -295,6 +319,28 @@ export class PropertyIntelligenceService {
     });
     const saved = await this.societyRepo.save(entity);
     return toSocietyResult(saved);
+  }
+
+  // WHATSAPP LISTING INGESTION — best-effort match of a forwarded, raw
+  // society-header string (e.g. "Faisal hills") against the Society
+  // directory, used only to populate PropertyListingEntity.society_ref/city
+  // when publishing a draft listing. Deliberately loose (substring,
+  // case-insensitive, either direction) rather than exact — unlike
+  // findSocietyByNameAndCity's dedup check, a miss here is NOT an error: a
+  // forwarded listing is still published with society_ref left null (see
+  // WhatsappListingParsingService.publishDraft) rather than blocked on a
+  // perfect match existing. Returns the first match if more than one; no
+  // ranking beyond "found something."
+  async findSocietyByNameFuzzy(nameRaw: string): Promise<SocietyResult | null> {
+    const trimmed = nameRaw.trim();
+    if (!trimmed) return null;
+
+    const entity = await this.societyRepo
+      .createQueryBuilder('s')
+      .where('LOWER(s.name) LIKE LOWER(:pattern)', { pattern: `%${trimmed}%` })
+      .orWhere('LOWER(:name) LIKE LOWER(CONCAT(\'%\', s.name, \'%\'))', { name: trimmed })
+      .getOne();
+    return entity ? toSocietyResult(entity) : null;
   }
 
   async findSocietyById(id: string): Promise<SocietyResult | null> {
@@ -1074,5 +1120,56 @@ export class PropertyIntelligenceService {
       has_changes: observations.length > 0,
       observations,
     };
+  }
+
+  // ─── WHATSAPP LISTING INGESTION ────────────────────────────────────────
+  // Called only from WhatsappListingParsingService.publishDraft (Law 9:
+  // public API call, same cross-module composition every other
+  // WhatsappModule -> PropertyIntelligenceModule call in this file's own
+  // history already uses) — never anything else, so there is no separate
+  // dedup check here: one draft publishes to exactly one listing row, and
+  // the draft's own status transition (PENDING_REVIEW -> PUBLISHED) is what
+  // prevents a double-publish, not a query against this table.
+  async createPropertyListing(data: {
+    society_name_raw: string;
+    block: string | null;
+    plot_number: string;
+    size_marla: number | null;
+    price_lac: number | null;
+    status_raw: string | null;
+    source_ref: string;
+    expires_at: Date;
+  }): Promise<PropertyListingSummary> {
+    const matchedSociety = await this.findSocietyByNameFuzzy(data.society_name_raw);
+
+    const entity = this.listingRepo.create({
+      ...data,
+      society_ref: matchedSociety?.id ?? null,
+      city: matchedSociety?.city ?? null,
+      is_siraat_affiliated: false,
+      record_type: 'FACT',
+      published_at: new Date(),
+    });
+    const saved = await this.listingRepo.save(entity);
+    return toListingResult(saved);
+  }
+
+  // GET /v1/property-intelligence/listings — only ever surfaces listings
+  // still inside their auto-expiry window (see PropertyListingEntity.expires_at's
+  // own comment); an expired row is never deleted, just no longer returned
+  // here, matching this codebase's standing never-delete-just-stop-showing
+  // convention elsewhere (e.g. CancelledEntity-style records).
+  async listActivePropertyListings(params: { city?: string; society_id?: string }): Promise<PropertyListingListResponse> {
+    const qb = this.listingRepo.createQueryBuilder('l').where('l.expires_at > :now', { now: new Date() });
+
+    if (params.society_id) {
+      qb.andWhere('l.society_ref = :societyId', { societyId: params.society_id });
+    }
+    if (params.city) {
+      qb.andWhere('LOWER(l.city) = LOWER(:city)', { city: params.city });
+    }
+
+    const entities = await qb.orderBy('l.published_at', 'DESC').getMany();
+    return { listings: entities.map(toListingResult), total_count: entities.length };
   }
 }

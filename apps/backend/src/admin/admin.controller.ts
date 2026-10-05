@@ -13,6 +13,7 @@ import {
 import { BearerGuard } from '../auth/bearer.guard';
 import { ZodValidationPipe } from '../common/zod-validation.pipe';
 import type { WhatsappDraftExpenseStatus } from '../whatsapp/entities/whatsapp-draft-expense.entity';
+import type { WhatsappDraftListingStatus } from '../whatsapp/entities/whatsapp-draft-listing.entity';
 import { AdminService } from './admin.service';
 
 // --- Shared sub-schemas ---
@@ -429,6 +430,24 @@ const RejectWhatsappSuggestedLinkBodySchema = z.object({
   reason: z.string().min(1).nullable().default(null),
 });
 type RejectWhatsappSuggestedLinkBody = z.infer<typeof RejectWhatsappSuggestedLinkBodySchema>;
+
+// --- POST /v1/admin/whatsapp-listing-forwarders (WHATSAPP LISTING INGESTION) ---
+// Same wa_id shape as CreateWhatsappMappingBodySchema above (digits only, no
+// '+', matching Meta's webhook messages[].from) — no project_ref, since a
+// listing forwarder has no construction project.
+const CreateListingForwarderBodySchema = z.object({
+  wa_id: z.string().regex(/^\d{6,32}$/, 'wa_id must be digits only (no +, spaces, or dashes)'),
+  label: z.string().min(1),
+  created_by: z.string().min(1),
+});
+type CreateListingForwarderBody = z.infer<typeof CreateListingForwarderBodySchema>;
+
+// --- POST /v1/admin/whatsapp-listing-drafts/:id/reject (WHATSAPP LISTING INGESTION) ---
+// Same optional-reason shape as VoidWhatsappDraftBodySchema above.
+const RejectWhatsappListingDraftBodySchema = z.object({
+  reason: z.string().min(1).nullable().default(null),
+});
+type RejectWhatsappListingDraftBody = z.infer<typeof RejectWhatsappListingDraftBodySchema>;
 
 // --- Controller ---
 
@@ -948,5 +967,55 @@ export class AdminController {
     @Body(new ZodValidationPipe(RejectWhatsappSuggestedLinkBodySchema)) body: RejectWhatsappSuggestedLinkBody,
   ) {
     return this.adminSvc.rejectWhatsappSuggestedLink(id, body.reason);
+  }
+
+  // ─── WHATSAPP LISTING INGESTION ────────────────────────────────────────
+  // Sender allowlist CRUD — same shape as the whatsapp-mappings routes
+  // above, for the "which numbers route to listings" concern.
+
+  @Post('whatsapp-listing-forwarders')
+  @HttpCode(201)
+  createListingForwarder(
+    @Body(new ZodValidationPipe(CreateListingForwarderBodySchema)) body: CreateListingForwarderBody,
+  ) {
+    return this.adminSvc.createListingForwarder(body);
+  }
+
+  @Get('whatsapp-listing-forwarders')
+  listListingForwarders() {
+    return this.adminSvc.listListingForwarders();
+  }
+
+  @Delete('whatsapp-listing-forwarders/:id')
+  @HttpCode(204)
+  deleteListingForwarder(@Param('id') id: string) {
+    return this.adminSvc.deleteListingForwarder(id);
+  }
+
+  // GET /v1/admin/whatsapp-listing-drafts — defaults to PENDING_REVIEW
+  // inside WhatsappListingParsingService.listDrafts, same convention as
+  // GET /v1/admin/whatsapp-drafts above.
+  @Get('whatsapp-listing-drafts')
+  listWhatsappListingDrafts(@Query('status') status?: string) {
+    return this.adminSvc.listWhatsappListingDrafts(status as WhatsappDraftListingStatus | undefined);
+  }
+
+  // POST /v1/admin/whatsapp-listing-drafts/:id/publish — the one-click
+  // Publish action (no confirm-reply loop — see
+  // WhatsappListingParsingService.publishDraft for why).
+  @Post('whatsapp-listing-drafts/:id/publish')
+  @HttpCode(200)
+  publishWhatsappListingDraft(@Param('id') id: string) {
+    return this.adminSvc.publishWhatsappListingDraft(id);
+  }
+
+  // POST /v1/admin/whatsapp-listing-drafts/:id/reject — never creates a listing.
+  @Post('whatsapp-listing-drafts/:id/reject')
+  @HttpCode(200)
+  rejectWhatsappListingDraft(
+    @Param('id') id: string,
+    @Body(new ZodValidationPipe(RejectWhatsappListingDraftBodySchema)) body: RejectWhatsappListingDraftBody,
+  ) {
+    return this.adminSvc.rejectWhatsappListingDraft(id, body.reason);
   }
 }

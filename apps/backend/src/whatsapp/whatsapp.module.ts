@@ -4,12 +4,16 @@ import { WhatsappInboundMessageEntity } from './entities/whatsapp-inbound-messag
 import { WhatsappProjectMappingEntity } from './entities/whatsapp-project-mapping.entity';
 import { WhatsappDraftExpenseEntity } from './entities/whatsapp-draft-expense.entity';
 import { WhatsappSuggestedBusinessLinkEntity } from './entities/whatsapp-suggested-business-link.entity';
+import { WhatsappListingForwarderEntity } from './entities/whatsapp-listing-forwarder.entity';
+import { WhatsappDraftListingEntity } from './entities/whatsapp-draft-listing.entity';
 import { WhatsappService } from './whatsapp.service';
 import { WhatsappParsingService } from './whatsapp-parsing.service';
 import { WhatsappAiClient } from './whatsapp-ai.client';
 import { WhatsappOutboundClient } from './whatsapp-outbound.client';
 import { WhatsappConfirmationService } from './whatsapp-confirmation.service';
 import { WhatsappBusinessLinkService } from './whatsapp-business-link.service';
+import { WhatsappListingForwarderService } from './whatsapp-listing-forwarder.service';
+import { WhatsappListingParsingService } from './whatsapp-listing-parsing.service';
 import { WhatsappWebhookController } from './whatsapp-webhook.controller';
 import { ConstructionIntelligenceModule } from '../construction-intelligence/construction-intelligence.module';
 import { PropertyIntelligenceModule } from '../property-intelligence/property-intelligence.module';
@@ -53,6 +57,8 @@ import { TrustModule } from '../trust/trust.module';
       WhatsappProjectMappingEntity,
       WhatsappDraftExpenseEntity,
       WhatsappSuggestedBusinessLinkEntity,
+      WhatsappListingForwarderEntity,
+      WhatsappDraftListingEntity,
     ]),
     ConstructionIntelligenceModule,
     PropertyIntelligenceModule,
@@ -66,7 +72,15 @@ import { TrustModule } from '../trust/trust.module';
     WhatsappOutboundClient,
     WhatsappConfirmationService,
     WhatsappBusinessLinkService,
+    WhatsappListingForwarderService,
+    WhatsappListingParsingService,
   ],
-  exports: [WhatsappService, WhatsappParsingService, WhatsappBusinessLinkService],
+  exports: [
+    WhatsappService,
+    WhatsappParsingService,
+    WhatsappBusinessLinkService,
+    WhatsappListingForwarderService,
+    WhatsappListingParsingService,
+  ],
 })
 export class WhatsappModule {}

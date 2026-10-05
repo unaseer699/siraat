@@ -16,7 +16,16 @@ import { Entity, Column, PrimaryGeneratedColumn, CreateDateColumn, Index } from 
 // `data_acquisition` schema (Law 1) — cross-context reference to a Project
 // (construction_intelligence) is `project_ref`, a plain uuid string, never a
 // SQL FK.
-export type WhatsappInboundMessageStatus = 'RECEIVED' | 'UNMAPPED' | 'PARSED';
+//
+// WHATSAPP LISTING INGESTION — LISTING_RECEIVED/LISTING_PARSED added: a
+// sender on the WhatsappListingForwarderEntity allowlist routes here instead
+// of the RECEIVED/mapped-project path, regardless of whether that same
+// number also happens to have a project mapping (see
+// WhatsappService.processInboundMessage) — project_ref stays null for every
+// row in this status, since a listing forwarder has no construction
+// project. LISTING_PARSED mirrors PARSED once
+// WhatsappListingParsingService has produced draft rows for it.
+export type WhatsappInboundMessageStatus = 'RECEIVED' | 'UNMAPPED' | 'PARSED' | 'LISTING_RECEIVED' | 'LISTING_PARSED';
 
 @Entity({ name: 'whatsapp_inbound_messages', schema: 'data_acquisition' })
 export class WhatsappInboundMessageEntity {

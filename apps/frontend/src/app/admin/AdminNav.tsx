@@ -9,7 +9,8 @@ type AdminSection =
   | 'suppliers'
   | 'house-plans'
   | 'projects'
-  | 'whatsapp-review';
+  | 'whatsapp-review'
+  | 'whatsapp-listings';
 
 const SECTIONS: { key: AdminSection; href: string; label: string }[] = [
   { key: 'candidates', href: '/admin/candidates', label: 'Candidate Societies' },
@@ -33,6 +34,11 @@ const SECTIONS: { key: AdminSection; href: string; label: string }[] = [
   // WEEK 1 TECH DEBT — WHATSAPP REVIEW QUEUE. Unmapped senders + stuck
   // drafts, previously API-only (no frontend page existed for it).
   { key: 'whatsapp-review', href: '/admin/whatsapp-review', label: 'WhatsApp Review' },
+  // WHATSAPP LISTING INGESTION — separate tab from WhatsApp Review above:
+  // that page is the construction-expense queue (unmapped senders, stuck
+  // draft expenses); this one is the plot-listing review queue + forwarder
+  // allowlist, a distinct concern with its own backend routes.
+  { key: 'whatsapp-listings', href: '/admin/whatsapp-listings', label: 'WhatsApp Listings' },
 ];
 
 // Shared nav row so the admin tools are reachable from one another instead of
