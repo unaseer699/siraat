@@ -13,3 +13,5 @@ response.json
 .neon
 .env.local
 .claude/
+
+*.tsbuildinfo
