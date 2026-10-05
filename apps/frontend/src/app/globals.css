@@ -51,3 +51,14 @@ a { color: var(--brand); text-decoration: none; }
   box-shadow: 0 4px 10px rgba(0,0,0,0.10);
   filter: brightness(0.97) saturate(1.15);
 }
+
+/* REDESIGN — fixed top-left Home button (components/HomeButton.tsx). Same
+   lift-on-hover convention as the pills above, scaled down slightly since
+   this one is always visible rather than only within a page section. */
+.home-button {
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+.home-button:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 10px rgba(26,86,219,0.45);
+}
