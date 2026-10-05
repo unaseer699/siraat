@@ -6,6 +6,7 @@ import type { HousePlanStyle, HousePlanSummary } from '@siraat/shared-types';
 import { fetchAdminHousePlans, updateHousePlan, deleteHousePlan } from '@/lib/api';
 import { HOUSE_PLAN_STYLE_OPTIONS } from '@/lib/housePlanStyles';
 import { HousePlanImage } from '@/components/HousePlanImage';
+import { HousePlanAdminGallery } from '@/components/HousePlanAdminGallery';
 import { AdminNav } from '../AdminNav';
 import { fieldGroupStyle, inputStyle, labelStyle } from '../constants';
 
@@ -160,6 +161,7 @@ export default function AdminHousePlansPage() {
 
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editDraft, setEditDraft] = useState<EditDraft | null>(null);
+  const [galleryId, setGalleryId] = useState<string | null>(null);
   const [savingId, setSavingId] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [rowError, setRowError] = useState<{ id: string; message: string } | null>(null);
@@ -320,6 +322,12 @@ export default function AdminHousePlansPage() {
                             {editingId === p.id ? 'Close' : 'Edit'}
                           </button>
                           <button
+                            onClick={() => setGalleryId(galleryId === p.id ? null : p.id)}
+                            style={plainButtonStyle}
+                          >
+                            {galleryId === p.id ? 'Close gallery' : 'Gallery'}
+                          </button>
+                          <button
                             onClick={() => handleDelete(p)}
                             disabled={deletingId === p.id}
                             style={dangerButtonStyle(deletingId === p.id)}
@@ -343,6 +351,13 @@ export default function AdminHousePlansPage() {
                         saving={savingId === p.id}
                         error={rowError?.id === p.id ? rowError.message : null}
                       />
+                    )}
+                    {galleryId === p.id && (
+                      <tr key={`${p.id}-gallery`} style={{ borderTop: '1px solid var(--border)', background: '#f9fafb' }}>
+                        <td colSpan={COLUMN_COUNT} style={{ padding: '16px' }}>
+                          <HousePlanAdminGallery housePlanId={p.id} />
+                        </td>
+                      </tr>
                     )}
                   </Fragment>
                 ))}

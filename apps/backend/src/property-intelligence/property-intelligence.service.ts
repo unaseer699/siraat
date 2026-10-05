@@ -16,6 +16,9 @@ import type {
   SupplierListResponse,
   HousePlanSummary,
   HousePlanListResponse,
+  HousePlanImage,
+  HousePlanImageType,
+  HousePlanAccessTier,
 } from '@siraat/shared-types';
 import { TrustService } from '../trust/trust.service';
 import {
@@ -28,6 +31,7 @@ import { DeveloperEntity } from './entities/developer.entity';
 import { ContractorEntity } from './entities/contractor.entity';
 import { SupplierEntity } from './entities/supplier.entity';
 import { HousePlanEntity } from './entities/house-plan.entity';
+import { HousePlanImageEntity } from './entities/house-plan-image.entity';
 import { CandidateSocietyEntity } from './entities/candidate-society.entity';
 import { ObservationEntity } from './entities/observation.entity';
 
@@ -165,6 +169,18 @@ function toHousePlanResult(e: HousePlanEntity): HousePlanSummary {
   };
 }
 
+function toHousePlanImageResult(e: HousePlanImageEntity): HousePlanImage {
+  return {
+    id: e.id,
+    house_plan_id: e.house_plan_id,
+    image_type: e.image_type,
+    access_tier: e.access_tier,
+    price: Number(e.price),
+    display_order: e.display_order,
+    has_file: Boolean(e.storage_ref),
+  };
+}
+
 @Injectable()
 export class PropertyIntelligenceService {
   private readonly logger = new Logger(PropertyIntelligenceService.name);
@@ -182,6 +198,8 @@ export class PropertyIntelligenceService {
     private readonly supplierRepo: Repository<SupplierEntity>,
     @InjectRepository(HousePlanEntity)
     private readonly housePlanRepo: Repository<HousePlanEntity>,
+    @InjectRepository(HousePlanImageEntity)
+    private readonly housePlanImageRepo: Repository<HousePlanImageEntity>,
     // ADMIN CRUD PHASE 1 Chunk 1 — AdminService already holds its own
     // CandidateSocietyEntity repo (listCandidateSocieties, the
     // createSocietyWithFirstClaim onboarding lookup) via AdminModule's own
@@ -783,6 +801,65 @@ export class PropertyIntelligenceService {
   async deleteHousePlan(id: string): Promise<boolean> {
     const result = await this.housePlanRepo.delete({ id });
     return (result.affected ?? 0) > 0;
+  }
+
+  // ─── HOUSE PLAN GALLERY ────────────────────────────────────────────────
+  // Same two-step shape as the single preview_image_ref: create the row
+  // (type + tier + price) first, attach a file afterward via
+  // updateHousePlanImageFile (the upload endpoint), same as
+  // updateHousePlanPreviewImage above.
+
+  async createHousePlanImage(
+    housePlanId: string,
+    data: { image_type: HousePlanImageType; access_tier: HousePlanAccessTier; price: number; display_order?: number },
+  ): Promise<HousePlanImage> {
+    const entity = this.housePlanImageRepo.create({
+      house_plan_id: housePlanId,
+      image_type: data.image_type,
+      access_tier: data.access_tier,
+      price: data.price,
+      display_order: data.display_order ?? 0,
+      storage_ref: null,
+    });
+    const saved = await this.housePlanImageRepo.save(entity);
+    return toHousePlanImageResult(saved);
+  }
+
+  async listHousePlanImages(housePlanId: string): Promise<HousePlanImage[]> {
+    const rows = await this.housePlanImageRepo.find({
+      where: { house_plan_id: housePlanId },
+      order: { display_order: 'ASC', created_at: 'ASC' },
+    });
+    return rows.map(toHousePlanImageResult);
+  }
+
+  async findHousePlanImageById(imageId: string): Promise<HousePlanImageEntity | null> {
+    return this.housePlanImageRepo.findOneBy({ id: imageId });
+  }
+
+  async updateHousePlanImageFile(imageId: string, storageRef: string): Promise<void> {
+    await this.housePlanImageRepo.update({ id: imageId }, { storage_ref: storageRef });
+  }
+
+  async updateHousePlanImageTier(
+    imageId: string,
+    data: Partial<{ access_tier: HousePlanAccessTier; price: number; display_order: number }>,
+  ): Promise<HousePlanImage | null> {
+    const entity = await this.housePlanImageRepo.findOneBy({ id: imageId });
+    if (!entity) return null;
+    Object.assign(entity, data);
+    const saved = await this.housePlanImageRepo.save(entity);
+    return toHousePlanImageResult(saved);
+  }
+
+  // Returns the deleted row's storage_ref (for the caller's bucket cleanup,
+  // same orchestration pattern as AdminService.deleteHousePlan) or null if
+  // no such row existed.
+  async deleteHousePlanImage(imageId: string): Promise<{ deleted: boolean; storage_ref: string | null }> {
+    const entity = await this.housePlanImageRepo.findOneBy({ id: imageId });
+    if (!entity) return { deleted: false, storage_ref: null };
+    await this.housePlanImageRepo.delete({ id: imageId });
+    return { deleted: true, storage_ref: entity.storage_ref };
   }
 
   // ADMIN CRUD PHASE 1 Chunk 1 — Candidate Societies are a todo-list (the

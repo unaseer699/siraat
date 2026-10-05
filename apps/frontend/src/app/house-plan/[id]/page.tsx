@@ -1,6 +1,7 @@
 import { notFound } from 'next/navigation';
 import { fetchHousePlan } from '@/lib/api';
 import { HousePlanImage } from '@/components/HousePlanImage';
+import { HousePlanGallery } from '@/components/HousePlanGallery';
 import { BackLink } from '@/components/BackLink';
 import { HOUSE_PLAN_STYLE_OPTIONS } from '@/lib/housePlanStyles';
 import { TRUST_GREEN } from '@/styles/tokens';
@@ -78,6 +79,8 @@ export default async function HousePlanProfilePage({ params }: Props) {
           alt={plan.title}
           maxHeight={560}
         />
+
+        <HousePlanGallery housePlanId={plan.id} />
 
         <div
           style={{

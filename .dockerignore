@@ -1,0 +1,17 @@
+# flyctl launch added from .gitignore
+**/node_modules
+**/dist
+**/.env
+**/.env.local
+**/.next
+**/*.log
+**/coverage
+
+**/*.json.tmp
+**/detail-response.json
+**/page-source.txt
+**/response.json
+**/.neon
+**/.env.local
+**/.claude
+fly.toml

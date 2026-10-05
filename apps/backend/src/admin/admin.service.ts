@@ -9,6 +9,9 @@ import type {
   SupplierListResponse,
   HousePlanSummary,
   HousePlanListResponse,
+  HousePlanImage,
+  HousePlanImageType,
+  HousePlanAccessTier,
   DocumentType,
 } from '@siraat/shared-types';
 import { PropertyIntelligenceService } from '../property-intelligence/property-intelligence.service';
@@ -507,6 +510,84 @@ export class AdminService {
     }
 
     await this.piSvc.deleteHousePlan(id);
+  }
+
+  // ─── HOUSE PLAN GALLERY ────────────────────────────────────────────────
+
+  async createHousePlanImage(
+    housePlanId: string,
+    data: { image_type: HousePlanImageType; access_tier: HousePlanAccessTier; price: number; display_order: number },
+  ): Promise<HousePlanImage> {
+    const plan = await this.piSvc.findHousePlanById(housePlanId);
+    if (!plan) throw new NotFoundException(`House plan ${housePlanId} not found`);
+    return this.piSvc.createHousePlanImage(housePlanId, data);
+  }
+
+  async listHousePlanImages(housePlanId: string): Promise<{ images: HousePlanImage[] }> {
+    const plan = await this.piSvc.findHousePlanById(housePlanId);
+    if (!plan) throw new NotFoundException(`House plan ${housePlanId} not found`);
+    return { images: await this.piSvc.listHousePlanImages(housePlanId) };
+  }
+
+  // Same StorageService + PropertyIntelligenceService orchestration pattern
+  // as uploadHousePlanImage above, keyed one level deeper (per image id, not
+  // per plan) so each gallery image gets its own object in the bucket.
+  async uploadHousePlanImageFile(
+    housePlanId: string,
+    imageId: string,
+    data: UploadHousePlanImageInput,
+  ): Promise<HousePlanImage> {
+    const image = await this.piSvc.findHousePlanImageById(imageId);
+    if (!image || image.house_plan_id !== housePlanId) {
+      throw new NotFoundException(`Image ${imageId} not found for house plan ${housePlanId}`);
+    }
+
+    const key = `house-plans/${housePlanId}/images/${imageId}/${data.filename}`;
+    const buffer = Buffer.from(data.data_base64, 'base64');
+    await this.storageSvc.uploadFile(key, buffer, data.content_type);
+    await this.piSvc.updateHousePlanImageFile(imageId, key);
+
+    return {
+      id: image.id,
+      house_plan_id: image.house_plan_id,
+      image_type: image.image_type,
+      access_tier: image.access_tier,
+      price: Number(image.price),
+      display_order: image.display_order,
+      has_file: true,
+    };
+  }
+
+  async updateHousePlanImage(
+    imageId: string,
+    data: Partial<{ access_tier: HousePlanAccessTier; price: number; display_order: number }>,
+  ): Promise<HousePlanImage> {
+    const updated = await this.piSvc.updateHousePlanImageTier(imageId, data);
+    if (!updated) throw new NotFoundException(`Image ${imageId} not found`);
+    return updated;
+  }
+
+  // Same best-effort storage-cleanup-then-row-delete pattern as deleteHousePlan
+  // above — a cleanup failure is logged loudly but must not block removing
+  // the gallery row itself.
+  async deleteHousePlanImage(housePlanId: string, imageId: string): Promise<void> {
+    const image = await this.piSvc.findHousePlanImageById(imageId);
+    if (!image || image.house_plan_id !== housePlanId) {
+      throw new NotFoundException(`Image ${imageId} not found for house plan ${housePlanId}`);
+    }
+
+    if (image.storage_ref) {
+      try {
+        await this.storageSvc.deleteFile(image.storage_ref);
+      } catch (err) {
+        this.logger.error(
+          `Failed to delete stored file for house plan image ${imageId} (key=${image.storage_ref}) — file may be orphaned in the bucket`,
+          err instanceof Error ? err.stack : String(err),
+        );
+      }
+    }
+
+    await this.piSvc.deleteHousePlanImage(imageId);
   }
 
   // ADMIN CRUD PHASE 1 Chunk 1 — PATCH /v1/admin/candidate-societies/:id.

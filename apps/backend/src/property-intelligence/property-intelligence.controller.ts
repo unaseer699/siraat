@@ -1,4 +1,14 @@
-import { Body, Controller, Get, NotFoundException, Param, Post, Query, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  ForbiddenException,
+  Get,
+  NotFoundException,
+  Param,
+  Post,
+  Query,
+  UseGuards,
+} from '@nestjs/common';
 import { BearerGuard } from '../auth/bearer.guard';
 import { ZodValidationPipe } from '../common/zod-validation.pipe';
 import { SocietyChangesRequestSchema, type SocietyChangesRequest } from '@siraat/shared-types';
@@ -158,6 +168,38 @@ export class PropertyIntelligenceController {
     if (!plan) throw new NotFoundException(`House plan ${id} not found`);
     if (!plan.preview_image_ref) throw new NotFoundException(`House plan ${id} has no image`);
     const url = await this.storageSvc.getPresignedDownloadUrl(plan.preview_image_ref);
+    return { url, expires_in_seconds: 900 };
+  }
+
+  // HOUSE PLAN GALLERY — metadata only (type, tier, price, has_file), never
+  // the raw storage_ref. Returned for every image regardless of tier so the
+  // profile page can render locked placeholders with their price; the file
+  // itself is only ever reached through the url route below, which refuses
+  // GATED images.
+  @Get('house-plans/:id/images')
+  async listHousePlanImages(@Param('id') id: string) {
+    const plan = await this.piSvc.findHousePlanById(id);
+    if (!plan) throw new NotFoundException(`House plan ${id} not found`);
+    return { images: await this.piSvc.listHousePlanImages(id) };
+  }
+
+  // HOUSE PLAN GALLERY — presigned URL for one gallery image. There is no
+  // unlock/entitlement system yet (Step 0 founder direction: tiering ships
+  // ahead of the paywall), so a GATED image is refused outright here —
+  // 403, not 404, since the image exists and is correctly priced, just not
+  // purchasable through Siraat today. Once an entitlement check exists this
+  // is the one place it needs to be added.
+  @Get('house-plans/:id/images/:imageId/url')
+  async getHousePlanImageFileUrl(@Param('id') id: string, @Param('imageId') imageId: string) {
+    const image = await this.piSvc.findHousePlanImageById(imageId);
+    if (!image || image.house_plan_id !== id) {
+      throw new NotFoundException(`Image ${imageId} not found for house plan ${id}`);
+    }
+    if (image.access_tier === 'GATED') {
+      throw new ForbiddenException('This image is gated — unlocking is not yet available.');
+    }
+    if (!image.storage_ref) throw new NotFoundException(`Image ${imageId} has no file uploaded yet`);
+    const url = await this.storageSvc.getPresignedDownloadUrl(image.storage_ref);
     return { url, expires_in_seconds: 900 };
   }
 }

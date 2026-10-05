@@ -25,10 +25,16 @@ import type {
   SupplierListResponse,
   HousePlanSummary,
   HousePlanListResponse,
+  HousePlanImage,
+  HousePlanImageType,
+  HousePlanAccessTier,
+  HousePlanImageListResponse,
   DocumentType,
 } from '@siraat/shared-types';
 
 export type { DocumentType, VerificationResponse };
+
+export type { HousePlanImage, HousePlanImageType, HousePlanAccessTier, HousePlanImageListResponse };
 
 export type { MaterialRateItem, CreateMaterialRateBody };
 
@@ -328,6 +334,24 @@ export async function fetchHousePlanImageUrl(
   id: string,
 ): Promise<{ url: string; expires_in_seconds: number }> {
   return apiFetch(`/v1/property-intelligence/house-plans/${id}/image-url`);
+}
+
+// HOUSE PLAN GALLERY — the tagged elevation/3D-render set (metadata only:
+// type, tier, price, has_file — never a raw storage key). Returned for every
+// image regardless of tier so the profile page can render GATED images as
+// locked placeholders carrying their price.
+export async function fetchHousePlanImages(id: string): Promise<HousePlanImageListResponse> {
+  return apiFetch(`/v1/property-intelligence/house-plans/${id}/images`);
+}
+
+// Presigned URL for one gallery image. The backend refuses this (403) for a
+// GATED image — there is no unlock flow yet — so callers should only call
+// this for a FREE image with has_file true.
+export async function fetchHousePlanImageFileUrl(
+  housePlanId: string,
+  imageId: string,
+): Promise<{ url: string; expires_in_seconds: number }> {
+  return apiFetch(`/v1/property-intelligence/house-plans/${housePlanId}/images/${imageId}/url`);
 }
 
 // ── Admin (internal, no public UI links to these) ──────────────────────────
@@ -711,6 +735,63 @@ export async function updateHousePlan(id: string, data: UpdateHousePlanBody): Pr
 // — no separate cleanup call needed here.
 export async function deleteHousePlan(id: string): Promise<void> {
   return apiFetch(`/v1/admin/house-plans/${id}`, { method: 'DELETE' });
+}
+
+// ── House Plan Gallery (admin) ──────────────────────────────────────────────
+// Two-step shape, same as create-plan-then-upload-image: create the metadata
+// row (type/tier/price) first, then attach a file to the now-known image id.
+
+export interface CreateHousePlanImageBody {
+  image_type: HousePlanImageType;
+  access_tier: HousePlanAccessTier;
+  price: number;
+  display_order?: number;
+}
+
+export async function createHousePlanImage(
+  housePlanId: string,
+  data: CreateHousePlanImageBody,
+): Promise<HousePlanImage> {
+  return apiFetch(`/v1/admin/house-plans/${housePlanId}/images`, {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
+}
+
+export async function fetchAdminHousePlanImages(housePlanId: string): Promise<HousePlanImageListResponse> {
+  return apiFetch(`/v1/admin/house-plans/${housePlanId}/images`);
+}
+
+export async function uploadHousePlanImageFile(
+  housePlanId: string,
+  imageId: string,
+  data: { filename: string; content_type: string; data_base64: string },
+): Promise<HousePlanImage> {
+  return apiFetch(`/v1/admin/house-plans/${housePlanId}/images/${imageId}/upload`, {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
+}
+
+export interface UpdateHousePlanImageBody {
+  access_tier?: HousePlanAccessTier;
+  price?: number;
+  display_order?: number;
+}
+
+export async function updateHousePlanImage(
+  housePlanId: string,
+  imageId: string,
+  data: UpdateHousePlanImageBody,
+): Promise<HousePlanImage> {
+  return apiFetch(`/v1/admin/house-plans/${housePlanId}/images/${imageId}`, {
+    method: 'PATCH',
+    body: JSON.stringify(data),
+  });
+}
+
+export async function deleteHousePlanImage(housePlanId: string, imageId: string): Promise<void> {
+  return apiFetch(`/v1/admin/house-plans/${housePlanId}/images/${imageId}`, { method: 'DELETE' });
 }
 
 // PROJECT COST TRACKER Chunk 2 — an organized, immutable expense ledger per

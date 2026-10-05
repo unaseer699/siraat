@@ -241,3 +241,42 @@ export interface HousePlanListResponse {
   page: number;
   total_pages: number;
 }
+
+// ─── HOUSE PLAN GALLERY (elevations + 3D renders) ───────────────────────────
+// Extends the single preview_image_ref above with a per-plan set of tagged
+// images. Added ahead of the actual paywall (payment gateway, subscription)
+// on purpose, per founder direction: admins can upload and price GATED assets
+// today; the unlock flow (subscription or WhatsApp-mediated request) is a
+// separate, later change. Until then, GATED images are never resolved to a
+// downloadable URL by the backend (see the image-url endpoint) — they only
+// ever render client-side as a locked placeholder carrying their price.
+
+export const HousePlanImageTypeSchema = z.enum([
+  'FLOOR_PLAN',
+  'ELEVATION_FRONT',
+  'ELEVATION_SIDE',
+  'RENDER_3D',
+]);
+export type HousePlanImageType = z.infer<typeof HousePlanImageTypeSchema>;
+export const HOUSE_PLAN_IMAGE_TYPES = HousePlanImageTypeSchema.options;
+
+export const HousePlanAccessTierSchema = z.enum(['FREE', 'GATED']);
+export type HousePlanAccessTier = z.infer<typeof HousePlanAccessTierSchema>;
+export const HOUSE_PLAN_ACCESS_TIERS = HousePlanAccessTierSchema.options;
+
+export interface HousePlanImage {
+  id: string;
+  house_plan_id: string;
+  image_type: HousePlanImageType;
+  access_tier: HousePlanAccessTier;
+  // Required display price for every image (free or gated) — "no bait and
+  // switch": FREE images show it as Rs. 0 / "Free preview", GATED images
+  // show the real unlock price. Never null.
+  price: number;
+  display_order: number;
+  has_file: boolean;
+}
+
+export interface HousePlanImageListResponse {
+  images: HousePlanImage[];
+}

@@ -4,6 +4,8 @@ import {
   TradeCategorySchema,
   MaterialCategorySchema,
   HousePlanStyleSchema,
+  HousePlanImageTypeSchema,
+  HousePlanAccessTierSchema,
   CreateMaterialRateBodySchema,
   type CreateMaterialRateBody,
   DocumentTypeSchema,
@@ -171,6 +173,42 @@ const UpdateHousePlanBodySchema = z.object({
   is_siraat_affiliated: z.boolean().optional(),
 });
 type UpdateHousePlanBody = z.infer<typeof UpdateHousePlanBodySchema>;
+
+// --- POST /v1/admin/house-plans/:id/images (HOUSE PLAN GALLERY) ---
+// Creates the metadata row (type/tier/price) only — same two-step shape as
+// create-plan-then-upload-image above. price is required for every image
+// (FREE images are typically 0, but the admin sets it explicitly — no
+// implicit default that could hide a forgotten price on a GATED image).
+
+const CreateHousePlanImageBodySchema = z.object({
+  image_type: HousePlanImageTypeSchema,
+  access_tier: HousePlanAccessTierSchema.default('FREE'),
+  price: z.number().nonnegative(),
+  display_order: z.number().int().nonnegative().default(0),
+});
+type CreateHousePlanImageBody = z.infer<typeof CreateHousePlanImageBodySchema>;
+
+// --- POST /v1/admin/house-plans/:id/images/:imageId/upload ---
+// Same base64-JSON-body shape as UploadHousePlanImageBodySchema above (no
+// multipart plugin on this Fastify app).
+
+const UploadHousePlanImageFileBodySchema = z.object({
+  filename: z.string().min(1),
+  content_type: z.string().min(1),
+  data_base64: z.string().min(1),
+});
+type UploadHousePlanImageFileBody = z.infer<typeof UploadHousePlanImageFileBodySchema>;
+
+// --- PATCH /v1/admin/house-plans/:id/images/:imageId ---
+// Partial update for tier/price/ordering — never the file itself (that's
+// the upload route's job).
+
+const UpdateHousePlanImageBodySchema = z.object({
+  access_tier: HousePlanAccessTierSchema.optional(),
+  price: z.number().nonnegative().optional(),
+  display_order: z.number().int().nonnegative().optional(),
+});
+type UpdateHousePlanImageBody = z.infer<typeof UpdateHousePlanImageBodySchema>;
 
 // --- PATCH /v1/admin/candidate-societies/:id (ADMIN CRUD PHASE 1 Chunk 1) ---
 // All fields optional (partial update) — status is the field this exists
@@ -586,6 +624,49 @@ export class AdminController {
   @HttpCode(204)
   deleteHousePlan(@Param('id') id: string) {
     return this.adminSvc.deleteHousePlan(id);
+  }
+
+  // ─── HOUSE PLAN GALLERY ──────────────────────────────────────────────────
+  // Elevations + 3D render images, each tagged with a type and an access
+  // tier (FREE/GATED) with a required price — see CreateHousePlanImageBodySchema.
+
+  @Post('house-plans/:id/images')
+  @HttpCode(201)
+  createHousePlanImage(
+    @Param('id') id: string,
+    @Body(new ZodValidationPipe(CreateHousePlanImageBodySchema)) body: CreateHousePlanImageBody,
+  ) {
+    return this.adminSvc.createHousePlanImage(id, body);
+  }
+
+  @Get('house-plans/:id/images')
+  listHousePlanImages(@Param('id') id: string) {
+    return this.adminSvc.listHousePlanImages(id);
+  }
+
+  // Same two-step shape as upload-image above — base64 JSON body, sets
+  // storage_ref on an already-created image row.
+  @Post('house-plans/:id/images/:imageId/upload')
+  uploadHousePlanImageFile(
+    @Param('id') id: string,
+    @Param('imageId') imageId: string,
+    @Body(new ZodValidationPipe(UploadHousePlanImageFileBodySchema)) body: UploadHousePlanImageFileBody,
+  ) {
+    return this.adminSvc.uploadHousePlanImageFile(id, imageId, body);
+  }
+
+  @Patch('house-plans/:id/images/:imageId')
+  updateHousePlanImage(
+    @Param('imageId') imageId: string,
+    @Body(new ZodValidationPipe(UpdateHousePlanImageBodySchema)) body: UpdateHousePlanImageBody,
+  ) {
+    return this.adminSvc.updateHousePlanImage(imageId, body);
+  }
+
+  @Delete('house-plans/:id/images/:imageId')
+  @HttpCode(204)
+  deleteHousePlanImage(@Param('id') id: string, @Param('imageId') imageId: string) {
+    return this.adminSvc.deleteHousePlanImage(id, imageId);
   }
 
   // ─── PROJECT COST TRACKER Chunk 1 ────────────────────────────────────────
