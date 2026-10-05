@@ -486,22 +486,42 @@ function HomeView() {
 
       <HeroBand />
 
-      <StatCardsRow stats={stats} />
-
-      {/* HOMEPAGE REDESIGN — down from six equal-weight cards to the two
-          highest-value pillars plus the methodology card the hero's "See how
-          we verify" link scrolls to. Contractors/Suppliers/House Plans move
-          out of the primary homepage per the brief; their pages are
-          untouched and still reachable directly (e.g. from Browse). */}
+      {/* REDESIGN — same soft gradient panel treatment as the "Looking for
+          something else?" and "Or search a specific property" strips below
+          (dc344e8, 27a6efc), so all three secondary sections read as a
+          matched set instead of this one being plain page background
+          between two colorful panels. Cards/text inside stay on white, the
+          same contrast pattern the quick-link pills use against their panel. */}
       <div
         style={{
           width: '100%',
           maxWidth: '720px',
           display: 'flex',
-          flexWrap: 'wrap',
+          flexDirection: 'column',
+          alignItems: 'center',
           gap: '16px',
+          padding: '20px',
+          background: 'linear-gradient(135deg, #f0fdf4 0%, #eff6ff 50%, #fffbeb 100%)',
+          border: '1px solid var(--border)',
+          borderRadius: RADIUS.lg,
         }}
       >
+        <StatCardsRow stats={stats} />
+
+        {/* HOMEPAGE REDESIGN — down from six equal-weight cards to the two
+            highest-value pillars plus the methodology card the hero's "See how
+            we verify" link scrolls to. Contractors/Suppliers/House Plans move
+            out of the primary homepage per the brief; their pages are
+            untouched and still reachable directly (e.g. from Browse). */}
+        <div
+          style={{
+            width: '100%',
+            display: 'flex',
+            flexWrap: 'wrap',
+            gap: '16px',
+            justifyContent: 'center',
+          }}
+        >
         <QuickAccessCard
           href={compareHref}
           icon={Scale}
@@ -526,6 +546,7 @@ function HomeView() {
           ariaLabel="How Siraat verifies societies"
           tint={TRUST_GREEN}
         />
+        </div>
       </div>
 
       {/* REDESIGN — replaces the single generic "Browse Tools →" line (which
