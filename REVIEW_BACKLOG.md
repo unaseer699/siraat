@@ -193,6 +193,29 @@ Each item: **Priority** (Low / Medium / High) · **Found in** (capability) ·
   time. When that warning fires in production, add the exact spelling that was
   actually entered, if it is a genuine fixed equivalence, with a test.
 
+### 22. Presigned-upload orphan files have no reconciliation sweep
+- **Priority:** Low
+- **Found in:** Pre-data-population review (admin directory upload paths)
+- **Target:** General — revisit if bucket storage costs or clutter become
+  noticeable
+- `StorageService.getPresignedUploadUrl` hands the browser a short-lived PUT
+  URL; nothing in the backend observes whether that PUT ever completes or
+  whether the caller's finalize step (`finalizeHousePlanImageUpload`,
+  `finalizeHousePlanPreviewImageUpload`) ever runs afterward. An abandoned
+  upload (closed tab, dropped network) leaves an object in the bucket with
+  no DB row pointing to it. Re-uploads are now cleaned up in-flow (see
+  `AdminService.cleanupReplacedFile`, closes the "old key left behind on
+  re-upload" half of this), but an upload that's *never finalized at all*
+  has no sweep. Fix, if ever needed: a scheduled job comparing bucket
+  listing under `house-plans/` against `preview_image_ref`/`storage_ref`
+  columns, deleting anything unreferenced older than e.g. 24h.
+- **Convention note:** every `file_ref`/`storage_ref`/`preview_image_ref`
+  column stores a bucket-relative key (e.g. `house-plans/<id>/photo.jpg`),
+  never the bucket name prefixed on. `StorageService.getPresignedDownloadUrl`
+  defensively strips a wrongly-prepended bucket name for backward
+  compatibility with some older Evidence rows, but `uploadFile` and
+  `getPresignedUploadUrl` assume the convention is followed and do not.
+
 ### 21. Process: Step 0/migration-approval gates were bypassed twice in this feature
 - **Priority:** Medium
 - **Found in:** BOQ Estimator v1

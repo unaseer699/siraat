@@ -17,6 +17,35 @@ import { AdminService } from './admin.service';
 
 // --- Shared sub-schemas ---
 
+// PRE-DATA-POPULATION REVIEW finding #5 — contact_phone/contact_whatsapp
+// accepted literally anything ("n/a", "call me", a 2-digit string), which
+// becomes unusable contact info baked into directory listings once real
+// data is entered, and is painful to clean up retroactively (no way to
+// tell "garbage" from "real but oddly formatted" after the fact). Not a
+// strict Pakistan-only format (admins occasionally enter a landline or an
+// overseas number) — just a floor: optional leading +, digits/spaces/
+// dashes/parens only, and enough digits to be a real phone number.
+const PHONE_REGEX = /^\+?[\d\s()-]{7,20}$/;
+const PHONE_MIN_DIGITS = 7;
+
+function hasEnoughDigits(value: string): boolean {
+  return (value.match(/\d/g)?.length ?? 0) >= PHONE_MIN_DIGITS;
+}
+
+const PhoneNumberSchema = z
+  .string()
+  .trim()
+  .min(1)
+  .regex(PHONE_REGEX, 'Must be a phone number (digits, spaces, -, (), optional leading +)')
+  .refine(hasEnoughDigits, { message: `Must contain at least ${PHONE_MIN_DIGITS} digits` });
+
+const NullableWhatsappNumberSchema = z
+  .string()
+  .trim()
+  .regex(PHONE_REGEX, 'Must be a phone number (digits, spaces, -, (), optional leading +)')
+  .refine(hasEnoughDigits, { message: `Must contain at least ${PHONE_MIN_DIGITS} digits` })
+  .nullable();
+
 const CLAIM_TYPES = [
   'NOC',
   'PLANNING_APPROVAL',
@@ -51,8 +80,8 @@ const CANDIDATE_STATUSES = ['NOT_STARTED', 'IN_PROGRESS', 'ONBOARDED'] as const;
 // --- POST /v1/admin/societies ---
 
 const CreateSocietyBodySchema = z.object({
-  name: z.string().min(1),
-  city: z.string().min(1),
+  name: z.string().trim().min(1).max(255),
+  city: z.string().trim().min(1).max(100),
   min_price: z.number().nullable().default(null),
   max_price: z.number().nullable().default(null),
   min_area_marla: z.number().nullable().default(null),
@@ -106,11 +135,11 @@ type CreateEvidenceBody = z.infer<typeof CreateEvidenceBodySchema>;
 // --- POST /v1/admin/contractors (CONTRACTOR DIRECTORY Chunk 2) ---
 
 const CreateContractorBodySchema = z.object({
-  name: z.string().min(1),
+  name: z.string().trim().min(1).max(255),
   trade_categories: z.array(TradeCategorySchema).min(1),
   service_cities: z.array(z.string().min(1)).min(1),
-  contact_phone: z.string().min(1),
-  contact_whatsapp: z.string().nullable().default(null),
+  contact_phone: PhoneNumberSchema,
+  contact_whatsapp: NullableWhatsappNumberSchema.default(null),
   is_siraat_affiliated: z.boolean().default(false),
 });
 type CreateContractorBody = z.infer<typeof CreateContractorBodySchema>;
@@ -119,11 +148,11 @@ type CreateContractorBody = z.infer<typeof CreateContractorBodySchema>;
 // Same shape/organization as CreateContractorBodySchema above.
 
 const CreateSupplierBodySchema = z.object({
-  name: z.string().min(1),
+  name: z.string().trim().min(1).max(255),
   material_categories: z.array(MaterialCategorySchema).min(1),
   service_cities: z.array(z.string().min(1)).min(1),
-  contact_phone: z.string().min(1),
-  contact_whatsapp: z.string().nullable().default(null),
+  contact_phone: PhoneNumberSchema,
+  contact_whatsapp: NullableWhatsappNumberSchema.default(null),
   is_siraat_affiliated: z.boolean().default(false),
 });
 type CreateSupplierBody = z.infer<typeof CreateSupplierBodySchema>;
@@ -137,13 +166,13 @@ type CreateSupplierBody = z.infer<typeof CreateSupplierBodySchema>;
 // the "no image yet" sentinel throughout — not nullable, since the column
 // itself never was; the frontend simply skips rendering a preview when it's ''.
 const CreateHousePlanBodySchema = z.object({
-  title: z.string().min(1),
+  title: z.string().trim().min(1).max(255),
   area_marla: z.number().positive(),
   bedrooms: z.number().int().nonnegative(),
   style: HousePlanStyleSchema,
   preview_image_ref: z.string().default(''),
-  description: z.string().min(1),
-  contact_whatsapp: z.string().min(1),
+  description: z.string().trim().min(1).max(2000),
+  contact_whatsapp: PhoneNumberSchema,
   is_siraat_affiliated: z.boolean().default(false),
 });
 type CreateHousePlanBody = z.infer<typeof CreateHousePlanBodySchema>;
@@ -164,12 +193,12 @@ type UploadHousePlanImageBody = z.infer<typeof UploadHousePlanImageBodySchema>;
 // absent — that's upload-image's job, not this route's.
 
 const UpdateHousePlanBodySchema = z.object({
-  title: z.string().min(1).optional(),
+  title: z.string().trim().min(1).max(255).optional(),
   area_marla: z.number().positive().optional(),
   bedrooms: z.number().int().nonnegative().optional(),
   style: HousePlanStyleSchema.optional(),
-  description: z.string().min(1).optional(),
-  contact_whatsapp: z.string().min(1).optional(),
+  description: z.string().trim().min(1).max(2000).optional(),
+  contact_whatsapp: PhoneNumberSchema.optional(),
   is_siraat_affiliated: z.boolean().optional(),
 });
 type UpdateHousePlanBody = z.infer<typeof UpdateHousePlanBodySchema>;
@@ -240,9 +269,9 @@ type FinalizeHousePlanImageUploadBody = z.infer<typeof FinalizeHousePlanImageUpl
 // NOT_STARTED), but name/regulator/city are correctable too.
 
 const UpdateCandidateSocietyBodySchema = z.object({
-  name: z.string().min(1).optional(),
+  name: z.string().trim().min(1).max(255).optional(),
   regulator: z.enum(REGULATORS).optional(),
-  city: z.string().min(1).optional(),
+  city: z.string().trim().min(1).max(100).optional(),
   status: z.enum(CANDIDATE_STATUSES).optional(),
 });
 type UpdateCandidateSocietyBody = z.infer<typeof UpdateCandidateSocietyBodySchema>;

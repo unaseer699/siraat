@@ -14,6 +14,7 @@ import {
 import { EvidenceEditor } from '../EvidenceEditor';
 import { AdminNav } from '../AdminNav';
 import {
+  CANONICAL_CITY_OPTIONS,
   CLAIM_TYPE_OPTIONS,
   MATERIAL_CATEGORY_OPTIONS,
   fieldGroupStyle,
@@ -30,14 +31,19 @@ function ServiceCitiesField({
   selected: string[];
   onChange: (cities: string[]) => void;
 }) {
-  const [cities, setCities] = useState<string[]>([]);
+  // PRE-DATA-POPULATION REVIEW finding #10 — seed with the canonical list so
+  // the checkbox set isn't empty before any Society has been onboarded;
+  // fetchPlatformStats() below adds in any real city not already covered.
+  const [cities, setCities] = useState<string[]>(CANONICAL_CITY_OPTIONS);
   const [manualCity, setManualCity] = useState('');
 
   useEffect(() => {
     let cancelled = false;
     fetchPlatformStats()
       .then((stats) => {
-        if (!cancelled) setCities(stats.cities_covered);
+        if (!cancelled) {
+          setCities((prev) => Array.from(new Set([...prev, ...stats.cities_covered])).sort());
+        }
       })
       .catch(() => {
         // City list is a nice-to-have — manual entry below still covers it.

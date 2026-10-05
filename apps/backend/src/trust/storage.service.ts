@@ -44,6 +44,18 @@ export class StorageService {
   // goes straight from the browser to the bucket — Vercel's proxy route
   // only ever sees the small JSON request for the URL itself, never the
   // file bytes.
+  // PRE-DATA-POPULATION REVIEW finding #12 — ORPHAN RISK: this call only
+  // issues the URL; it does not know whether the browser's PUT ever
+  // happens, or whether the caller's finalize step (e.g.
+  // AdminService.finalizeHousePlanImageUpload) ever runs afterward. Either
+  // one failing silently (closed tab, network drop, abandoned form) leaves
+  // an object sitting in the bucket under `key` with no DB row pointing to
+  // it, and no part of this codebase currently sweeps for that — there is
+  // no reconciliation job comparing bucket contents against file_ref/
+  // storage_ref/preview_image_ref columns. This is an accepted gap for now
+  // (keys are namespaced per house-plan/image id, so an orphan is at worst
+  // a few KB/MB of unused storage, never a correctness or data-integrity
+  // issue), tracked in REVIEW_BACKLOG.md rather than fixed here.
   async getPresignedUploadUrl(key: string, contentType: string): Promise<string> {
     const command = new PutObjectCommand({ Bucket: this.bucket, Key: key, ContentType: contentType });
     return getSignedUrl(this.client, command, { expiresIn: PRESIGNED_TTL_SECONDS });

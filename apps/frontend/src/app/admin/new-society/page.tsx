@@ -14,6 +14,7 @@ import {
 } from '@/lib/api';
 import { EvidenceEditor } from '../EvidenceEditor';
 import {
+  CANONICAL_CITY_OPTIONS,
   CLAIM_TYPE_OPTIONS,
   PROPERTY_TYPE_OPTIONS,
   fieldGroupStyle,
@@ -347,7 +348,22 @@ function NewSocietyForm() {
 
               <div style={fieldGroupStyle}>
                 <label style={labelStyle}>City</label>
-                <input type="text" value={city} onChange={(e) => setCity(e.target.value)} required style={inputStyle} />
+                <input
+                  type="text"
+                  value={city}
+                  onChange={(e) => setCity(e.target.value)}
+                  required
+                  style={inputStyle}
+                  list="canonical-city-options"
+                  placeholder="e.g. Lahore"
+                />
+                {/* PRE-DATA-POPULATION REVIEW finding #10 — suggestions only, so a
+                    city not in this list (a smaller town) can still be typed. */}
+                <datalist id="canonical-city-options">
+                  {CANONICAL_CITY_OPTIONS.map((c) => (
+                    <option key={c} value={c} />
+                  ))}
+                </datalist>
               </div>
 
               {duplicateMatch && (
@@ -445,6 +461,11 @@ function NewSocietyForm() {
                 {!confidenceValid && (
                   <p style={{ fontSize: '12px', color: 'var(--error)' }}>Must be between 0.0 and 1.0.</p>
                 )}
+                <p style={{ fontSize: '12px', color: 'var(--muted-foreground, #6b7280)' }}>
+                  How sure we are this claim is accurate, independent of affiliation. Guide: 0.9–1.0 for an
+                  official NOC/approval document in hand, 0.7–0.89 for a credible secondary source, below 0.7
+                  for anything unverified — default 0.85 assumes a typical verified claim.
+                </p>
               </div>
 
               <label style={{ fontSize: '13px', display: 'flex', alignItems: 'center', gap: '6px' }}>

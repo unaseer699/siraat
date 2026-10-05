@@ -42,6 +42,38 @@ export const DOCUMENT_TYPE_OPTIONS: { value: DocumentType; label: string }[] = [
 
 export const PROPERTY_TYPE_OPTIONS = ['PLOT', 'HOUSE', 'APARTMENT', 'COMMERCIAL'];
 
+// PRE-DATA-POPULATION REVIEW finding #10 — a canonical city list used as
+// suggestions (datalist / checkbox options) across Society, Contractor,
+// Supplier and House Plan admin forms. Before any data exists, the
+// Society-derived city list (fetchPlatformStats().cities_covered) is empty,
+// so operators had nothing to pick from and typed free text — exactly how
+// "Lahore" / "lahore " / "Lahore City" variants get created in the first
+// place. This list is suggestions only (operators can still type a city not
+// listed here, e.g. a smaller town), not a hard enum — Society.city and
+// Contractor/Supplier.service_cities remain free-text columns.
+export const CANONICAL_CITY_OPTIONS = [
+  'Karachi',
+  'Lahore',
+  'Islamabad',
+  'Rawalpindi',
+  'Faisalabad',
+  'Multan',
+  'Peshawar',
+  'Quetta',
+  'Gujranwala',
+  'Sialkot',
+  'Bahawalpur',
+  'Sargodha',
+  'Sukkur',
+  'Hyderabad',
+  'Abbottabad',
+  'Mardan',
+  'Gujrat',
+  'Sheikhupura',
+  'Rahim Yar Khan',
+  'Jhelum',
+];
+
 // Shared input/label styling — matches apps/frontend/src/app/submit-evidence/[societyId]/page.tsx
 export const inputStyle: CSSProperties = {
   padding: '10px 12px',

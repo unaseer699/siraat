@@ -474,8 +474,37 @@ export class AdminService {
     const buffer = Buffer.from(data.data_base64, 'base64');
     await this.storageSvc.uploadFile(key, buffer, data.content_type);
     await this.piSvc.updateHousePlanPreviewImage(id, key);
+    await this.cleanupReplacedFile(plan.preview_image_ref, key, `house plan ${id} preview image`);
 
     return { preview_image_ref: key };
+  }
+
+  // PRE-DATA-POPULATION REVIEW finding #7/#8 — re-uploading a cover or
+  // gallery image (either the base64 path or the presigned-URL path) stores
+  // the new file under a fresh key but previously left the old key's object
+  // sitting in the bucket forever, since storage keys are content-addressed
+  // by filename, not overwritten in place. This is the shared cleanup used
+  // by all four upload-completion call sites below, mirroring the exact
+  // best-effort, non-blocking pattern already used in deleteHousePlan and
+  // deleteHousePlanImage: a failure here must never block the request that
+  // already succeeded at its real job (persisting the new reference) — it
+  // just risks one more orphaned file, which is logged loudly so it can be
+  // swept later rather than silently lost.
+  private async cleanupReplacedFile(
+    oldKey: string | null | undefined,
+    newKey: string,
+    description: string,
+  ): Promise<void> {
+    if (!oldKey || oldKey === newKey) return;
+
+    try {
+      await this.storageSvc.deleteFile(oldKey);
+    } catch (err) {
+      this.logger.error(
+        `Failed to delete replaced file for ${description} (old key=${oldKey}) — file may be orphaned in the bucket`,
+        err instanceof Error ? err.stack : String(err),
+      );
+    }
   }
 
   // Large-file path for the cover image — same reasoning/shape as
@@ -501,6 +530,7 @@ export class AdminService {
     if (!plan) throw new NotFoundException(`House plan ${id} not found`);
 
     await this.piSvc.updateHousePlanPreviewImage(id, data.key);
+    await this.cleanupReplacedFile(plan.preview_image_ref, data.key, `house plan ${id} preview image`);
     return { preview_image_ref: data.key };
   }
 
@@ -572,6 +602,7 @@ export class AdminService {
     const buffer = Buffer.from(data.data_base64, 'base64');
     await this.storageSvc.uploadFile(key, buffer, data.content_type);
     await this.piSvc.updateHousePlanImageFile(imageId, key, data.content_type);
+    await this.cleanupReplacedFile(image.storage_ref, key, `house plan image ${imageId}`);
 
     return {
       id: image.id,
@@ -618,6 +649,7 @@ export class AdminService {
     }
 
     await this.piSvc.updateHousePlanImageFile(imageId, data.key, data.content_type);
+    await this.cleanupReplacedFile(image.storage_ref, data.key, `house plan image ${imageId}`);
 
     return {
       id: image.id,

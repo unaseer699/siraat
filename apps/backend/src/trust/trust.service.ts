@@ -169,6 +169,63 @@ export class TrustService {
     return primaryClaim.verification.status === 'VERIFIED' ? 'VERIFIED' : 'PARTIAL';
   }
 
+  // Batched form of deriveVerificationStatus — one query for a whole page of
+  // subject ids instead of one deriveVerificationStatus() call per row (each
+  // of which was its own getVerifications() query plus, for every subject
+  // with at least one claim, a second evidence query that the status
+  // derivation never actually reads). Pre-data-population review finding:
+  // listSocieties/searchContractors/searchSuppliers were paying for up to
+  // ~2 extra queries per row on every paginated list, which scales with data
+  // volume rather than page size. Same precedence logic as
+  // deriveVerificationStatus above — kept in exact sync deliberately; do not
+  // let these drift apart.
+  async deriveVerificationStatuses(
+    subjectType: VerificationSubjectType,
+    subjectIds: string[],
+  ): Promise<Map<string, SocietyVerificationStatus>> {
+    const result = new Map<string, SocietyVerificationStatus>();
+    if (subjectIds.length === 0) return result;
+
+    const verifications = await this.verRepo.find({
+      where: { subject_type: subjectType, subject_id: In(subjectIds) },
+    });
+
+    const bySubject = new Map<string, VerificationEntity[]>();
+    for (const v of verifications) {
+      const list = bySubject.get(v.subject_id);
+      if (list) list.push(v);
+      else bySubject.set(v.subject_id, [v]);
+    }
+
+    for (const id of subjectIds) {
+      const all = bySubject.get(id) ?? [];
+      if (all.length === 0) {
+        result.set(id, 'PENDING');
+        continue;
+      }
+
+      const primaryClaim =
+        all.find((v) => v.claim_type === 'NOC' || v.claim_type === 'PLANNING_APPROVAL') ?? all[0];
+
+      if (primaryClaim.status === 'CANCELLED') {
+        result.set(id, 'CANCELLED');
+        continue;
+      }
+
+      const hasDisputedAdverseClaim = all.some(
+        (v) => ADVERSE_CLAIM_TYPES.includes(v.claim_type) && v.status === 'DISPUTED',
+      );
+      if (hasDisputedAdverseClaim) {
+        result.set(id, 'DISPUTED');
+        continue;
+      }
+
+      result.set(id, primaryClaim.status === 'VERIFIED' ? 'VERIFIED' : 'PARTIAL');
+    }
+
+    return result;
+  }
+
   // ─── Platform stats (Home page) ────────────────────────────────────────────
 
   // Distinct SOCIETY subject_ids carrying at least one VERIFIED claim — a society

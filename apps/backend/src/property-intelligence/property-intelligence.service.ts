@@ -356,17 +356,22 @@ export class PropertyIntelligenceService {
       .take(limit)
       .getManyAndCount();
 
-    const societies = await Promise.all(
-      entities.map(async (e) => ({
-        id: e.id,
-        name: e.name,
-        city: e.city,
-        price_range: { min: e.min_price, max: e.max_price },
-        area_range: { min: e.min_area_marla, max: e.max_area_marla },
-        property_types: e.property_types,
-        verification_status: await this.trustSvc.deriveVerificationStatus('SOCIETY', e.id),
-      })),
+    // Batched verification-status lookup — one query for the whole page
+    // instead of one deriveVerificationStatus() call per row (see
+    // TrustService.deriveVerificationStatuses' comment for why).
+    const statusById = await this.trustSvc.deriveVerificationStatuses(
+      'SOCIETY',
+      entities.map((e) => e.id),
     );
+    const societies = entities.map((e) => ({
+      id: e.id,
+      name: e.name,
+      city: e.city,
+      price_range: { min: e.min_price, max: e.max_price },
+      area_range: { min: e.min_area_marla, max: e.max_area_marla },
+      property_types: e.property_types,
+      verification_status: statusById.get(e.id) ?? 'PENDING',
+    }));
 
     return {
       societies,
@@ -482,6 +487,25 @@ export class PropertyIntelligenceService {
   // directly on this service — no dedicated ContractorService). A directory
   // (find + verify) only; no booking/payment/in-app-transaction fields.
 
+  // DUPLICATE PREVENTION — same reasoning as findSocietyByNameAndCity above:
+  // a contractor directory entry is a nationwide identity, not scoped to one
+  // city (service_cities is multi-valued), so an exact case-insensitive name
+  // match is the right signal here. Returns null (never throws) on a blank
+  // name.
+  async findContractorByName(name: string): Promise<ContractorSummary | null> {
+    const trimmed = name.trim();
+    if (!trimmed) return null;
+    const entity = await this.contractorRepo
+      .createQueryBuilder('c')
+      .where('LOWER(c.name) = LOWER(:name)', { name: trimmed })
+      .getOne();
+    if (!entity) return null;
+    return {
+      ...toContractorFields(entity),
+      verification_status: await this.trustSvc.deriveVerificationStatus('CONTRACTOR', entity.id),
+    };
+  }
+
   async createContractor(data: {
     name: string;
     trade_categories: TradeCategory[];
@@ -490,6 +514,15 @@ export class PropertyIntelligenceService {
     contact_whatsapp: string | null;
     is_siraat_affiliated: boolean;
   }): Promise<ContractorSummary> {
+    // Pre-data-population review finding #1 — Contractor had no dedup check
+    // at all (only Society did). Same hard-block pattern as createSociety.
+    const existing = await this.findContractorByName(data.name);
+    if (existing) {
+      throw new BadRequestException(
+        `A contractor named "${data.name}" already exists (id: ${existing.id}). Use Add Claim on the existing record instead of creating a new one.`,
+      );
+    }
+
     const entity = this.contractorRepo.create({ ...data, record_type: 'FACT' });
     const saved = await this.contractorRepo.save(entity);
     return {
@@ -542,13 +575,15 @@ export class PropertyIntelligenceService {
       .take(limit)
       .getManyAndCount();
 
-    // Same per-row TrustService derivation + Promise.all shape as listSocieties above.
-    const contractors = await Promise.all(
-      entities.map(async (e) => ({
-        ...toContractorFields(e),
-        verification_status: await this.trustSvc.deriveVerificationStatus('CONTRACTOR', e.id),
-      })),
+    // Batched verification-status lookup — same reasoning as listSocieties above.
+    const statusById = await this.trustSvc.deriveVerificationStatuses(
+      'CONTRACTOR',
+      entities.map((e) => e.id),
     );
+    const contractors = entities.map((e) => ({
+      ...toContractorFields(e),
+      verification_status: statusById.get(e.id) ?? 'PENDING',
+    }));
 
     return {
       contractors,
@@ -580,6 +615,21 @@ export class PropertyIntelligenceService {
   // A directory (find + verify) only; no booking/payment/in-app-transaction
   // fields.
 
+  // DUPLICATE PREVENTION — same reasoning as findContractorByName above.
+  async findSupplierByName(name: string): Promise<SupplierSummary | null> {
+    const trimmed = name.trim();
+    if (!trimmed) return null;
+    const entity = await this.supplierRepo
+      .createQueryBuilder('s')
+      .where('LOWER(s.name) = LOWER(:name)', { name: trimmed })
+      .getOne();
+    if (!entity) return null;
+    return {
+      ...toSupplierFields(entity),
+      verification_status: await this.trustSvc.deriveVerificationStatus('SUPPLIER', entity.id),
+    };
+  }
+
   async createSupplier(data: {
     name: string;
     material_categories: MaterialCategory[];
@@ -588,6 +638,15 @@ export class PropertyIntelligenceService {
     contact_whatsapp: string | null;
     is_siraat_affiliated: boolean;
   }): Promise<SupplierSummary> {
+    // Pre-data-population review finding #1 — Supplier had no dedup check
+    // at all (only Society did). Same hard-block pattern as createSociety.
+    const existing = await this.findSupplierByName(data.name);
+    if (existing) {
+      throw new BadRequestException(
+        `A supplier named "${data.name}" already exists (id: ${existing.id}). Use Add Claim on the existing record instead of creating a new one.`,
+      );
+    }
+
     const entity = this.supplierRepo.create({ ...data, record_type: 'FACT' });
     const saved = await this.supplierRepo.save(entity);
     return {
@@ -640,13 +699,15 @@ export class PropertyIntelligenceService {
       .take(limit)
       .getManyAndCount();
 
-    // Same per-row TrustService derivation + Promise.all shape as searchContractors above.
-    const suppliers = await Promise.all(
-      entities.map(async (e) => ({
-        ...toSupplierFields(e),
-        verification_status: await this.trustSvc.deriveVerificationStatus('SUPPLIER', e.id),
-      })),
+    // Batched verification-status lookup — same reasoning as listSocieties above.
+    const statusById = await this.trustSvc.deriveVerificationStatuses(
+      'SUPPLIER',
+      entities.map((e) => e.id),
     );
+    const suppliers = entities.map((e) => ({
+      ...toSupplierFields(e),
+      verification_status: statusById.get(e.id) ?? 'PENDING',
+    }));
 
     return {
       suppliers,
@@ -701,6 +762,29 @@ export class PropertyIntelligenceService {
   // HousePlanService). A directory catalog only; no payment or
   // full-resolution download.
 
+  // DUPLICATE PREVENTION — a house-plan title alone ("5 Marla Modern Home")
+  // is too weak a signal to hard-block on (many genuinely different plans
+  // share a generic title), so this matches on title + area + bedrooms +
+  // style together — the same plan re-entered by a second admin, not just a
+  // similarly-named one.
+  async findHousePlanByTitleAndSpecs(
+    title: string,
+    areaMarla: number,
+    bedrooms: number,
+    style: HousePlanStyle,
+  ): Promise<HousePlanSummary | null> {
+    const trimmed = title.trim();
+    if (!trimmed) return null;
+    const entity = await this.housePlanRepo
+      .createQueryBuilder('h')
+      .where('LOWER(h.title) = LOWER(:title)', { title: trimmed })
+      .andWhere('h.area_marla = :area', { area: areaMarla })
+      .andWhere('h.bedrooms = :bedrooms', { bedrooms })
+      .andWhere('h.style = :style', { style })
+      .getOne();
+    return entity ? toHousePlanResult(entity) : null;
+  }
+
   async createHousePlan(data: {
     title: string;
     area_marla: number;
@@ -711,6 +795,14 @@ export class PropertyIntelligenceService {
     contact_whatsapp: string;
     is_siraat_affiliated: boolean;
   }): Promise<HousePlanSummary> {
+    // Pre-data-population review finding #1 — HousePlan had no dedup check.
+    const existing = await this.findHousePlanByTitleAndSpecs(data.title, data.area_marla, data.bedrooms, data.style);
+    if (existing) {
+      throw new BadRequestException(
+        `A house plan titled "${data.title}" with the same area/bedrooms/style already exists (id: ${existing.id}).`,
+      );
+    }
+
     const entity = this.housePlanRepo.create({ ...data, record_type: 'FACT' });
     const saved = await this.housePlanRepo.save(entity);
     return toHousePlanResult(saved);
