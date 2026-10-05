@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import type { BoqRequest, BoqAreaUnit, BoqFloors, FinishLevel } from '@siraat/shared-types';
 import { fetchPlatformStats } from '@/lib/api';
+import { CANONICAL_CITY_OPTIONS } from '@/app/admin/constants';
 
 interface EstimateFormProps {
   onSubmit: (req: BoqRequest) => void;
@@ -35,7 +36,11 @@ const selectStyle = { ...fieldStyle, background: '#fff', cursor: 'pointer' };
 const labelTextStyle = { fontSize: '13px', fontWeight: 600, color: 'var(--muted)' };
 
 export function EstimateForm({ onSubmit, loading }: EstimateFormProps) {
-  const [cities, setCities] = useState<string[]>([]);
+  // PRE-DATA-POPULATION REVIEW finding #10 — seed with the canonical list so
+  // this select isn't effectively empty (just the disabled placeholder +
+  // "Other") before any Society has been onboarded; fetchPlatformStats()
+  // below adds in any real city not already covered.
+  const [cities, setCities] = useState<string[]>(CANONICAL_CITY_OPTIONS);
   const [citySelect, setCitySelect] = useState('');
   const [cityManual, setCityManual] = useState('');
 
@@ -49,7 +54,9 @@ export function EstimateForm({ onSubmit, loading }: EstimateFormProps) {
     let cancelled = false;
     fetchPlatformStats()
       .then((stats) => {
-        if (!cancelled) setCities(stats.cities_covered);
+        if (!cancelled) {
+          setCities((prev) => Array.from(new Set([...prev, ...stats.cities_covered])).sort());
+        }
       })
       .catch(() => {
         // City list is a nice-to-have — the "Other (type manually)" option

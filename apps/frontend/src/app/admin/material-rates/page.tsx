@@ -9,7 +9,7 @@ import {
   type MaterialRateListItem,
   type SupplierSearchResult,
 } from '@/lib/api';
-import { fieldGroupStyle, inputStyle, labelStyle } from '../constants';
+import { CANONICAL_CITY_OPTIONS, fieldGroupStyle, inputStyle, labelStyle } from '../constants';
 import { AdminNav } from '../AdminNav';
 import { TRUST_GREEN, WARNING_AMBER, NEUTRAL_GRAY } from '@/styles/tokens';
 
@@ -381,7 +381,19 @@ export default function MaterialRatesPage() {
                 placeholder="e.g. Islamabad"
                 required
                 style={inputStyle}
+                list="canonical-city-options"
               />
+              {/* PRE-DATA-POPULATION REVIEW finding #10 — suggestions only, free
+                  text still allowed. EstimatesService matches rates to a city
+                  case-insensitively (LOWER(city) = LOWER(:city)), so casing
+                  alone won't break a lookup, but a genuinely different
+                  spelling ("Islamabad City" vs "Islamabad") still will — this
+                  keeps rate entries and the estimate form's city list aligned. */}
+              <datalist id="canonical-city-options">
+                {CANONICAL_CITY_OPTIONS.map((c) => (
+                  <option key={c} value={c} />
+                ))}
+              </datalist>
             </div>
             <div style={{ ...fieldGroupStyle, flex: 1 }}>
               <label style={labelStyle}>Recorded date</label>
