@@ -478,6 +478,32 @@ export class AdminService {
     return { preview_image_ref: key };
   }
 
+  // Large-file path for the cover image — same reasoning/shape as
+  // requestHousePlanImageUploadUrl/finalizeHousePlanImageUpload below
+  // (Vercel's 4.5MB serverless body cap on the base64 route above).
+  async requestHousePlanPreviewImageUploadUrl(
+    id: string,
+    data: { filename: string; content_type: string },
+  ): Promise<{ upload_url: string; key: string; content_type: string }> {
+    const plan = await this.piSvc.findHousePlanById(id);
+    if (!plan) throw new NotFoundException(`House plan ${id} not found`);
+
+    const key = `house-plans/${id}/${data.filename}`;
+    const upload_url = await this.storageSvc.getPresignedUploadUrl(key, data.content_type);
+    return { upload_url, key, content_type: data.content_type };
+  }
+
+  async finalizeHousePlanPreviewImageUpload(
+    id: string,
+    data: { key: string; content_type: string },
+  ): Promise<{ preview_image_ref: string }> {
+    const plan = await this.piSvc.findHousePlanById(id);
+    if (!plan) throw new NotFoundException(`House plan ${id} not found`);
+
+    await this.piSvc.updateHousePlanPreviewImage(id, data.key);
+    return { preview_image_ref: data.key };
+  }
+
   // ADMIN CRUD PHASE 1 Chunk 1 — PATCH /v1/admin/house-plans/:id, same
   // find-or-404 delegation pattern as addClaim's subject lookups above.
   async updateHousePlan(id: string, data: UpdateHousePlanInput): Promise<HousePlanSummary> {

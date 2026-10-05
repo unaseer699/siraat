@@ -3,26 +3,10 @@
 import { useState, type CSSProperties, type FormEvent } from 'react';
 import Link from 'next/link';
 import type { HousePlanStyle } from '@siraat/shared-types';
-import { createHousePlan, uploadHousePlanImage } from '@/lib/api';
+import { createHousePlan, requestHousePlanPreviewUploadUrl, uploadFileToPresignedUrl, finalizeHousePlanPreviewUpload } from '@/lib/api';
 import { HOUSE_PLAN_STYLE_OPTIONS } from '@/lib/housePlanStyles';
 import { AdminNav } from '../AdminNav';
 import { fieldGroupStyle, inputStyle, labelStyle } from '../constants';
-
-// Base64-encodes a File client-side for the upload-image endpoint's JSON
-// body (see uploadHousePlanImage in lib/api.ts) — readAsDataURL's result is
-// "data:<mime>;base64,<data>", so only the part after the first comma is kept.
-function fileToBase64(file: File): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => {
-      const result = reader.result as string;
-      const commaIndex = result.indexOf(',');
-      resolve(commaIndex >= 0 ? result.slice(commaIndex + 1) : result);
-    };
-    reader.onerror = () => reject(reader.error ?? new Error('Failed to read file'));
-    reader.readAsDataURL(file);
-  });
-}
 
 export default function NewHousePlanPage() {
   const [title, setTitle] = useState('');
@@ -68,15 +52,18 @@ export default function NewHousePlanPage() {
       // CreateHousePlanBodySchema's comment in admin.controller.ts) — its
       // failure shouldn't undo the plan that was just created, so it's caught
       // and surfaced separately rather than failing the whole submission.
+      // Goes straight to the bucket (not through this app's server) so a
+      // larger cover image never hits Vercel's request-body cap — see
+      // requestHousePlanPreviewUploadUrl's comment in lib/api.ts.
       let imageUploadError: string | null = null;
       if (imageFile) {
         try {
-          const data_base64 = await fileToBase64(imageFile);
-          await uploadHousePlanImage(plan.id, {
+          const { upload_url, key, content_type } = await requestHousePlanPreviewUploadUrl(plan.id, {
             filename: imageFile.name,
             content_type: imageFile.type || 'application/octet-stream',
-            data_base64,
           });
+          await uploadFileToPresignedUrl(upload_url, imageFile);
+          await finalizeHousePlanPreviewUpload(plan.id, { key, content_type });
         } catch (uploadErr) {
           imageUploadError = uploadErr instanceof Error ? uploadErr.message : 'Image upload failed';
         }

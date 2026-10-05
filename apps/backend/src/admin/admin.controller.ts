@@ -630,6 +630,26 @@ export class AdminController {
     return this.adminSvc.uploadHousePlanImage(id, body);
   }
 
+  // Large-file path for the cover image — same reasoning as the gallery's
+  // upload-url/finalize-upload pair below (Vercel's 4.5MB serverless body
+  // cap). Added once a real cover-image upload tripped it in production;
+  // the base64 route above stays for any other caller.
+  @Post('house-plans/:id/upload-image-url')
+  requestHousePlanPreviewUploadUrl(
+    @Param('id') id: string,
+    @Body(new ZodValidationPipe(RequestHousePlanImageUploadUrlBodySchema)) body: RequestHousePlanImageUploadUrlBody,
+  ) {
+    return this.adminSvc.requestHousePlanPreviewImageUploadUrl(id, body);
+  }
+
+  @Post('house-plans/:id/finalize-image-upload')
+  finalizeHousePlanPreviewUpload(
+    @Param('id') id: string,
+    @Body(new ZodValidationPipe(FinalizeHousePlanImageUploadBodySchema)) body: FinalizeHousePlanImageUploadBody,
+  ) {
+    return this.adminSvc.finalizeHousePlanPreviewImageUpload(id, body);
+  }
+
   // ADMIN CRUD PHASE 1 Chunk 1 — PATCH /v1/admin/house-plans/:id. Any field
   // except preview_image_ref (that's upload-image's job, above).
   @Patch('house-plans/:id')

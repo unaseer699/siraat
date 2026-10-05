@@ -688,6 +688,31 @@ export async function uploadHousePlanImage(
   });
 }
 
+// Large-file path for the cover image — same reasoning as
+// requestHousePlanImageUploadUrl/uploadFileToPresignedUrl further down
+// (Vercel's ~4.5MB serverless body cap trips on the base64 route above for
+// anything but a small image). The browser PUTs the raw file straight to
+// the bucket; this app's server/proxy only ever sees the small JSON calls.
+export async function requestHousePlanPreviewUploadUrl(
+  id: string,
+  data: { filename: string; content_type: string },
+): Promise<{ upload_url: string; key: string; content_type: string }> {
+  return apiFetch(`/v1/admin/house-plans/${id}/upload-image-url`, {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
+}
+
+export async function finalizeHousePlanPreviewUpload(
+  id: string,
+  data: { key: string; content_type: string },
+): Promise<{ preview_image_ref: string }> {
+  return apiFetch(`/v1/admin/house-plans/${id}/finalize-image-upload`, {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
+}
+
 // ADMIN CRUD PHASE 1 Chunk 2 — GET /v1/admin/house-plans, backs the new
 // admin list page. Same shape/filters as the public fetchHousePlans above,
 // different route — the admin route has no verification-status gating (this
