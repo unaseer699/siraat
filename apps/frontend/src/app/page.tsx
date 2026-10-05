@@ -224,6 +224,10 @@ function SecondarySearch({
   showHint: boolean;
 }) {
   return (
+    // REDESIGN — same soft gradient panel treatment as the "Looking for
+    // something else?" quick-links strip above it (dc344e8), so the two
+    // secondary-but-important sections read as a matched pair rather than
+    // one bold panel followed by a plain, easy-to-miss line.
     <div
       style={{
         width: '100%',
@@ -231,13 +235,19 @@ function SecondarySearch({
         display: 'flex',
         flexDirection: 'column',
         alignItems: 'center',
-        gap: '10px',
+        gap: '12px',
+        padding: '20px',
+        background: 'linear-gradient(135deg, #eff6ff 0%, #f0fdf4 100%)',
+        border: '1px solid var(--border)',
+        borderRadius: RADIUS.lg,
       }}
     >
-      <p style={{ fontSize: '12px', fontWeight: 600, color: 'var(--muted)' }}>Or search a specific property</p>
+      <p style={{ fontSize: '15px', fontWeight: 800, color: 'var(--text)', margin: 0 }}>
+        Or search a specific property
+      </p>
       <SearchBar onSearch={onSearch} loading={loading} initialValue={initialValue} />
       {showHint && (
-        <p style={{ color: 'var(--muted)', fontSize: '12px', textAlign: 'center' }}>
+        <p style={{ color: 'var(--muted)', fontSize: '12px', textAlign: 'center', margin: 0 }}>
           Search in: Islamabad, Rawalpindi
           <br />
           e.g. &ldquo;10 Marla plot in Islamabad under 2.5 Crore&rdquo;
