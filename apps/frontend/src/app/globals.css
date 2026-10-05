@@ -39,10 +39,15 @@ a { color: var(--brand); text-decoration: none; }
 }
 
 /* REDESIGN — "Looking for something else?" quick-link pills (replaces the
-   old .tools-link single line). Border + background shift on hover, no
-   transform — these are secondary links, so deliberately a lighter hover
-   treatment than .qa-card's lift. */
+   old .tools-link single line). Each pill carries its own filled tint
+   inline (see quickLinkPillStyle in page.tsx); hover deepens that same
+   color rather than overriding it with a neutral gray, and adds a small
+   lift so the row reads as inviting rather than a flat info strip. */
+.quick-link-pill {
+  transition: transform 0.15s ease, box-shadow 0.15s ease, filter 0.15s ease;
+}
 .quick-link-pill:hover {
-  border-color: var(--brand);
-  background: #f9fafb;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 10px rgba(0,0,0,0.10);
+  filter: brightness(0.97) saturate(1.15);
 }

@@ -66,20 +66,24 @@ const heroCtaStyle: CSSProperties = {
 
 // REDESIGN — the pill style for the "Looking for something else?" quick
 // links (Contractors/Suppliers/House Plans), replacing the old single
-// "Browse Tools →" accent-bar line.
-const quickLinkPillStyle: CSSProperties = {
-  display: 'inline-flex',
-  alignItems: 'center',
-  gap: '6px',
-  padding: '8px 14px',
-  border: '1px solid var(--border)',
-  borderRadius: '99px',
-  background: '#fff',
-  fontSize: '13px',
-  fontWeight: 600,
-  color: 'var(--text)',
-  textDecoration: 'none',
-};
+// "Browse Tools →" accent-bar line. Each pill gets its own filled tint
+// (passed per-link) rather than one shared neutral outline, so the row reads
+// as three distinct, colorful destinations rather than one muted afterthought.
+function quickLinkPillStyle(color: string): CSSProperties {
+  return {
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: '8px',
+    padding: '12px 22px',
+    border: `1.5px solid ${color}40`,
+    borderRadius: '99px',
+    background: `${color}14`,
+    fontSize: '15px',
+    fontWeight: 700,
+    color,
+    textDecoration: 'none',
+  };
+}
 
 // Trust-style hero band: flat tinted container (TRUST_GREEN_BG/BORDER/TEXT,
 // imported from tokens.ts) with a
@@ -519,21 +523,34 @@ function HomeView() {
           destinations it used to bundle together, styled as a lightweight
           quick-link row rather than promoting them to full cards (they're
           secondary to the three pillars above). */}
-      <div style={{ width: '100%', maxWidth: '720px', display: 'flex', flexDirection: 'column', gap: '10px', alignItems: 'center' }}>
-        <p style={{ fontSize: '12px', fontWeight: 600, color: 'var(--muted)', margin: 0 }}>
-          LOOKING FOR SOMETHING ELSE?
+      <div
+        style={{
+          width: '100%',
+          maxWidth: '720px',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '14px',
+          alignItems: 'center',
+          padding: '20px',
+          background: 'linear-gradient(135deg, #f0fdf4 0%, #eff6ff 50%, #fffbeb 100%)',
+          border: '1px solid var(--border)',
+          borderRadius: RADIUS.lg,
+        }}
+      >
+        <p style={{ fontSize: '15px', fontWeight: 800, color: 'var(--text)', margin: 0, textAlign: 'center' }}>
+          Looking for something else?
         </p>
-        <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', justifyContent: 'center' }}>
-          <Link href="/contractors" className="quick-link-pill" style={quickLinkPillStyle}>
-            <HardHat size={15} color={TRUST_GREEN} aria-hidden="true" />
+        <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', justifyContent: 'center' }}>
+          <Link href="/contractors" className="quick-link-pill" style={quickLinkPillStyle(TRUST_GREEN)}>
+            <HardHat size={18} color={TRUST_GREEN} aria-hidden="true" />
             Contractors
           </Link>
-          <Link href="/suppliers" className="quick-link-pill" style={quickLinkPillStyle}>
-            <Package size={15} color={TRUST_GREEN} aria-hidden="true" />
+          <Link href="/suppliers" className="quick-link-pill" style={quickLinkPillStyle(ACCENT_BLUE)}>
+            <Package size={18} color={ACCENT_BLUE} aria-hidden="true" />
             Suppliers
           </Link>
-          <Link href="/house-plans" className="quick-link-pill" style={quickLinkPillStyle}>
-            <Home size={15} color={TRUST_GREEN} aria-hidden="true" />
+          <Link href="/house-plans" className="quick-link-pill" style={quickLinkPillStyle(WARNING_AMBER)}>
+            <Home size={18} color={WARNING_AMBER} aria-hidden="true" />
             House Plans
           </Link>
         </div>
