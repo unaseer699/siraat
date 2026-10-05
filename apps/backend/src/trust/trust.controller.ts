@@ -1,3 +1,4 @@
+import { randomUUID } from 'crypto';
 import { Controller, Get, Post, NotFoundException, Param, Body, UseGuards } from '@nestjs/common';
 import { BearerGuard } from '../auth/bearer.guard';
 import { ZodValidationPipe } from '../common/zod-validation.pipe';
@@ -88,6 +89,25 @@ export class TrustController {
     if (!evidence) throw new NotFoundException(`Evidence ${id} not found`);
     const url = await this.storageSvc.getPresignedDownloadUrl(evidence.file_ref);
     return { url, expires_in_seconds: 900 };
+  }
+
+  // UI REVIEW finding #4/#22-25 — submit-evidence previously asked the
+  // contributor to type a file path by hand ("e.g. uploads/myfile.pdf")
+  // with no actual upload behind it. Same presigned-PUT pattern as
+  // AdminService's house-plan image uploads (StorageService.
+  // getPresignedUploadUrl): the browser PUTs the file straight to the
+  // bucket, then calls POST /evidence-submissions with the returned key as
+  // file_ref. Key is namespaced under evidence/<societyId>/ with a
+  // uuid-prefixed filename so two contributors picking the same filename
+  // (e.g. "photo.jpg") never collide.
+  @Post('evidence-submissions/upload-url')
+  async requestEvidenceUploadUrl(
+    @Body() body: { society_id: string; filename: string; content_type: string },
+  ): Promise<{ upload_url: string; key: string; content_type: string }> {
+    const safeFilename = body.filename.replace(/[^a-zA-Z0-9_.-]/g, '_');
+    const key = `evidence/${body.society_id}/${randomUUID()}-${safeFilename}`;
+    const upload_url = await this.storageSvc.getPresignedUploadUrl(key, body.content_type);
+    return { upload_url, key, content_type: body.content_type };
   }
 
   @Post('evidence-submissions')

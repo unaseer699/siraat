@@ -199,6 +199,22 @@ export async function fetchConstructionEstimate(
   });
 }
 
+// UI REVIEW finding — submit-evidence previously had the contributor type
+// a file path by hand with no real upload behind it. Same presigned-PUT
+// pattern as requestHousePlanImageUploadUrl/uploadFileToPresignedUrl further
+// down this file: ask the backend for a short-lived upload URL, PUT the
+// file straight to the bucket (bypassing this app's own server/proxy), then
+// submit the returned key as file_ref.
+export async function requestEvidenceUploadUrl(
+  societyId: string,
+  data: { filename: string; content_type: string },
+): Promise<{ upload_url: string; key: string; content_type: string }> {
+  return apiFetch('/v1/trust/evidence-submissions/upload-url', {
+    method: 'POST',
+    body: JSON.stringify({ society_id: societyId, ...data }),
+  });
+}
+
 export async function submitEvidence(societyId: string, data: {
   type: 'document' | 'photo' | 'receipt' | 'inspection_report';
   source_ref: string;

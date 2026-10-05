@@ -1,9 +1,15 @@
 'use client';
 
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
-import { submitEvidence } from '@/lib/api';
+import { requestEvidenceUploadUrl, uploadFileToPresignedUrl, submitEvidence } from '@/lib/api';
+
+// Mirrors Vercel's serverless body cap elsewhere in the app (house-plan
+// image uploads) — not strictly needed here since this always goes through
+// the presigned-PUT path, never through this app's own server, but a
+// sensible ceiling on what a contributor should be uploading as evidence.
+const MAX_FILE_BYTES = 20 * 1024 * 1024; // 20MB
 
 const EVIDENCE_TYPES = [
   { value: 'document', label: 'Document' },
@@ -21,17 +27,35 @@ export default function SubmitEvidencePage() {
 
   const [type, setType] = useState<EvidenceType>('photo');
   const [sourceRef, setSourceRef] = useState('');
-  const [fileRef, setFileRef] = useState('');
+  const [file, setFile] = useState<File | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const picked = e.target.files?.[0] ?? null;
+    setError(null);
+    if (picked && picked.size > MAX_FILE_BYTES) {
+      setError(`File is too large (max ${MAX_FILE_BYTES / (1024 * 1024)}MB).`);
+      setFile(null);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+      return;
+    }
+    setFile(picked);
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!sourceRef.trim() || !fileRef.trim()) return;
+    if (!sourceRef.trim() || !file) return;
     setSubmitting(true);
     setError(null);
     try {
-      await submitEvidence(societyId, { type, source_ref: sourceRef, file_ref: fileRef });
+      const { upload_url, key } = await requestEvidenceUploadUrl(societyId, {
+        filename: file.name,
+        content_type: file.type || 'application/octet-stream',
+      });
+      await uploadFileToPresignedUrl(upload_url, file);
+      await submitEvidence(societyId, { type, source_ref: sourceRef, file_ref: key });
       // Submission is only pending review, not published yet — send the
       // contributor back to the society profile rather than a dead-end
       // confirmation screen with nowhere left to go.
@@ -112,24 +136,23 @@ export default function SubmitEvidencePage() {
           </div>
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-            <label style={{ fontSize: '13px', fontWeight: 600 }}>
-              File reference
-            </label>
+            <label style={{ fontSize: '13px', fontWeight: 600 }}>File</label>
             <input
-              type="text"
-              value={fileRef}
-              onChange={(e) => setFileRef(e.target.value)}
-              placeholder="e.g. uploads/myfile.pdf"
+              ref={fileInputRef}
+              type="file"
+              accept="image/*,application/pdf"
+              onChange={handleFileChange}
               required
               style={{
                 padding: '10px 12px',
                 border: '1px solid var(--border)',
                 borderRadius: 'var(--radius)',
                 fontSize: '14px',
+                background: '#fff',
               }}
             />
             <p style={{ fontSize: '12px', color: 'var(--muted)' }}>
-              File upload pipeline coming soon — enter the file path or name for now.
+              Photo or PDF, up to {MAX_FILE_BYTES / (1024 * 1024)}MB.
             </p>
           </div>
 
@@ -150,7 +173,7 @@ export default function SubmitEvidencePage() {
 
           <button
             type="submit"
-            disabled={submitting || !sourceRef.trim() || !fileRef.trim()}
+            disabled={submitting || !sourceRef.trim() || !file}
             style={{
               padding: '12px 20px',
               background: submitting ? 'var(--muted)' : '#111',
@@ -162,7 +185,7 @@ export default function SubmitEvidencePage() {
               cursor: submitting ? 'not-allowed' : 'pointer',
             }}
           >
-            {submitting ? 'Submitting…' : 'Submit for review'}
+            {submitting ? 'Uploading…' : 'Submit for review'}
           </button>
         </form>
       </article>
