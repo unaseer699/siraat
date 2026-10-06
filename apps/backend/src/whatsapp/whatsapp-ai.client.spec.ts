@@ -231,3 +231,10 @@ describe('WhatsappAiClient', () => {
     });
   });
 });
+
+describe('expense ledger prompt', () => {
+  it('prefers the Rs-marked figure as the amount', () => {
+    const src = require('fs').readFileSync(__dirname + '/whatsapp-ai.client.ts', 'utf8') as string;
+    expect(src).toContain('Rs. 74,500');
+  });
+});
