@@ -153,6 +153,7 @@ export default function ProjectDashboardPage({ params }: Props) {
   }, [project, sectionFilter, dateFrom, dateTo]);
 
   const hasFilters = Boolean(sectionFilter || dateFrom || dateTo);
+  const showBoq = project?.boq_template === '5_MARLA';
   const usedCategories = Array.from(new Set((project?.sections ?? []).map((s) => s.category)));
 
   if (loading) {
@@ -173,7 +174,7 @@ export default function ProjectDashboardPage({ params }: Props) {
 
   return (
     <main style={pageStyle}>
-      <div style={{ width: '100%', maxWidth: '1080px', display: 'flex', flexWrap: 'wrap', gap: '24px', alignItems: 'flex-start', justifyContent: 'center' }}>
+      <div style={{ width: '100%', maxWidth: showBoq ? '1080px' : '640px', display: 'flex', flexWrap: 'wrap', gap: '24px', alignItems: 'flex-start', justifyContent: 'center' }}>
       <div style={{ flex: '1 1 440px', maxWidth: '640px', minWidth: 0, display: 'flex', flexDirection: 'column', gap: '16px' }}>
         <div>
           <h1 style={{ fontSize: '22px', fontWeight: 800 }}>{project.name}</h1>
@@ -260,9 +261,11 @@ export default function ProjectDashboardPage({ params }: Props) {
           </div>
         )}
       </div>
-      <div style={{ flex: '1 1 320px', maxWidth: '420px', minWidth: 0, position: 'sticky', top: '16px' }}>
-        <Boq5MarlaPanel />
-      </div>
+      {showBoq && (
+        <div style={{ flex: '1 1 320px', maxWidth: '420px', minWidth: 0, position: 'sticky', top: '16px' }}>
+          <Boq5MarlaPanel />
+        </div>
+      )}
       </div>
     </main>
   );

@@ -328,6 +328,7 @@ const UpdateProjectBodySchema = z
       .refine((v) => v.length <= 100, { message: 'owner_contact must be at most 100 characters' })
       .optional(),
     status: z.enum(PROJECT_STATUSES).optional(),
+    boq_template: z.enum(['5_MARLA']).nullable().optional(),
   })
   .refine((data) => Object.keys(data).length > 0, { message: 'At least one field must be provided' });
 type UpdateProjectBody = z.infer<typeof UpdateProjectBodySchema>;

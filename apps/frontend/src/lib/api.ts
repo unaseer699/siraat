@@ -900,6 +900,7 @@ export interface ProjectResult {
   status: ConstructionProjectStatus;
   record_type: 'FACT';
   city: string | null;
+  boq_template?: string | null;
 }
 
 export interface CreateProjectBody {
@@ -925,6 +926,7 @@ export async function createProject(data: CreateProjectBody): Promise<ProjectRes
 // only the fields present are changed, same convention as UpdateHousePlanBody.
 export interface UpdateProjectBody {
   name?: string;
+  boq_template?: string | null;
   city?: string | null;
   owner_contact?: string;
   status?: ConstructionProjectStatus;

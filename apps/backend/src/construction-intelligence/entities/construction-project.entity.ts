@@ -34,6 +34,10 @@ export class ConstructionProjectEntity {
   @Column({ type: 'varchar', length: 100, nullable: true })
   city: string | null;
 
+  // Optional reference BOQ template shown on the dashboard (null = none).
+  @Column({ type: 'varchar', length: 20, nullable: true })
+  boq_template: string | null;
+
   @Column({ type: 'varchar', length: 255 })
   owner_contact: string;
 

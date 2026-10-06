@@ -65,6 +65,7 @@ const PROJECT_STATUS_OPTIONS: ConstructionProjectStatus[] = ['ACTIVE', 'COMPLETE
 
 interface ProjectEditDraft {
   name: string;
+  boq_template: string;
   city: string;
   owner_contact: string;
   status: ConstructionProjectStatus;
@@ -127,6 +128,20 @@ function EditProjectForm({
             maxLength={100}
             style={inputStyle}
           />
+        </div>
+      </div>
+
+      <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+        <div style={{ ...fieldGroupStyle, flex: 1, minWidth: '200px' }}>
+          <label style={labelStyle}>BOQ reference on dashboard</label>
+          <select
+            value={draft.boq_template}
+            onChange={(e) => onChange({ ...draft, boq_template: e.target.value })}
+            style={inputStyle}
+          >
+            <option value="">None</option>
+            <option value="5_MARLA">5 Marla (25 × 50)</option>
+          </select>
         </div>
       </div>
 
@@ -879,6 +894,7 @@ export default function AdminProjectPage({ params }: Props) {
     if (!project) return;
     setProjectDraft({
       name: project.name,
+      boq_template: project.boq_template ?? '',
       city: project.city ?? '',
       owner_contact: project.owner_contact,
       status: project.status,
@@ -900,6 +916,7 @@ export default function AdminProjectPage({ params }: Props) {
     try {
       const body: UpdateProjectBody = {
         name: projectDraft.name,
+        boq_template: projectDraft.boq_template || null,
         city: projectDraft.city,
         owner_contact: projectDraft.owner_contact,
         status: projectDraft.status,

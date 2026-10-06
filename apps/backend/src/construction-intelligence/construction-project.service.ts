@@ -41,6 +41,7 @@ export interface UpdateProjectInput {
   city?: string | null;
   owner_contact?: string;
   status?: ConstructionProjectStatus;
+  boq_template?: string | null;
 }
 
 export interface ProjectResult {
@@ -52,6 +53,7 @@ export interface ProjectResult {
   status: ConstructionProjectStatus;
   record_type: 'FACT';
   city: string | null;
+  boq_template: string | null;
 }
 
 function toProjectResult(e: ConstructionProjectEntity): ProjectResult {
@@ -64,6 +66,7 @@ function toProjectResult(e: ConstructionProjectEntity): ProjectResult {
     status: e.status,
     record_type: e.record_type,
     city: e.city,
+    boq_template: e.boq_template ?? null,
   };
 }
 
@@ -352,6 +355,10 @@ export class ConstructionProjectService {
     if (data.city !== undefined && data.city !== entity.city) {
       changes.push({ field: 'city', old: entity.city, new: data.city ?? '' });
       entity.city = data.city;
+    }
+    if (data.boq_template !== undefined && data.boq_template !== entity.boq_template) {
+      changes.push({ field: 'boq_template', old: entity.boq_template, new: data.boq_template ?? '' });
+      entity.boq_template = data.boq_template;
     }
     if (data.owner_contact !== undefined && data.owner_contact !== entity.owner_contact) {
       changes.push({ field: 'owner_contact', old: entity.owner_contact, new: data.owner_contact });
