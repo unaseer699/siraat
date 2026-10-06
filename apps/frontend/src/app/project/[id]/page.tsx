@@ -10,6 +10,7 @@ import { sectionLabel } from '@/lib/sectionCategories';
 import { RADIUS } from '@/styles/tokens';
 import WhatsappBadge from '@/components/WhatsappBadge';
 import VendorLabel from '@/components/VendorLabel';
+import Boq5MarlaPanel from '@/components/Boq5MarlaPanel';
 
 interface Props {
   params: { id: string };
@@ -172,7 +173,8 @@ export default function ProjectDashboardPage({ params }: Props) {
 
   return (
     <main style={pageStyle}>
-      <div style={{ width: '100%', maxWidth: '640px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+      <div style={{ width: '100%', maxWidth: '1080px', display: 'flex', flexWrap: 'wrap', gap: '24px', alignItems: 'flex-start', justifyContent: 'center' }}>
+      <div style={{ flex: '1 1 440px', maxWidth: '640px', minWidth: 0, display: 'flex', flexDirection: 'column', gap: '16px' }}>
         <div>
           <h1 style={{ fontSize: '22px', fontWeight: 800 }}>{project.name}</h1>
           <p style={{ fontSize: '13px', color: 'var(--muted)', marginTop: '4px' }}>
@@ -257,6 +259,10 @@ export default function ProjectDashboardPage({ params }: Props) {
             ))}
           </div>
         )}
+      </div>
+      <div style={{ flex: '1 1 320px', maxWidth: '420px', minWidth: 0, position: 'sticky', top: '16px' }}>
+        <Boq5MarlaPanel />
+      </div>
       </div>
     </main>
   );
