@@ -233,7 +233,18 @@ export class WhatsappService {
     // fire-and-forget like the other parsers, so the webhook acks fast.
     if (this.groundReportSvc && !isListingForwarder) {
       const isReport = this.groundReportSvc.isReportMessage(msg.text);
-      if (isReport || (await this.groundReportSvc.canAttach(msg.from, msg.type))) {
+      // Best effort: if the ground-report tables are unavailable (e.g. a
+      // migration not applied yet) this must NEVER stop an ordinary expense
+      // or listing message from being stored — fall through to normal routing.
+      let canAttach = false;
+      if (!isReport) {
+        try {
+          canAttach = await this.groundReportSvc.canAttach(msg.from, msg.type);
+        } catch (err) {
+          this.logger.warn(`Ground-report attach check failed — routing normally: ${err instanceof Error ? err.message : String(err)}`);
+        }
+      }
+      if (isReport || canAttach) {
         try {
           const saved = await this.inboundRepo.save(
             this.inboundRepo.create({
