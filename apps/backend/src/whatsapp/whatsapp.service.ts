@@ -340,8 +340,12 @@ export class WhatsappService {
     // call is fire-and-forgotten" line Phase 1/2 already draw) rather than
     // adding it to the fire-and-forget branch below.
     if (this.expenseBatchSvc) {
-      const pendingBatch = await this.expenseBatchSvc.findPendingBatch(message.project_ref);
-      if (pendingBatch && (await this.expenseBatchSvc.handleReply(pendingBatch, message))) return;
+      try {
+        const pendingBatch = await this.expenseBatchSvc.findPendingBatch(message.project_ref);
+        if (pendingBatch && (await this.expenseBatchSvc.handleReply(pendingBatch, message))) return;
+      } catch (err) {
+        this.logger.error('Pending expense batch lookup failed — continuing normal routing', err instanceof Error ? err.stack : String(err));
+      }
       if (isExpenseBatchMessage(message.message_text) && countNonEmptyLines(message.message_text) > 3) {
         void this.expenseBatchSvc.parseAndStoreBatch(message);
         return;
