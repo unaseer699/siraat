@@ -22,6 +22,55 @@ const ExtractionSchema = z.object({
   notes: z.string().max(1000).nullable().optional(),
 });
 export type LayoutExtraction = z.infer<typeof ExtractionSchema>;
+type LayoutExtraKindT = 'FRONT_SHADE' | 'BACK_SHADE' | 'BALCONY' | 'PORCH';
+
+const posNum = (v: unknown): number | null => {
+  const n = typeof v === 'string' ? Number(v.replace(/[, ]/g, '')) : v;
+  return typeof n === 'number' && Number.isFinite(n) && n > 0 && n <= 100000 ? n : null;
+};
+
+function extraKindOf(kind: unknown, name: string): LayoutExtraKindT | null {
+  const k = String(kind ?? '').toUpperCase();
+  if (k === 'FRONT_SHADE' || k === 'BACK_SHADE' || k === 'BALCONY' || k === 'PORCH') return k;
+  const n = `${k} ${name}`.toLowerCase();
+  if (n.includes('balcon')) return 'BALCONY';
+  if (n.includes('back')) return 'BACK_SHADE';
+  if (n.includes('shade') || n.includes('canopy') || n.includes('projection')) return 'FRONT_SHADE';
+  if (n.includes('porch')) return 'PORCH';
+  return null;
+}
+
+// Tolerant reading of the model's answer: keep what is usable, drop the rest.
+function normalizeExtraction(raw: unknown): LayoutExtraction | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const r = raw as Record<string, unknown>;
+  const floors = (Array.isArray(r.floors) ? r.floors : [])
+    .filter((f): f is Record<string, unknown> => !!f && typeof f === 'object')
+    .map((f) => ({
+      name: String(f.name ?? '').trim().slice(0, 60),
+      covered_area_sqft: posNum(f.covered_area_sqft),
+      allowable_area_sqft: posNum(f.allowable_area_sqft),
+    }))
+    .filter((f) => f.name)
+    .slice(0, 10);
+  const extras = (Array.isArray(r.extras) ? r.extras : [])
+    .filter((e): e is Record<string, unknown> => !!e && typeof e === 'object')
+    .map((e) => {
+      const name = String(e.name ?? '').trim().slice(0, 60);
+      const kind = extraKindOf(e.kind, name);
+      return kind && name ? { kind, name, area_sqft: posNum(e.area_sqft) } : null;
+    })
+    .filter((e): e is { kind: LayoutExtraKindT; name: string; area_sqft: number | null } => e !== null)
+    .slice(0, 20);
+  if (floors.length === 0 && extras.length === 0 && posNum(r.boundary_wall_length_ft) === null) return null;
+  return {
+    floors,
+    boundary_wall_length_ft: posNum(r.boundary_wall_length_ft),
+    boundary_wall_inferred: r.boundary_wall_inferred === true,
+    extras,
+    notes: typeof r.notes === 'string' ? r.notes.slice(0, 1000) : null,
+  };
+}
 
 const PROMPT = `You read architectural working drawings for a house in Pakistan and extract quantities for a cost forecast.
 Return ONLY a JSON object, no prose, with this shape:
@@ -113,8 +162,18 @@ export class LayoutExtractorService {
     const text = json.content?.find((c) => typeof c.text === 'string')?.text ?? '';
     const match = text.match(/\{[\s\S]*\}/);
     if (!match) throw new BadRequestException('The AI reader did not return a usable answer');
-    const parsed = ExtractionSchema.safeParse(JSON.parse(match[0]));
-    if (!parsed.success) throw new BadRequestException('The AI reader returned an unexpected shape');
-    return parsed.data;
+    let raw: unknown;
+    try {
+      raw = JSON.parse(match[0]);
+    } catch {
+      this.logger.error(`Layout reader returned invalid JSON: ${text.slice(0, 2000)}`);
+      throw new BadRequestException('The AI reader returned an unreadable answer');
+    }
+    const out = normalizeExtraction(raw);
+    if (!out) {
+      this.logger.error(`Layout reader returned unexpected shape: ${text.slice(0, 2000)}`);
+      throw new BadRequestException('The AI reader returned an unexpected shape');
+    }
+    return out;
   }
 }
