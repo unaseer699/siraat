@@ -20,9 +20,20 @@ function norm(s: string): string {
 
 export function extractProjectName(text: string | null): string | null {
   if (!text) return null;
-  const m = text.match(/^\s*project\s*(?:name)?\s*[:\-]\s*(.+)$/im);
-  const name = m?.[1]?.trim();
-  return name ? name : null;
+  const named = text.match(/^\s*project\s*name\s*[:\-]\s*(.+)$/im);
+  if (named?.[1]?.trim()) return named[1].trim();
+
+  const lines = text.split('\n').map((l) => l.trim()).filter(Boolean);
+  const idx = lines.slice(0, 3).findIndex((l) => /^project\s+expenses?\b/i.test(l));
+  if (idx < 0) {
+    const plain = text.match(/^\s*project\s*[:\-]\s*(.+)$/im);
+    return plain?.[1]?.trim() || null;
+  }
+  const after = lines[idx].replace(/^project\s+expenses?\b\s*[:\-]?\s*/i, '').trim();
+  if (after) return after;
+  if (idx > 0) return lines[idx - 1];
+  const next = lines[idx + 1];
+  return next && /^project\s*name\b/i.test(next) ? null : null;
 }
 
 export function nameScore(stated: string, actual: string): number {

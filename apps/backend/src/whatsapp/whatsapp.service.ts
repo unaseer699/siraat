@@ -237,7 +237,7 @@ export class WhatsappService {
     // expenses. A message that announces itself as a project expense
     // ("Project Expense: ...") must go to the expense flow even from a
     // listing-forwarder number; everything else from a forwarder is inventory.
-    let looksLikeExpense = !!msg.text && /^\s*project\s+expense\b/i.test(msg.text);
+    let looksLikeExpense = isExpenseBatchMessage(msg.text);
     if (!looksLikeExpense && this.projectResolver && (isConfirmationReply(msg.text) || isCancelReply(msg.text))) {
       try {
         const refs = (await this.mappingRepo.find({ where: { wa_id: msg.from } })).map((m) => m.project_ref);

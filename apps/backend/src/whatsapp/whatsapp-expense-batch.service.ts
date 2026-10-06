@@ -10,12 +10,16 @@ import { WhatsappExpenseBatchEntity, ExpenseBatchStoredLine } from './entities/w
 import { ConstructionProjectService } from '../construction-intelligence/construction-project.service';
 import { maskPhone } from './whatsapp-phone.util';
 
-const BATCH_TRIGGER = /^\s*project\s+expense\b/i;
+const BATCH_TRIGGER = /^\s*project\s+expenses?\b/i;
 const CANCEL_WORDS = ['cancel', 'no', 'n', 'discard', 'stop', 'reject'];
 const SUMMARY_LINE_LIMIT = 25;
 
+// The "Project Expense(s)" heading may be the first line, or come right after
+// a project title line ("THE COURTYARD" then "Project Expenses").
 export function isExpenseBatchMessage(text: string | null): boolean {
-  return !!text && BATCH_TRIGGER.test(text);
+  if (!text) return false;
+  const head = text.split('\n').map((l) => l.trim()).filter(Boolean).slice(0, 3);
+  return head.some((l) => BATCH_TRIGGER.test(l));
 }
 
 export function isCancelReply(text: string | null): boolean {

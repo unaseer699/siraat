@@ -267,12 +267,12 @@ const ExpenseBatchResponseSchema = z.object({
 
 function buildExpenseBatchPrompt(): string {
   return [
-    'You extract a construction-expense LEDGER from a WhatsApp message sent by a project owner. The message starts with "Project Expense:" and "Project Name: ...", then lists many expense lines, grouped under date headings like "13-9-2026" (day-month-year, Pakistan format). Separator lines made of dashes are just dividers.',
+    'You extract a construction-expense LEDGER from a WhatsApp message sent by a project owner. The message has a "Project Expense(s)" heading together with the project name (either a "Project Name: ..." line, or a title line such as "THE COURTYARD" just before or after the heading), then lists many expense lines, grouped under date headings like "13-9-2026" (day-month-year, Pakistan format). Separator lines made of dashes are just dividers.',
     'Respond with ONLY a single JSON object — no prose, no markdown fences — matching exactly:',
     '{"project_name": string|null, "expenses": [{"date": "YYYY-MM-DD"|null, "description": string, "amount": number, "quantity": number|null, "unit": string|null, "vendor": string|null, "paid_by": string|null, "trade_category": string|null, "kind": string|null, "raw_line": string}]}',
     '',
     'Rules:',
-    '- project_name: the text after "Project Name:", or null.',
+    '- project_name: the text after "Project Name:", otherwise the title line next to the "Project Expense(s)" heading, otherwise null. The title line and the heading are never expense lines.',
     '- One element per expense line. Ignore headings, dividers and the Project lines.',
     '- amount: the TOTAL paid for the line — the number after the dash (e.g. "Cement - 74500 50 bags" -> 74500). It is NEVER a per-unit rate. Plain number, no commas. If a line has a second number after another dash (e.g. "Bricks payment Sattar - 850000 - 50k bricks"), the FIRST number after the first dash is the amount and the rest is detail. Numbers like "30k" inside the description are part of the description, not the amount.',
     '- date: the date heading in force for the line, as ISO yyyy-mm-dd (read dd-mm-yyyy as day-month-year). Lines before any date heading get null.',

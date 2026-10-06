@@ -18,3 +18,12 @@ describe('project resolver helpers', () => {
     expect(pickClosest('Lahore Mall', projects)).toBeNull();
   });
 });
+
+describe('title-line project name', () => {
+  it('reads a title line before the heading', () => {
+    expect(extractProjectName('THE COURTYARD\nProject Expenses\nDuck - 4000')).toBe('THE COURTYARD');
+  });
+  it('reads a name after the heading', () => {
+    expect(extractProjectName('Project Expenses - The Courtyard\nDuck - 4000')).toBe('The Courtyard');
+  });
+});

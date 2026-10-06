@@ -22,3 +22,12 @@ describe('expense batch helpers', () => {
     expect(t).toContain('Reply YES');
   });
 });
+
+describe('heading detection', () => {
+  it('detects the heading after a title line and in plural', () => {
+    expect(isExpenseBatchMessage('THE COURTYARD\nProject Expenses\nDuck - 4000')).toBe(true);
+  });
+  it('ignores ordinary inventory messages', () => {
+    expect(isExpenseBatchMessage('Society: Faisal Hills\n5 Marla plot\n10 Marla plot\nProject Expense later')).toBe(false);
+  });
+});
