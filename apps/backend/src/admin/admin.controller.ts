@@ -1,4 +1,5 @@
 import { Body, Controller, Delete, Get, HttpCode, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
+import type { GroundReportStatus } from '../ground-reports/ground-report-submission.entity';
 import { z } from 'zod';
 import {
   TradeCategorySchema,
@@ -1015,6 +1016,27 @@ export class AdminController {
   @HttpCode(200)
   publishCleanWhatsappListingDrafts() {
     return this.adminSvc.publishCleanWhatsappListingDrafts();
+  }
+
+  // GROUND-CONDITION REPORTS — admin review queue.
+  @Get('ground-reports')
+  listGroundReports(@Query('status') status?: string) {
+    return this.adminSvc.listGroundReports(status as GroundReportStatus | undefined);
+  }
+
+  @Post('ground-reports/:id/approve')
+  @HttpCode(200)
+  approveGroundReport(@Param('id') id: string) {
+    return this.adminSvc.approveGroundReport(id);
+  }
+
+  @Post('ground-reports/:id/reject')
+  @HttpCode(200)
+  rejectGroundReport(
+    @Param('id') id: string,
+    @Body(new ZodValidationPipe(RejectWhatsappListingDraftBodySchema)) body: RejectWhatsappListingDraftBody,
+  ) {
+    return this.adminSvc.rejectGroundReport(id, body.reason);
   }
 
   @Get('property-listings')

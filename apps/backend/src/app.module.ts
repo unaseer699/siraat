@@ -8,6 +8,7 @@ import { TrustModule } from './trust/trust.module';
 import { ConstructionIntelligenceModule } from './construction-intelligence/construction-intelligence.module';
 import { AdminModule } from './admin/admin.module';
 import { WhatsappModule } from './whatsapp/whatsapp.module';
+import { GroundReportsModule } from './ground-reports/ground-reports.module';
 import { HealthController } from './health.controller';
 
 @Module({
@@ -41,6 +42,7 @@ import { HealthController } from './health.controller';
     // separately imports WhatsappModule too for the whatsapp-mappings
     // admin routes (module singleton — no duplicate provider instances).
     WhatsappModule,
+    GroundReportsModule,
   ],
 })
 export class AppModule {}

@@ -13,6 +13,7 @@ import { BearerGuard } from '../auth/bearer.guard';
 import { ZodValidationPipe } from '../common/zod-validation.pipe';
 import { SocietyChangesRequestSchema, type SocietyChangesRequest } from '@siraat/shared-types';
 import { PropertyIntelligenceService } from './property-intelligence.service';
+import { GroundConditionService } from './ground-condition.service';
 import { StorageService } from '../trust/storage.service';
 
 @Controller('v1/property-intelligence')
@@ -20,6 +21,7 @@ import { StorageService } from '../trust/storage.service';
 export class PropertyIntelligenceController {
   constructor(
     private readonly piSvc: PropertyIntelligenceService,
+    private readonly groundSvc: GroundConditionService,
     // HOUSE PLANS DIRECTORY Chunk 2 — first public route that needs to serve a
     // file, hence the first place this controller (rather than TrustController)
     // needs StorageService. Available here because PropertyIntelligenceModule
@@ -43,6 +45,14 @@ export class PropertyIntelligenceController {
   // WHATSAPP LISTING INGESTION — public, read-only. Only ever returns
   // listings still inside their auto-expiry window. `counts` is declared
   // BEFORE any :id-style route so it is never captured as a parameter.
+  // GROUND-CONDITION REPORTS — reviewed (FACT) reports rolled up per block.
+  // Always 200: a society with no reports returns state NOT_COVERED, never 404.
+  @Get('ground-conditions')
+  async getGroundConditions(@Query('society_key') society_key?: string) {
+    if (!society_key) throw new NotFoundException('society_key is required');
+    return this.groundSvc.getForSociety(society_key);
+  }
+
   @Get('listings/counts')
   async countListings() {
     return this.piSvc.countActivePropertyListingsBySociety();

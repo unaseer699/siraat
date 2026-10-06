@@ -207,7 +207,7 @@ export function normalizeDealerPhone(phone: string | null): string | null {
   return digits.startsWith('0') ? `92${digits.slice(1)}` : digits;
 }
 
-function norm(v: string | null | undefined): string {
+export function norm(v: string | null | undefined): string {
   return (v ?? '').trim().toLowerCase();
 }
 
@@ -254,7 +254,10 @@ function toListingResult(
 // (either direction) against onboarded Society names. Longest matching name
 // wins so "Faisal Hills Phase 2" beats "Faisal". Pure, so every read shares
 // exactly one rule.
-function resolveListingSociety(listing: PropertyListingEntity, societies: SocietyRef[]): SocietyRef | null {
+export function resolveListingSociety(
+  listing: { society_ref: string | null; society_name_raw: string },
+  societies: SocietyRef[],
+): SocietyRef | null {
   if (listing.society_ref) {
     return societies.find((s) => s.id === listing.society_ref) ?? null;
   }
@@ -273,7 +276,7 @@ function resolveListingSociety(listing: PropertyListingEntity, societies: Societ
 
 // Society identity for grouping/filtering: the Society id when resolved,
 // else `raw:<lowercased header>`. Matches PropertyListingFacets.society keys.
-function societyKeyOf(e: PropertyListingEntity, society: SocietyRef | null): string {
+export function societyKeyOf(e: { society_name_raw: string }, society: SocietyRef | null): string {
   return society ? society.id : `raw:${norm(e.society_name_raw)}`;
 }
 

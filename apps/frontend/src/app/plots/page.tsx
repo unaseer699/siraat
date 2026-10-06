@@ -3,9 +3,10 @@
 import { Suspense, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
-import type { PropertyPlotGroup, PropertyListingFacets } from '@siraat/shared-types';
+import type { PropertyPlotGroup, PropertyListingFacets, GroundConditionsResponse } from '@siraat/shared-types';
 import { CANONICAL_CITY_OPTIONS } from '@/app/admin/constants';
-import { fetchPropertyListings, subscribeListingAlert } from '@/lib/api';
+import { fetchPropertyListings, fetchGroundConditions, subscribeListingAlert } from '@/lib/api';
+import { GroundChip } from '@/components/GroundChip';
 import { BackLink } from '@/components/BackLink';
 import { Spinner } from '@/components/Spinner';
 import { PlotGroupCard, ListingDisclaimer } from '@/components/PlotListings';
@@ -114,6 +115,8 @@ function PlotsView() {
   const [plots, setPlots] = useState<PropertyPlotGroup[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  // Reviewed ground-condition reports, per society key (loaded lazily).
+  const [ground, setGround] = useState<Record<string, GroundConditionsResponse>>({});
 
   useEffect(() => {
     let cancelled = false;
@@ -198,6 +201,17 @@ function PlotsView() {
       blocks: [...s.blocks.entries()].sort(([a], [b]) => a.localeCompare(b)),
     }));
   }, [sorted, visible, sort]);
+
+  useEffect(() => {
+    for (const g of groups) {
+      if (ground[g.key]) continue;
+      fetchGroundConditions(g.key)
+        .then((r) => setGround((prev) => ({ ...prev, [g.key]: r })))
+        .catch(() => undefined); // best effort: the chip simply stays at "no reports"
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [groups]);
+
 
   return (
     <main style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '48px 16px 32px' }}>
@@ -284,6 +298,13 @@ function PlotsView() {
                     <h3 style={{ fontSize: '12px', fontWeight: 800, letterSpacing: '0.04em', color: 'var(--muted)' }}>
                       {block ? `BLOCK ${block.toUpperCase()}` : 'BLOCK NOT STATED'} · {items.length}
                     </h3>
+                    {block && (
+                      <GroundChip
+                        summary={ground[g.key]?.blocks.find((b) => b.block === block.toUpperCase())}
+                        societyName={g.name}
+                        block={block}
+                      />
+                    )}
                     {items.map((p) => (
                       <PlotGroupCard key={p.key} plot={p} />
                     ))}

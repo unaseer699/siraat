@@ -1,4 +1,6 @@
 import { Injectable, BadRequestException, Logger, NotFoundException } from '@nestjs/common';
+import { GroundReportSubmissionService } from '../ground-reports/ground-report-submission.service';
+import type { GroundReportStatus } from '../ground-reports/ground-report-submission.entity';
 import type {
   TradeCategory,
   MaterialCategory,
@@ -204,6 +206,7 @@ export class AdminService {
     private readonly waLinkSvc: WhatsappBusinessLinkService,
     private readonly waListingForwarderSvc: WhatsappListingForwarderService,
     private readonly waListingParsingSvc: WhatsappListingParsingService,
+    private readonly groundReportSvc: GroundReportSubmissionService,
   ) {}
 
   // CLEANUP — was AdminService's own CandidateSocietyEntity repository
@@ -915,6 +918,19 @@ export class AdminService {
   // POST /v1/admin/whatsapp-listing-drafts/:id/reject
   async rejectWhatsappListingDraft(id: string, note: string | null): Promise<WhatsappDraftListingEntity> {
     return this.waListingParsingSvc.rejectDraft(id, note);
+  }
+
+  // GROUND-CONDITION REPORTS — review queue (delegates to the owning module).
+  listGroundReports(status?: GroundReportStatus) {
+    return this.groundReportSvc.list(status);
+  }
+
+  approveGroundReport(id: string) {
+    return this.groundReportSvc.approve(id);
+  }
+
+  rejectGroundReport(id: string, reason: string | null) {
+    return this.groundReportSvc.reject(id, reason);
   }
 
   // POST /v1/admin/whatsapp-listing-drafts/publish-clean

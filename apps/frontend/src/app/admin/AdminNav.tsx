@@ -10,7 +10,8 @@ type AdminSection =
   | 'house-plans'
   | 'projects'
   | 'whatsapp-review'
-  | 'whatsapp-listings';
+  | 'whatsapp-listings'
+  | 'ground-reports';
 
 const SECTIONS: { key: AdminSection; href: string; label: string }[] = [
   { key: 'candidates', href: '/admin/candidates', label: 'Candidate Societies' },
@@ -39,6 +40,8 @@ const SECTIONS: { key: AdminSection; href: string; label: string }[] = [
   // draft expenses); this one is the plot-listing review queue + forwarder
   // allowlist, a distinct concern with its own backend routes.
   { key: 'whatsapp-listings', href: '/admin/whatsapp-listings', label: 'WhatsApp Listings' },
+  // GROUND-CONDITION REPORTS — review queue for owner/builder reports.
+  { key: 'ground-reports', href: '/admin/ground-reports', label: 'Ground Reports' },
 ];
 
 // Shared nav row so the admin tools are reachable from one another instead of

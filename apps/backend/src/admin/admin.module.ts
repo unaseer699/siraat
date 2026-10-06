@@ -3,6 +3,7 @@ import { PropertyIntelligenceModule } from '../property-intelligence/property-in
 import { TrustModule } from '../trust/trust.module';
 import { ConstructionIntelligenceModule } from '../construction-intelligence/construction-intelligence.module';
 import { WhatsappModule } from '../whatsapp/whatsapp.module';
+import { GroundReportsModule } from '../ground-reports/ground-reports.module';
 import { AdminService } from './admin.service';
 import { AdminController } from './admin.controller';
 
@@ -19,6 +20,7 @@ import { AdminController } from './admin.controller';
     // WHATSAPP INTEGRATION Phase 1 — AdminService delegates the
     // whatsapp-mappings admin routes to WhatsappService.
     WhatsappModule,
+    GroundReportsModule,
   ],
   controllers: [AdminController],
   providers: [AdminService],

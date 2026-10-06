@@ -395,3 +395,43 @@ export interface DealerProfile {
   first_seen_at: string;
   last_confirmed_at: string;
 }
+
+
+// ─── GROUND-CONDITION REPORTS ───────────────────────────────────────────────
+// Reviewed (FACT) reports of what owners/builders actually found underground,
+// rolled up per block. The roll-up is a GENERATED record: derived_from lists
+// the FACT report ids it was computed from.
+export type GroundCondition = 'SOLID' | 'FILLED' | 'MIXED';
+export type FoundationType = 'STANDARD' | 'RAFT' | 'DEEP_STRIP' | 'PILING';
+export type ReporterRole = 'OWNER' | 'BUILDER' | 'CONTRACTOR' | 'OTHER';
+
+export interface GroundBlockSummary {
+  block: string;
+  state: 'FULL' | 'DEGRADED_SUCCESS';
+  report_count: number;
+  solid_count: number;
+  filled_count: number;
+  mixed_count: number;
+  // Reports needing a deep strip foundation or piling.
+  deep_foundation_count: number;
+  soil_test_count: number;
+  depth_ft_min: number | null;
+  depth_ft_median: number | null;
+  depth_ft_max: number | null;
+  extra_cost_lac_median: number | null;
+  // Only set from 3+ reports; null = too few to call.
+  reported_risk: 'LOWER' | 'MODERATE' | 'HIGHER' | null;
+  latest_report_year: number;
+  record_type: 'GENERATED';
+  derived_from: string[];
+  confidence_score: number; // 0.0 - 1.0
+  is_stale: boolean;
+  staleness_threshold_days: number;
+  affiliation_disclosure: string | null;
+}
+
+export interface GroundConditionsResponse {
+  state: 'FULL' | 'DEGRADED_SUCCESS' | 'NOT_COVERED';
+  society_key: string;
+  blocks: GroundBlockSummary[];
+}

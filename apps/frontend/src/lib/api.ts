@@ -32,6 +32,7 @@ import type {
   PropertyListingSummary,
   PropertyListingCountsResponse,
   DealerProfile,
+  GroundConditionsResponse,
   HousePlanImageListResponse,
   DocumentType,
 } from '@siraat/shared-types';
@@ -1358,4 +1359,54 @@ export async function markPropertyListingSold(id: string): Promise<{ marked: num
 // POST /v1/admin/whatsapp-listing-drafts/publish-clean
 export async function publishCleanListingDrafts(): Promise<{ published: number; skipped: number; failed: number }> {
   return apiFetch('/v1/admin/whatsapp-listing-drafts/publish-clean', { method: 'POST', body: JSON.stringify({}) });
+}
+
+
+// ─── GROUND-CONDITION REPORTS ───────────────────────────────────────────
+
+// GET /v1/property-intelligence/ground-conditions?society_key= — reviewed
+// reports rolled up per block. Never 404s: NOT_COVERED when none exist.
+export async function fetchGroundConditions(societyKey: string): Promise<GroundConditionsResponse> {
+  return apiFetch(`/v1/property-intelligence/ground-conditions?society_key=${encodeURIComponent(societyKey)}`);
+}
+
+export interface GroundReportInput {
+  society_name_raw: string;
+  block: string;
+  plot_number: string | null;
+  reporter_role: 'OWNER' | 'BUILDER' | 'CONTRACTOR' | 'OTHER';
+  reporter_phone: string;
+  ground_condition: 'SOLID' | 'FILLED' | 'MIXED';
+  soil_test_done: boolean;
+  foundation_type: 'STANDARD' | 'RAFT' | 'DEEP_STRIP' | 'PILING';
+  foundation_depth_ft: number | null;
+  extra_cost_lac: number | null;
+  build_year: number | null;
+  notes: string | null;
+}
+
+// POST /v1/ground-reports — public; lands in the admin review queue.
+export async function submitGroundReport(data: GroundReportInput): Promise<{ id: string; status: string }> {
+  return apiFetch('/v1/ground-reports', { method: 'POST', body: JSON.stringify(data) });
+}
+
+export type GroundReportStatus = 'PENDING_REVIEW' | 'APPROVED' | 'REJECTED';
+
+export interface GroundReportSubmission extends GroundReportInput {
+  id: string;
+  status: GroundReportStatus;
+  review_note: string | null;
+  created_at: string;
+}
+
+export async function fetchGroundReportSubmissions(status: GroundReportStatus): Promise<GroundReportSubmission[]> {
+  return apiFetch(`/v1/admin/ground-reports?status=${status}`);
+}
+
+export async function approveGroundReport(id: string): Promise<void> {
+  await apiFetch(`/v1/admin/ground-reports/${id}/approve`, { method: 'POST', body: JSON.stringify({}) });
+}
+
+export async function rejectGroundReport(id: string, reason: string | null): Promise<void> {
+  await apiFetch(`/v1/admin/ground-reports/${id}/reject`, { method: 'POST', body: JSON.stringify({ reason }) });
 }
