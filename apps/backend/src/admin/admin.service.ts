@@ -929,6 +929,10 @@ export class AdminService {
     return this.groundReportSvc.approve(id);
   }
 
+  getGroundReportAttachmentUrl(id: string, index: number) {
+    return this.groundReportSvc.getAttachmentUrl(id, index);
+  }
+
   rejectGroundReport(id: string, reason: string | null) {
     return this.groundReportSvc.reject(id, reason);
   }

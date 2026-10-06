@@ -15,6 +15,7 @@ import { WhatsappConfirmationService } from './whatsapp-confirmation.service';
 import { WhatsappListingForwarderService } from './whatsapp-listing-forwarder.service';
 import { WhatsappListingParsingService } from './whatsapp-listing-parsing.service';
 import { WhatsappListingAlertService } from './whatsapp-listing-alert.service';
+import { WhatsappGroundReportService } from './whatsapp-ground-report.service';
 import { maskPhone } from './whatsapp-phone.util';
 
 export { maskPhone };
@@ -162,6 +163,8 @@ export class WhatsappService {
     private readonly listingParsingSvc?: WhatsappListingParsingService,
     @Optional()
     private readonly listingAlertSvc?: WhatsappListingAlertService,
+    @Optional()
+    private readonly groundReportSvc?: WhatsappGroundReportService,
   ) {}
 
   // ── [SECURITY] Webhook verification handshake (GET) ──────────────────────
@@ -223,6 +226,36 @@ export class WhatsappService {
     }
 
     const isListingForwarder = (await this.listingForwarderSvc?.isForwarder(msg.from)) ?? false;
+
+    // GROUND-CONDITION REPORTS — a "REPORT …" message (or a photo/PDF sent
+    // right after one) goes to its own handler. Listing forwarders keep
+    // their listing routing. Stored for idempotency/audit, then handled
+    // fire-and-forget like the other parsers, so the webhook acks fast.
+    if (this.groundReportSvc && !isListingForwarder) {
+      const isReport = this.groundReportSvc.isReportMessage(msg.text);
+      if (isReport || (await this.groundReportSvc.canAttach(msg.from, msg.type))) {
+        try {
+          const saved = await this.inboundRepo.save(
+            this.inboundRepo.create({
+              wa_message_id: msg.id,
+              wa_id: msg.from,
+              message_type: msg.type,
+              message_text: msg.text,
+              wa_timestamp: msg.timestamp,
+              raw_payload: msg.rawPayload,
+              project_ref: null,
+              status: 'GROUND_REPORT',
+            }),
+          );
+          void this.groundReportSvc.handle(saved);
+          return { stored: true, duplicate: false, message: saved };
+        } catch (err) {
+          if (isUniqueViolation(err)) return { stored: false, duplicate: true };
+          throw err;
+        }
+      }
+    }
+
     const mapping = isListingForwarder ? null : await this.mappingRepo.findOneBy({ wa_id: msg.from });
     const entity = this.inboundRepo.create({
       wa_message_id: msg.id,

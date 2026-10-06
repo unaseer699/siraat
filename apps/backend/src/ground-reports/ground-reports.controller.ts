@@ -21,14 +21,27 @@ export const CreateGroundReportBodySchema = z.object({
   extra_cost_lac: z.number().min(0).max(100000).nullable().default(null),
   build_year: z.number().int().min(1990).max(new Date().getFullYear()).nullable().default(null),
   notes: optionalText(1000),
+  attachment_keys: z.array(z.string().max(200)).max(3).default([]),
 });
 export type CreateGroundReportBody = z.infer<typeof CreateGroundReportBodySchema>;
+
+const UploadUrlBodySchema = z.object({ content_type: z.string().trim().min(3).max(100) });
+type UploadUrlBody = z.infer<typeof UploadUrlBodySchema>;
 
 // Public (visitor-facing) submission — rate-limited like listing alerts.
 @Controller('v1/ground-reports')
 @UseGuards(BearerGuard)
 export class GroundReportsController {
   constructor(private readonly svc: GroundReportSubmissionService) {}
+
+  // Step 1 of attaching a photo / soil-test PDF. Throttled; the file stays
+  // private and UNTRUSTED until an admin reviews the report.
+  @Post('upload-url')
+  @UseGuards(ThrottlerGuard)
+  @HttpCode(200)
+  uploadUrl(@Body(new ZodValidationPipe(UploadUrlBodySchema)) body: UploadUrlBody) {
+    return this.svc.createUploadUrl(body.content_type);
+  }
 
   @Post()
   @UseGuards(ThrottlerGuard)

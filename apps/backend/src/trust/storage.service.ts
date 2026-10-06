@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { S3Client, GetObjectCommand, PutObjectCommand, DeleteObjectCommand } from '@aws-sdk/client-s3';
+import { S3Client, GetObjectCommand, PutObjectCommand, DeleteObjectCommand, HeadObjectCommand } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 
 const PRESIGNED_TTL_SECONDS = 900; // 15 minutes — Phase 9/10 requirement
@@ -77,6 +77,18 @@ export class StorageService {
     });
     await this.client.send(command);
     return key;
+  }
+
+  // GROUND-CONDITION REPORTS — a presigned PUT cannot enforce size or type
+  // on the bucket side, so callers that accept public uploads verify what
+  // actually landed (existence, size, content type) before trusting a key.
+  async headObject(key: string): Promise<{ size: number; contentType: string | null } | null> {
+    try {
+      const out = await this.client.send(new HeadObjectCommand({ Bucket: this.bucket, Key: key }));
+      return { size: Number(out.ContentLength ?? 0), contentType: out.ContentType ?? null };
+    } catch {
+      return null;
+    }
   }
 
   // ADMIN CRUD PHASE 1 Chunk 1 — first delete path this service has ever

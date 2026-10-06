@@ -45,6 +45,9 @@ export class GroundConditionFactEntity {
   @Column({ type: 'text', nullable: true })
   notes: string | null;
 
+  @Column({ type: 'int', default: 0 })
+  evidence_count: number;
+
   @Column({ type: 'uuid' })
   source_ref: string;
 

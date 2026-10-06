@@ -6,6 +6,7 @@ import { fetchConstructionEstimate } from '@/lib/api';
 import { EstimateForm } from '@/components/EstimateForm';
 import { EstimateResults } from '@/components/EstimateResults';
 import { BackLink } from '@/components/BackLink';
+import { GroundCostPanel } from '@/components/GroundCostPanel';
 
 export default function ConstructionEstimatePage() {
   const [loading, setLoading] = useState(false);
@@ -70,6 +71,8 @@ export default function ConstructionEstimatePage() {
       )}
 
       {result && <EstimateResults result={result} />}
+
+      <GroundCostPanel />
 
       {!result && !loading && !error && (
         <p style={{ color: 'var(--muted)', fontSize: '14px', textAlign: 'center' }}>

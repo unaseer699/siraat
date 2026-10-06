@@ -1,7 +1,9 @@
 import { BadRequestException, ConflictException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { GroundReportStatus, GroundReportSubmissionEntity } from './ground-report-submission.entity';
+import { randomUUID } from 'crypto';
+import { GroundReportAttachment, GroundReportStatus, GroundReportSubmissionEntity } from './ground-report-submission.entity';
+import { StorageService } from '../trust/storage.service';
 import { GroundConditionService } from '../property-intelligence/ground-condition.service';
 
 export interface CreateGroundReportInput {
@@ -17,7 +19,21 @@ export interface CreateGroundReportInput {
   extra_cost_lac: number | null;
   build_year: number | null;
   notes: string | null;
+  // Keys issued by createUploadUrl (web) — verified against the bucket below.
+  attachment_keys?: string[];
+  source?: 'WEB' | 'WHATSAPP';
 }
+
+export const MAX_ATTACHMENTS = 3;
+export const MAX_ATTACHMENT_BYTES = 8 * 1024 * 1024;
+export const ALLOWED_ATTACHMENT_TYPES: Record<string, string> = {
+  'image/jpeg': 'jpg',
+  'image/png': 'png',
+  'image/webp': 'webp',
+  'image/heic': 'heic',
+  'application/pdf': 'pdf',
+};
+const KEY_PATTERN = /^ground-reports\/[0-9a-f-]{36}\.(jpg|png|webp|heic|pdf)$/;
 
 const digits = (v: string) => v.replace(/\D/g, '');
 
@@ -29,7 +45,78 @@ export class GroundReportSubmissionService {
     @InjectRepository(GroundReportSubmissionEntity)
     private readonly repo: Repository<GroundReportSubmissionEntity>,
     private readonly groundSvc: GroundConditionService,
+    private readonly storage: StorageService,
   ) {}
+
+  // Step 1 of a web upload: hand the browser a short-lived presigned PUT to a
+  // server-chosen, unguessable key. The file is UNTRUSTED until an admin has
+  // reviewed the report it is attached to.
+  async createUploadUrl(contentType: string): Promise<{ key: string; upload_url: string; max_bytes: number }> {
+    const ext = ALLOWED_ATTACHMENT_TYPES[contentType];
+    if (!ext) throw new BadRequestException('Only JPG, PNG, WebP, HEIC photos or PDF files are accepted');
+    const key = `ground-reports/${randomUUID()}.${ext}`;
+    return { key, upload_url: await this.storage.getPresignedUploadUrl(key, contentType), max_bytes: MAX_ATTACHMENT_BYTES };
+  }
+
+  // A presigned PUT cannot enforce limits, so check what really landed.
+  private async verifyAttachments(keys: string[]): Promise<GroundReportAttachment[]> {
+    if (keys.length > MAX_ATTACHMENTS) throw new BadRequestException(`At most ${MAX_ATTACHMENTS} files per report`);
+    const out: GroundReportAttachment[] = [];
+    for (const key of new Set(keys)) {
+      if (!KEY_PATTERN.test(key)) throw new BadRequestException('Invalid attachment reference');
+      const head = await this.storage.headObject(key);
+      if (!head) throw new BadRequestException('An uploaded file was not found — please upload it again');
+      const type = head.contentType?.split(';')[0].trim() ?? '';
+      if (!ALLOWED_ATTACHMENT_TYPES[type]) throw new BadRequestException('Unsupported file type');
+      if (head.size <= 0 || head.size > MAX_ATTACHMENT_BYTES) {
+        throw new BadRequestException(`Each file must be under ${MAX_ATTACHMENT_BYTES / 1024 / 1024} MB`);
+      }
+      out.push({ key, content_type: type, size_bytes: head.size });
+    }
+    return out;
+  }
+
+  // WhatsApp route: attach a file the SERVER downloaded and stored itself to
+  // the sender's most recent pending report (last 2 hours, under the cap).
+  async attachToRecentReport(
+    reporterPhone: string,
+    file: GroundReportAttachment,
+  ): Promise<{ count: number } | null> {
+    const since = new Date(Date.now() - 2 * 60 * 60 * 1000);
+    const sub = await this.repo
+      .createQueryBuilder('s')
+      .where('s.reporter_phone = :phone', { phone: digits(reporterPhone) })
+      .andWhere("s.status = 'PENDING_REVIEW'")
+      .andWhere('s.created_at > :since', { since })
+      .orderBy('s.created_at', 'DESC')
+      .getOne();
+    if (!sub || sub.attachments.length >= MAX_ATTACHMENTS) return null;
+    sub.attachments = [...sub.attachments, file];
+    await this.repo.save(sub);
+    return { count: sub.attachments.length };
+  }
+
+  async hasRecentAttachableReport(reporterPhone: string): Promise<boolean> {
+    const since = new Date(Date.now() - 2 * 60 * 60 * 1000);
+    const sub = await this.repo
+      .createQueryBuilder('s')
+      .where('s.reporter_phone = :phone', { phone: digits(reporterPhone) })
+      .andWhere("s.status = 'PENDING_REVIEW'")
+      .andWhere('s.created_at > :since', { since })
+      .getOne();
+    return !!sub && sub.attachments.length < MAX_ATTACHMENTS;
+  }
+
+  async getAttachmentUrl(id: string, index: number): Promise<{ url: string; content_type: string; expires_in_seconds: number }> {
+    const sub = await this.repo.findOneBy({ id });
+    const file = sub?.attachments[index];
+    if (!sub || !file) throw new NotFoundException('Attachment not found');
+    return {
+      url: await this.storage.getPresignedDownloadUrl(file.key),
+      content_type: file.content_type,
+      expires_in_seconds: 900,
+    };
+  }
 
   // Public submit. Always lands as UNTRUSTED_DATA / PENDING_REVIEW (Law 8) —
   // nothing here can create a FACT.
@@ -55,9 +142,14 @@ export class GroundReportSubmissionService {
       });
     }
 
+    const attachments = await this.verifyAttachments(input.attachment_keys ?? []);
+    const { attachment_keys: _keys, ...rest } = input;
+    void _keys;
     const saved = await this.repo.save(
       this.repo.create({
-        ...input,
+        ...rest,
+        attachments,
+        source: input.source ?? 'WEB',
         society_name_raw: society,
         block,
         reporter_phone: phone,
@@ -100,6 +192,7 @@ export class GroundReportSubmissionService {
       extra_cost_lac: sub.extra_cost_lac === null ? null : Number(sub.extra_cost_lac),
       build_year: sub.build_year,
       notes: sub.notes,
+      evidence_count: sub.attachments.length,
       source_ref: sub.id,
     });
     await this.repo.update({ id }, { status: 'APPROVED', fact_ref: fact.id });

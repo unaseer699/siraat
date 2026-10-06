@@ -25,7 +25,15 @@ import { Entity, Column, PrimaryGeneratedColumn, CreateDateColumn, Index } from 
 // row in this status, since a listing forwarder has no construction
 // project. LISTING_PARSED mirrors PARSED once
 // WhatsappListingParsingService has produced draft rows for it.
-export type WhatsappInboundMessageStatus = 'RECEIVED' | 'UNMAPPED' | 'PARSED' | 'LISTING_RECEIVED' | 'LISTING_PARSED';
+// GROUND_REPORT — a REPORT-template message (or a photo/PDF following one)
+// handled by WhatsappGroundReportService; never enters the expense queue.
+export type WhatsappInboundMessageStatus =
+  | 'RECEIVED'
+  | 'UNMAPPED'
+  | 'PARSED'
+  | 'LISTING_RECEIVED'
+  | 'LISTING_PARSED'
+  | 'GROUND_REPORT';
 
 @Entity({ name: 'whatsapp_inbound_messages', schema: 'data_acquisition' })
 export class WhatsappInboundMessageEntity {

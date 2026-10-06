@@ -415,6 +415,10 @@ export interface GroundBlockSummary {
   // Reports needing a deep strip foundation or piling.
   deep_foundation_count: number;
   soil_test_count: number;
+  // Reports backed by at least one uploaded photo / soil-test document.
+  evidence_report_count: number;
+  // How many reports gave an extra-cost figure (the median is over these).
+  extra_cost_report_count: number;
   depth_ft_min: number | null;
   depth_ft_median: number | null;
   depth_ft_max: number | null;

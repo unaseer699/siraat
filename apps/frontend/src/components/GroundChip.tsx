@@ -37,6 +37,8 @@ export function GroundChip({
     `${summary.deep_foundation_count} needed deep foundations`,
     summary.filled_count > 0 ? `${summary.filled_count} filled ground` : null,
     summary.depth_ft_median !== null ? `typical depth ${summary.depth_ft_median} ft` : null,
+    summary.extra_cost_lac_median !== null ? `extra foundation cost ~${summary.extra_cost_lac_median} Lac` : null,
+    summary.evidence_report_count > 0 ? `${summary.evidence_report_count} with photos/documents` : null,
   ].filter(Boolean);
 
   return (

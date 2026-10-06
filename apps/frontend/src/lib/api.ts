@@ -1383,6 +1383,7 @@ export interface GroundReportInput {
   extra_cost_lac: number | null;
   build_year: number | null;
   notes: string | null;
+  attachment_keys?: string[];
 }
 
 // POST /v1/ground-reports — public; lands in the admin review queue.
@@ -1392,8 +1393,26 @@ export async function submitGroundReport(data: GroundReportInput): Promise<{ id:
 
 export type GroundReportStatus = 'PENDING_REVIEW' | 'APPROVED' | 'REJECTED';
 
+// Step 1 of attaching a photo / soil-test PDF: get a presigned PUT, then
+// uploadFileToPresignedUrl(upload_url, file); pass the returned key in
+// GroundReportInput.attachment_keys.
+export async function requestGroundUploadUrl(
+  contentType: string,
+): Promise<{ key: string; upload_url: string; max_bytes: number }> {
+  return apiFetch('/v1/ground-reports/upload-url', { method: 'POST', body: JSON.stringify({ content_type: contentType }) });
+}
+
+export async function fetchGroundReportAttachmentUrl(
+  id: string,
+  index: number,
+): Promise<{ url: string; content_type: string }> {
+  return apiFetch(`/v1/admin/ground-reports/${id}/attachments/${index}/url`);
+}
+
 export interface GroundReportSubmission extends GroundReportInput {
   id: string;
+  source: 'WEB' | 'WHATSAPP';
+  attachments: { key: string; content_type: string; size_bytes: number }[];
   status: GroundReportStatus;
   review_note: string | null;
   created_at: string;

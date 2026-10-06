@@ -1024,6 +1024,11 @@ export class AdminController {
     return this.adminSvc.listGroundReports(status as GroundReportStatus | undefined);
   }
 
+  @Get('ground-reports/:id/attachments/:index/url')
+  getGroundReportAttachmentUrl(@Param('id') id: string, @Param('index') index: string) {
+    return this.adminSvc.getGroundReportAttachmentUrl(id, Number(index));
+  }
+
   @Post('ground-reports/:id/approve')
   @HttpCode(200)
   approveGroundReport(@Param('id') id: string) {

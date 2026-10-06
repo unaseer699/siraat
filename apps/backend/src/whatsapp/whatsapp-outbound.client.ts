@@ -102,4 +102,37 @@ export class WhatsappOutboundClient {
       throw new Error(`WhatsApp template send failed (${response.status}): ${bodyText2}`);
     }
   }
+
+  // Inbound media (a photo or PDF a user sent us): Meta gives only a media id
+  // in the webhook; the bytes take two authenticated calls. Throws on any
+  // failure — the caller decides that a failed download must not break the
+  // flow.
+  async downloadMedia(
+    mediaId: string,
+    maxBytes: number,
+  ): Promise<{ data: Buffer; mimeType: string }> {
+    const accessToken = process.env.WHATSAPP_ACCESS_TOKEN;
+    if (!accessToken) throw new Error('WHATSAPP_ACCESS_TOKEN not configured — cannot download media');
+
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 30_000);
+    try {
+      const meta = await fetch(`https://graph.facebook.com/${GRAPH_API_VERSION}/${encodeURIComponent(mediaId)}`, {
+        headers: { authorization: `Bearer ${accessToken}` },
+        signal: controller.signal,
+      });
+      if (!meta.ok) throw new Error(`Media lookup failed (${meta.status})`);
+      const info = (await meta.json()) as { url?: string; mime_type?: string; file_size?: number };
+      if (!info.url || !info.mime_type) throw new Error('Media lookup returned no url');
+      if (info.file_size && info.file_size > maxBytes) throw new Error('Media file too large');
+
+      const file = await fetch(info.url, { headers: { authorization: `Bearer ${accessToken}` }, signal: controller.signal });
+      if (!file.ok) throw new Error(`Media download failed (${file.status})`);
+      const data = Buffer.from(await file.arrayBuffer());
+      if (data.length > maxBytes) throw new Error('Media file too large');
+      return { data, mimeType: info.mime_type.split(';')[0].trim() };
+    } finally {
+      clearTimeout(timeout);
+    }
+  }
 }

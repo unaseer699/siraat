@@ -2,7 +2,13 @@
 
 import { Suspense, useEffect, useState, type CSSProperties } from 'react';
 import { useSearchParams } from 'next/navigation';
-import { fetchPropertyListings, submitGroundReport, type GroundReportInput } from '@/lib/api';
+import {
+  fetchPropertyListings,
+  submitGroundReport,
+  requestGroundUploadUrl,
+  uploadFileToPresignedUrl,
+  type GroundReportInput,
+} from '@/lib/api';
 import { BackLink } from '@/components/BackLink';
 
 // GROUND-CONDITION REPORTS — public form. Everything submitted is held for
@@ -35,6 +41,7 @@ function ReportForm() {
   const [year, setYear] = useState('');
   const [notes, setNotes] = useState('');
   const [phone, setPhone] = useState('');
+  const [files, setFiles] = useState<File[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState(false);
@@ -51,6 +58,13 @@ function ReportForm() {
     setBusy(true);
     setError(null);
     try {
+      // Upload photos / PDFs straight to storage first, then submit their keys.
+      const keys: string[] = [];
+      for (const file of files) {
+        const { key, upload_url } = await requestGroundUploadUrl(file.type);
+        await uploadFileToPresignedUrl(upload_url, file);
+        keys.push(key);
+      }
       await submitGroundReport({
         society_name_raw: society.trim(),
         block: block.trim(),
@@ -64,6 +78,7 @@ function ReportForm() {
         extra_cost_lac: num(extraCost),
         build_year: num(year),
         notes: notes.trim() || null,
+        attachment_keys: keys,
       });
       setDone(true);
     } catch (e) {
@@ -160,6 +175,27 @@ function ReportForm() {
         <textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={3} maxLength={1000} style={field} />
       </div>
       <div>
+        <label style={label}>Photos or soil-test report (optional)</label>
+        <input
+          type="file"
+          multiple
+          accept="image/jpeg,image/png,image/webp,image/heic,application/pdf"
+          onChange={(e) => {
+            const picked = Array.from(e.target.files ?? []);
+            const bad = picked.find((f) => f.size > 8 * 1024 * 1024);
+            if (bad) {
+              setError(`"${bad.name}" is over 8 MB — please choose a smaller file.`);
+              return;
+            }
+            setError(null);
+            setFiles(picked.slice(0, 3));
+          }}
+          style={field}
+        />
+        {files.length > 0 && <p style={hint}>{files.map((f) => f.name).join(', ')}</p>}
+        <p style={hint}>Up to 3 files, 8 MB each: site photos, excavation photos, or a soil-test / geotechnical PDF. Reviewed privately — never shown on the site.</p>
+      </div>
+      <div>
         <label style={label}>Your phone number *</label>
         <input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="03xx-xxxxxxx" style={field} />
         <p style={hint}>Private. Used only so our team can confirm your report — never shown on the site.</p>
@@ -175,7 +211,7 @@ function ReportForm() {
         disabled={!ready || busy}
         style={{ padding: '12px 20px', border: 'none', borderRadius: 'var(--radius)', background: !ready || busy ? 'var(--muted)' : '#111', color: '#fff', fontWeight: 700, fontSize: '15px', cursor: !ready || busy ? 'not-allowed' : 'pointer' }}
       >
-        {busy ? 'Submitting…' : 'Submit report'}
+        {busy ? (files.length ? 'Uploading & submitting…' : 'Submitting…') : 'Submit report'}
       </button>
     </div>
   );

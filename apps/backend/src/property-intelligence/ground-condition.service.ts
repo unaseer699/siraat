@@ -43,6 +43,7 @@ export class GroundConditionService {
     extra_cost_lac: number | null;
     build_year: number | null;
     notes: string | null;
+    evidence_count: number;
     source_ref: string;
   }): Promise<GroundConditionFactEntity> {
     let societyRef: string | null = null;
@@ -116,6 +117,8 @@ export class GroundConditionService {
       mixed_count: count((r) => r.ground_condition === 'MIXED'),
       deep_foundation_count: deep,
       soil_test_count: count((r) => r.soil_test_done),
+      evidence_report_count: count((r) => r.evidence_count > 0),
+      extra_cost_report_count: costs.length,
       depth_ft_min: depths.length ? Math.min(...depths) : null,
       depth_ft_median: median(depths),
       depth_ft_max: depths.length ? Math.max(...depths) : null,

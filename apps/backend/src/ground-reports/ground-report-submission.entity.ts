@@ -6,6 +6,12 @@ import { Entity, Column, PrimaryGeneratedColumn, CreateDateColumn } from 'typeor
 // follow-up verification only). fact_ref is a plain uuid (Law 1).
 export type GroundReportStatus = 'PENDING_REVIEW' | 'APPROVED' | 'REJECTED';
 
+export interface GroundReportAttachment {
+  key: string; // private, bucket-relative storage key
+  content_type: string;
+  size_bytes: number;
+}
+
 @Entity({ name: 'ground_report_submissions', schema: 'data_acquisition' })
 export class GroundReportSubmissionEntity {
   @PrimaryGeneratedColumn('uuid')
@@ -46,6 +52,14 @@ export class GroundReportSubmissionEntity {
 
   @Column({ type: 'text', nullable: true })
   notes: string | null;
+
+  // Private files (photos / soil-test PDFs) — UNTRUSTED like the rest of the
+  // submission; only an admin can open them, via a short-lived signed link.
+  @Column({ type: 'jsonb', default: () => "'[]'" })
+  attachments: GroundReportAttachment[];
+
+  @Column({ type: 'varchar', length: 10, default: 'WEB' })
+  source: 'WEB' | 'WHATSAPP';
 
   @Column({ type: 'varchar', length: 20, default: 'UNTRUSTED_DATA' })
   trust_tag: 'UNTRUSTED_DATA';

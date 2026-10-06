@@ -3,6 +3,7 @@
 import { useEffect, useState, type CSSProperties } from 'react';
 import {
   fetchGroundReportSubmissions,
+  fetchGroundReportAttachmentUrl,
   approveGroundReport,
   rejectGroundReport,
   type GroundReportSubmission,
@@ -105,9 +106,26 @@ export default function AdminGroundReportsPage() {
                       {r.extra_cost_lac !== null && <div>Extra cost: {r.extra_cost_lac} Lac</div>}
                       {r.build_year !== null && <div>Built: {r.build_year}</div>}
                       {r.notes && <div style={{ color: 'var(--muted)', whiteSpace: 'pre-wrap' }}>{r.notes}</div>}
+                      {(r.attachments ?? []).length > 0 && (
+                        <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginTop: '6px' }}>
+                          {r.attachments.map((a, i) => (
+                            <button
+                              key={a.key}
+                              onClick={() =>
+                                fetchGroundReportAttachmentUrl(r.id, i)
+                                  .then((res) => window.open(res.url, '_blank', 'noopener,noreferrer'))
+                                  .catch((e) => setError(e instanceof Error ? e.message : 'Could not open file'))
+                              }
+                              style={{ fontSize: '12px', padding: '3px 8px', border: '1px solid var(--border)', borderRadius: '6px', background: '#fff', cursor: 'pointer' }}
+                            >
+                              {a.content_type === 'application/pdf' ? 'PDF' : 'Photo'} {i + 1}
+                            </button>
+                          ))}
+                        </div>
+                      )}
                     </td>
                     <td style={td}>
-                      {r.reporter_role}
+                      {r.reporter_role}{r.source === 'WHATSAPP' ? ' · via WhatsApp' : ''}
                       <div>{r.reporter_phone}</div>
                       <div style={{ fontSize: '12px', color: 'var(--muted)' }}>{new Date(r.created_at).toLocaleString()}</div>
                     </td>
