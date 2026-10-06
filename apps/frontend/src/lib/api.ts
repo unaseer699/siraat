@@ -1464,7 +1464,7 @@ export type ForecastGroupKey = 'STRUCTURE' | 'SERVICES' | 'FINISHING' | 'SITE_OT
 export interface ProjectLayout {
   id: string;
   project_ref: string;
-  floors: { name: string; area_sqft: number }[];
+  floors: { name: string; area_sqft: number; drawing_area_sqft?: number | null; allowed_area_sqft?: number | null }[];
   total_area_sqft: number;
   finish_level: FinishLevel;
   price_factors: Partial<Record<ForecastGroupKey, number>>;
@@ -1506,7 +1506,7 @@ export async function fetchProjectForecast(projectId: string): Promise<ProjectFo
 export async function saveProjectLayout(
   projectId: string,
   body: {
-    floors: { name: string; area_sqft: number }[];
+    floors: { name: string; area_sqft: number; drawing_area_sqft?: number | null; allowed_area_sqft?: number | null }[];
     finish_level: FinishLevel;
     price_factors?: Partial<Record<ForecastGroupKey, number>> | null;
     source_note?: string | null;

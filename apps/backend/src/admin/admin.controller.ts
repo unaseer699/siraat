@@ -400,7 +400,7 @@ type MoveExpensesBody = z.infer<typeof MoveExpensesBodySchema>;
 
 // --- Layout & forecast ---
 const LayoutBodySchema = z.object({
-  floors: z.array(z.object({ name: z.string().min(1).max(60), area_sqft: z.number().positive().max(100000) })).min(1).max(10),
+  floors: z.array(z.object({ name: z.string().min(1).max(60), area_sqft: z.number().positive().max(100000), drawing_area_sqft: z.number().positive().max(100000).nullable().optional(), allowed_area_sqft: z.number().positive().max(100000).nullable().optional() })).min(1).max(10),
   finish_level: z.enum(['BASIC', 'STANDARD', 'PREMIUM']),
   price_factors: z.record(z.enum(['STRUCTURE', 'SERVICES', 'FINISHING', 'SITE_OTHER']), z.number().min(0.5).max(2)).nullable().optional(),
   source_note: z.string().max(255).nullable().optional(),

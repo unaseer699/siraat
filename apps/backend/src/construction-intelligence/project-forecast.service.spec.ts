@@ -41,4 +41,12 @@ describe('ProjectForecastService', () => {
     expect(st.forecast_at_completion).toBe(9_000_000);
     expect(st.remaining).toBe(0);
   });
+  it('uses the typed area but notes the drawing area and allowable', async () => {
+    const r = await make(
+      layout({ floors: [{ name: 'Mumty', area_sqft: 500, drawing_area_sqft: 293, allowed_area_sqft: 250 }] }),
+    ).forecast('P1');
+    expect(r.layout!.total_area_sqft).toBe(500);
+    expect(r.notes.join(' ')).toContain('drawing shows 293');
+    expect(r.notes.join(' ')).toContain('above the allowable 250');
+  });
 });

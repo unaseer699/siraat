@@ -18,9 +18,9 @@ const FACTOR_GROUPS: { key: ForecastGroupKey; label: string }[] = [
   { key: 'SITE_OTHER', label: 'Site & Other' },
 ];
 const DEFAULT_FLOORS = [
-  { name: 'Ground floor', area: '' },
-  { name: 'First floor', area: '' },
-  { name: 'Mumty', area: '' },
+  { name: 'Ground floor', area: '', drawing: '', allowed: '' },
+  { name: 'First floor', area: '', drawing: '', allowed: '' },
+  { name: 'Mumty', area: '', drawing: '', allowed: '' },
 ];
 
 const box: CSSProperties = { border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '16px', marginBottom: '24px', background: '#fff' };
@@ -41,7 +41,7 @@ export function ForecastPanel({ projectId }: { projectId: string }) {
   function load(f: ProjectForecast) {
     setFc(f);
     if (f.layout) {
-      setFloors(f.layout.floors.map((x) => ({ name: x.name, area: String(x.area_sqft) })));
+      setFloors(f.layout.floors.map((x) => ({ name: x.name, area: String(x.area_sqft), drawing: x.drawing_area_sqft != null ? String(x.drawing_area_sqft) : '', allowed: x.allowed_area_sqft != null ? String(x.allowed_area_sqft) : '' })));
       setFinish(f.layout.finish_level);
       setFactors(Object.fromEntries(Object.entries(f.layout.price_factors).map(([k, v]) => [k, String(v)])));
       setNote(f.layout.source_note ?? '');
@@ -65,7 +65,7 @@ export function ForecastPanel({ projectId }: { projectId: string }) {
   }
 
   function save() {
-    const rows = floors.filter((f) => f.name.trim() && Number(f.area) > 0).map((f) => ({ name: f.name.trim(), area_sqft: Number(f.area) }));
+    const rows = floors.filter((f) => f.name.trim() && Number(f.area) > 0).map((f) => ({ name: f.name.trim(), area_sqft: Number(f.area), drawing_area_sqft: Number(f.drawing) > 0 ? Number(f.drawing) : null, allowed_area_sqft: Number(f.allowed) > 0 ? Number(f.allowed) : null }));
     if (rows.length === 0) return setErr('Enter the covered area for at least one floor');
     const pf: Partial<Record<ForecastGroupKey, number>> = {};
     for (const g of FACTOR_GROUPS) {
@@ -84,13 +84,27 @@ export function ForecastPanel({ projectId }: { projectId: string }) {
         Enter the covered area per floor from the architect&apos;s drawings. Areas stay unconfirmed until you confirm them.
       </p>
 
-      {floors.map((f, i) => (
-        <div key={i} style={{ display: 'flex', gap: '8px', marginBottom: '6px' }}>
-          <input style={{ ...input, flex: 1 }} value={f.name} onChange={(e) => setFloors(floors.map((x, j) => (j === i ? { ...x, name: e.target.value } : x)))} />
-          <input style={{ ...input, width: '120px' }} inputMode="decimal" placeholder="sq ft" value={f.area} onChange={(e) => setFloors(floors.map((x, j) => (j === i ? { ...x, area: e.target.value } : x)))} />
-        </div>
-      ))}
-      <button type="button" style={{ ...input, cursor: 'pointer', marginBottom: '12px' }} onClick={() => setFloors([...floors, { name: '', area: '' }])}>+ Add floor</button>
+      <div style={{ display: 'flex', gap: '8px', marginBottom: '2px', fontSize: '11px', color: 'var(--muted)' }}>
+        <span style={{ flex: 1 }}>Floor</span>
+        <span style={{ width: '110px' }}>Area used (sq ft)</span>
+        <span style={{ width: '110px' }}>Per drawing</span>
+        <span style={{ width: '110px' }}>Allowable</span>
+      </div>
+      {floors.map((f, i) => {
+        const set = (k: 'name' | 'area' | 'drawing' | 'allowed', v: string) => setFloors(floors.map((x, j) => (j === i ? { ...x, [k]: v } : x)));
+        const diff = Number(f.drawing) > 0 && Number(f.area) > 0 && Number(f.area) !== Number(f.drawing);
+        const over = Number(f.allowed) > 0 && Number(f.area) > Number(f.allowed);
+        return (
+          <div key={i} style={{ display: 'flex', gap: '8px', marginBottom: '6px', alignItems: 'center' }}>
+            <input style={{ ...input, flex: 1 }} value={f.name} onChange={(e) => set('name', e.target.value)} />
+            <input style={{ ...input, width: '110px', borderColor: diff || over ? '#b45309' : undefined }} inputMode="decimal" placeholder="sq ft" value={f.area} onChange={(e) => set('area', e.target.value)} />
+            <input style={{ ...input, width: '110px' }} inputMode="decimal" placeholder="drawing" value={f.drawing} onChange={(e) => set('drawing', e.target.value)} />
+            <input style={{ ...input, width: '110px' }} inputMode="decimal" placeholder="allowable" value={f.allowed} onChange={(e) => set('allowed', e.target.value)} />
+            {(diff || over) && <span style={{ fontSize: '11px', color: '#b45309' }}>{diff ? 'differs from drawing' : ''}{diff && over ? ' · ' : ''}{over ? 'over allowable' : ''}</span>}
+          </div>
+        );
+      })}
+      <button type="button" style={{ ...input, cursor: 'pointer', marginBottom: '12px' }} onClick={() => setFloors([...floors, { name: '', area: '', drawing: '', allowed: '' }])}>+ Add floor</button>
 
       <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', marginBottom: '12px' }}>
         <label style={{ fontSize: '12px' }}>Finish level<br />

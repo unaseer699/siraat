@@ -108,7 +108,12 @@ export class ProjectForecastService {
     },
   ): Promise<LayoutResult> {
     if (input.floors.length === 0) throw new BadRequestException('At least one floor is required');
-    const floors = input.floors.map((f) => ({ name: f.name, area_sqft: Number(f.area_sqft) }));
+    const floors = input.floors.map((f) => ({
+      name: f.name,
+      area_sqft: Number(f.area_sqft),
+      drawing_area_sqft: f.drawing_area_sqft != null ? Number(f.drawing_area_sqft) : null,
+      allowed_area_sqft: f.allowed_area_sqft != null ? Number(f.allowed_area_sqft) : null,
+    }));
     await this.layoutRepo.query(
       `INSERT INTO construction_intelligence.project_layouts
          (project_ref, floors, finish_level, price_factors, source_note, status, confirmed_at)
@@ -215,6 +220,19 @@ export class ProjectForecastService {
     const notes = [
       'Based on one reference house; rates move with the finish level and price factors you set.',
     ];
+    for (const f of layout.floors) {
+      const d = f.drawing_area_sqft;
+      if (d != null && Number(d) !== Number(f.area_sqft)) {
+        const diff = Number(f.area_sqft) - Number(d);
+        notes.push(
+          `${f.name}: forecast uses ${f.area_sqft} sq ft, drawing shows ${d} sq ft (${diff > 0 ? '+' : ''}${diff}).`,
+        );
+      }
+      const a = f.allowed_area_sqft;
+      if (a != null && Number(f.area_sqft) > Number(a)) {
+        notes.push(`${f.name}: ${f.area_sqft} sq ft is above the allowable ${a} sq ft.`);
+      }
+    }
     if (!confirmed) notes.push('Floor areas are not confirmed yet, so this forecast is provisional.');
     if (base.is_stale) notes.push('Reference prices are older than the freshness threshold.');
 

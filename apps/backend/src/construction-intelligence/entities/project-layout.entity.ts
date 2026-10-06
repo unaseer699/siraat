@@ -3,6 +3,8 @@ import { Entity, Column, PrimaryGeneratedColumn, CreateDateColumn, UpdateDateCol
 export interface LayoutFloor {
   name: string;
   area_sqft: number;
+  drawing_area_sqft?: number | null;
+  allowed_area_sqft?: number | null;
 }
 
 // Configuration for a project's cost forecast: the covered area per floor
