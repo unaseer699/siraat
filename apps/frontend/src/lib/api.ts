@@ -1306,6 +1306,7 @@ export async function rejectWhatsappListingDraft(
 export async function fetchPropertyListings(params?: {
   city?: string;
   society_id?: string;
+  size?: string;
   max_price_lac?: number;
   min_size_marla?: number;
   max_size_marla?: number;
@@ -1313,6 +1314,7 @@ export async function fetchPropertyListings(params?: {
   const qs = new URLSearchParams();
   if (params?.city) qs.set('city', params.city);
   if (params?.society_id) qs.set('society_id', params.society_id);
+  if (params?.size) qs.set('size', params.size);
   if (params?.max_price_lac != null) qs.set('max_price_lac', String(params.max_price_lac));
   if (params?.min_size_marla != null) qs.set('min_size_marla', String(params.min_size_marla));
   if (params?.max_size_marla != null) qs.set('max_size_marla', String(params.max_size_marla));

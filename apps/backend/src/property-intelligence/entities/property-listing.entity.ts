@@ -40,6 +40,10 @@ export class PropertyListingEntity {
   @Column({ type: 'varchar', length: 20 })
   plot_number: string;
 
+  // Displayed/filterable size as the market writes it ("25x50", "1 Kanal").
+  @Column({ type: 'varchar', length: 20, nullable: true })
+  size_label: string | null;
+
   @Column({ type: 'decimal', precision: 6, scale: 2, nullable: true })
   size_marla: number | null;
 

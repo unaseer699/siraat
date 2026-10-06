@@ -138,7 +138,11 @@ export function PlotGroupCard({ plot, showSociety }: { plot: PropertyPlotGroup; 
       )}
 
       <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center' }}>
-        {plot.size_marla !== null && <span style={chipStyle('var(--text)', '#f3f4f6')}>{plot.size_marla} Marla</span>}
+        {(plot.size_label ?? (plot.size_marla !== null ? `${plot.size_marla} Marla` : null)) && (
+          <span style={chipStyle('var(--text)', '#f3f4f6')}>
+            {plot.size_label ?? `${plot.size_marla} Marla`}
+          </span>
+        )}
         {perMarla && <span style={chipStyle(ACCENT_BLUE, '#eff6ff')}>{perMarla}</span>}
         {plot.status_raw && tone && <span style={chipStyle(tone.color, tone.bg)}>{plot.status_raw}</span>}
         {plot.offers.length > 1 && <span style={chipStyle('#7c3aed', '#f5f3ff')}>{plot.offers.length} dealers</span>}

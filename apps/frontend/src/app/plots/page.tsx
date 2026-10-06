@@ -22,12 +22,12 @@ const controlStyle: React.CSSProperties = {
   background: '#fff',
 };
 
-function AlertPanel({ city, societyKey, maxPrice, minSize }: { city: string; societyKey: string; maxPrice: string; minSize: string }) {
+function AlertPanel({ city, societyKey, maxPrice }: { city: string; societyKey: string; maxPrice: string }) {
   const [open, setOpen] = useState(false);
   const [phone, setPhone] = useState('');
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
-  const hasFilter = Boolean(city || societyKey || maxPrice || minSize);
+  const hasFilter = Boolean(city || societyKey || maxPrice);
 
   async function submit() {
     setBusy(true);
@@ -38,7 +38,7 @@ function AlertPanel({ city, societyKey, maxPrice, minSize }: { city: string; soc
         society_key: societyKey || null,
         city: city || null,
         max_price_lac: maxPrice ? Number(maxPrice) : null,
-        min_size_marla: minSize ? Number(minSize) : null,
+        min_size_marla: null,
       });
       setMsg({
         ok: true,
@@ -65,8 +65,8 @@ function AlertPanel({ city, societyKey, maxPrice, minSize }: { city: string; soc
         <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '8px' }}>
           <p style={{ fontSize: '12px', color: 'var(--muted)' }}>
             {hasFilter
-              ? 'Uses the filters selected above (city, society, price, size).'
-              : 'Pick at least one filter above first (city, society, price or size).'}
+              ? 'Uses the filters selected above (city, society or price).'
+              : 'Pick at least one filter above first (city, society or price).'}
           </p>
           <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
             <input
@@ -98,7 +98,7 @@ function PlotsView() {
   const city = sp.get('city') ?? '';
   const societyId = sp.get('society_id') ?? '';
   const maxPrice = sp.get('max_price_lac') ?? '';
-  const minSize = sp.get('min_size_marla') ?? '';
+  const size = sp.get('size') ?? '';
 
   const [sort, setSort] = useState<SortKey>('newest');
   const [facets, setFacets] = useState<PropertyListingFacets | null>(null);
@@ -116,7 +116,7 @@ function PlotsView() {
       city: city || undefined,
       society_id: societyId || undefined,
       max_price_lac: maxPrice ? Number(maxPrice) : undefined,
-      min_size_marla: minSize ? Number(minSize) : undefined,
+      size: size || undefined,
     })
       .then((r) => {
         if (cancelled) return;
@@ -129,7 +129,7 @@ function PlotsView() {
     return () => {
       cancelled = true;
     };
-  }, [city, societyId, maxPrice, minSize]);
+  }, [city, societyId, maxPrice, size]);
 
   function setParam(key: string, value: string) {
     const params = new URLSearchParams(sp.toString());
@@ -207,10 +207,10 @@ function PlotsView() {
               <option key={p} value={p}>Up to {p >= 100 ? `${p / 100} Crore` : `${p} Lac`}</option>
             ))}
           </select>
-          <select aria-label="Minimum size" value={minSize} onChange={(e) => setParam('min_size_marla', e.target.value)} style={controlStyle}>
-            <option value="">Any size</option>
-            {[5, 10, 20].map((m) => (
-              <option key={m} value={m}>{m}+ Marla</option>
+          <select aria-label="Plot size" value={size} onChange={(e) => setParam('size', e.target.value)} style={controlStyle}>
+            <option value="">All sizes</option>
+            {(facets?.sizes ?? []).map((s) => (
+              <option key={s.label} value={s.label}>{s.label} ({s.count})</option>
             ))}
           </select>
           <select aria-label="Sort" value={sort} onChange={(e) => setSort(e.target.value as SortKey)} style={{ ...controlStyle, marginLeft: 'auto' }}>
@@ -232,7 +232,7 @@ function PlotsView() {
           style={{ ...controlStyle, width: '100%' }}
         />
 
-        <AlertPanel city={city} societyKey={societyId} maxPrice={maxPrice} minSize={minSize} />
+        <AlertPanel city={city} societyKey={societyId} maxPrice={maxPrice} />
 
         {error && (
           <div style={{ padding: '12px 16px', background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 'var(--radius)', color: 'var(--error)', fontSize: '14px' }}>

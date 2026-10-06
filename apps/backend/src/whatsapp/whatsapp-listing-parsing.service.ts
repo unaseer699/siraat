@@ -1,4 +1,5 @@
 import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { normalizeSizeLabel } from '../common/plot-size';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { WhatsappAiClient } from './whatsapp-ai.client';
@@ -251,6 +252,7 @@ export class WhatsappListingParsingService {
       society_name_raw: draft.society_name_raw,
       block: draft.block,
       plot_number: draft.plot_number,
+      size_label: normalizeSizeLabel(draft.size_raw),
       size_marla: draft.size_marla,
       price_lac: draft.price_lac,
       status_raw: draft.status_raw,

@@ -309,6 +309,8 @@ export interface PropertyListingSummary {
   city: string | null;
   block: string | null;
   plot_number: string;
+  // Size as the market writes it ("25x50") — what the UI displays/filters on.
+  size_label: string | null;
   size_marla: number | null;
   price_lac: number | null;
   // price_lac / size_marla, only when both are known — makes plots of
@@ -340,6 +342,7 @@ export interface PropertyPlotGroup {
   city: string | null;
   block: string | null;
   plot_number: string;
+  size_label: string | null;
   size_marla: number | null;
   status_raw: string | null;
   min_price_lac: number | null;
@@ -358,6 +361,8 @@ export interface PropertyPlotGroup {
 export interface PropertyListingFacets {
   cities: string[];
   societies: { key: string; name: string; count: number }[];
+  // Distinct plot sizes ("25x50"…), smallest first, counted per distinct plot.
+  sizes: { label: string; count: number }[];
 }
 
 export interface PropertyListingListResponse {

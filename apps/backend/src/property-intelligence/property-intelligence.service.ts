@@ -1,4 +1,5 @@
 import { BadRequestException, Injectable, Logger } from '@nestjs/common';
+import { normalizeSizeLabel, sizeLabelArea } from '../common/plot-size';
 import { InjectRepository } from '@nestjs/typeorm';
 import { ILike, In, MoreThan, Repository } from 'typeorm';
 import type { ParsedIntent, TradeCategory, MaterialCategory, HousePlanStyle } from '@siraat/shared-types';
@@ -231,6 +232,7 @@ function toListingResult(
     city: societyCity ?? e.city,
     block: e.block,
     plot_number: e.plot_number,
+    size_label: e.size_label,
     size_marla: size,
     price_lac: price,
     price_per_marla_lac: price !== null && size !== null && size > 0 ? round2(price / size) : null,
@@ -308,6 +310,7 @@ function groupOffersIntoPlots(
       city: g.city ?? g.e.city,
       block: g.e.block,
       plot_number: g.e.plot_number,
+      size_label: g.offers.find((o) => o.size_label)?.size_label ?? null,
       size_marla: sizes.length ? sizes[0] : null,
       status_raw: g.offers.find((o) => o.status_raw)?.status_raw ?? null,
       min_price_lac: prices.length ? Math.min(...prices) : null,
@@ -1256,6 +1259,7 @@ export class PropertyIntelligenceService {
     society_name_raw: string;
     block: string | null;
     plot_number: string;
+    size_label: string | null;
     size_marla: number | null;
     price_lac: number | null;
     status_raw: string | null;
@@ -1301,6 +1305,7 @@ export class PropertyIntelligenceService {
 
     if (sameOffer) {
       sameOffer.price_lac = data.price_lac;
+      sameOffer.size_label = data.size_label ?? sameOffer.size_label;
       sameOffer.size_marla = data.size_marla ?? sameOffer.size_marla;
       sameOffer.status_raw = data.status_raw ?? sameOffer.status_raw;
       sameOffer.contact_phone = data.contact_phone ?? sameOffer.contact_phone;
@@ -1354,19 +1359,23 @@ export class PropertyIntelligenceService {
     city?: string;
     society_id?: string;
     max_price_lac?: number;
+    size?: string;
     min_size_marla?: number;
     max_size_marla?: number;
   }): Promise<PropertyListingListResponse> {
     const { rows } = await this.loadActiveListings();
     const wantCity = params.city?.trim().toLowerCase();
+    const wantSize = normalizeSizeLabel(params.size) ?? undefined;
 
     // Facets are built from EVERY active plot, before any filter, and count
     // distinct plots (not offers).
     const allPlots = groupOffersIntoPlots(rows);
     const facetCities = new Set<string>();
     const facetSocieties = new Map<string, { key: string; name: string; count: number }>();
+    const facetSizes = new Map<string, number>();
     for (const g of allPlots) {
       if (g.city) facetCities.add(g.city);
+      if (g.size_label) facetSizes.set(g.size_label, (facetSizes.get(g.size_label) ?? 0) + 1);
       const key = g.society_ref ?? `raw:${norm(g.society_name_raw)}`;
       const f = facetSocieties.get(key) ?? { key, name: g.society_name ?? g.society_name_raw.trim(), count: 0 };
       f.count += 1;
@@ -1378,6 +1387,7 @@ export class PropertyIntelligenceService {
     const filtered = rows.filter(({ e, society, city }) => {
       if (params.society_id && societyKeyOf(e, society) !== params.society_id) return false;
       if (wantCity && city?.toLowerCase() !== wantCity) return false;
+      if (wantSize && e.size_label !== wantSize) return false;
       const price = e.price_lac === null ? null : Number(e.price_lac);
       const size = e.size_marla === null ? null : Number(e.size_marla);
       if (params.max_price_lac != null && (price === null || price > params.max_price_lac)) return false;
@@ -1394,6 +1404,9 @@ export class PropertyIntelligenceService {
       facets: {
         cities: [...facetCities].sort(),
         societies: [...facetSocieties.values()].sort((x, y) => x.name.localeCompare(y.name)),
+        sizes: [...facetSizes.entries()]
+          .map(([label, count]) => ({ label, count }))
+          .sort((x, y) => sizeLabelArea(x.label) - sizeLabelArea(y.label)),
       },
     };
   }

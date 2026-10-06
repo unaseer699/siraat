@@ -465,7 +465,7 @@ export default function AdminWhatsappListingsPage() {
                         <td style={tdStyle}>{l.society_name ?? l.society_name_raw}</td>
                         <td style={tdStyle}>{l.block ?? '—'}</td>
                         <td style={{ ...tdStyle, fontWeight: 600 }}>{l.plot_number}</td>
-                        <td style={tdStyle}>{l.size_marla ?? '—'}</td>
+                        <td style={tdStyle}>{l.size_label ?? '—'}</td>
                         <td style={tdStyle}>{l.price_lac ?? '—'}</td>
                         <td style={tdStyle}>{l.contact_phone ?? '—'}</td>
                         <td style={tdStyle}>

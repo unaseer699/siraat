@@ -59,6 +59,7 @@ export class PropertyIntelligenceController {
   async listListings(
     @Query('city') city?: string,
     @Query('society_id') society_id?: string,
+    @Query('size') size?: string,
     @Query('max_price_lac') max_price_lac?: string,
     @Query('min_size_marla') min_size_marla?: string,
     @Query('max_size_marla') max_size_marla?: string,
@@ -67,6 +68,7 @@ export class PropertyIntelligenceController {
     return this.piSvc.listActivePropertyListings({
       city,
       society_id,
+      size,
       max_price_lac: num(max_price_lac),
       min_size_marla: num(min_size_marla),
       max_size_marla: num(max_size_marla),
