@@ -66,4 +66,23 @@ describe('ProjectForecastService', () => {
     expect(withExtras.estimated_total).toBeGreaterThan(plain.estimated_total + 150 * 5500);
     expect(withExtras.extras.find((e) => e.kind === 'BOUNDARY_WALL')!.cost).toBe(825_000);
   });
+  it('reprices structure materials from real purchases', async () => {
+    const base = await make(layout()).forecast('P1');
+    const dear = await make(layout(), [
+      {
+        category: 'CEMENT',
+        subtotal: 1_299 * 1.2 * 100,
+        expenses: [{ status: 'ACTIVE', description: 'Cement', quantity: 100, unit: 'BAG', amount: 1_299 * 1.2 * 100 }],
+      },
+    ]).forecast('P1');
+    expect(dear.rate_observations).toHaveLength(1);
+    expect(dear.structure_index_applied).toBe(true);
+    const sBase = base.groups.find((g) => g.group === 'STRUCTURE')!.estimated!;
+    const sDear = dear.groups.find((g) => g.group === 'STRUCTURE')!.estimated!;
+    expect(sDear).toBeGreaterThan(sBase);
+    const manual = await make(layout({ price_factors: { STRUCTURE: 1 } }), [
+      { category: 'CEMENT', subtotal: 1, expenses: [{ status: 'ACTIVE', description: 'Cement', quantity: 1, unit: 'BAG', amount: 5000 }] },
+    ]).forecast('P1');
+    expect(manual.structure_index_applied).toBe(false);
+  });
 });

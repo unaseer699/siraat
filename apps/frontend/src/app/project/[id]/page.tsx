@@ -11,6 +11,7 @@ import { RADIUS } from '@/styles/tokens';
 import WhatsappBadge from '@/components/WhatsappBadge';
 import VendorLabel from '@/components/VendorLabel';
 import Boq5MarlaPanel from '@/components/Boq5MarlaPanel';
+import ForecastCard from '@/components/ForecastCard';
 import ProjectDocumentsCard from '@/components/ProjectDocumentsCard';
 
 interface Props {
@@ -205,6 +206,8 @@ export default function ProjectDashboardPage({ params }: Props) {
             </span>
           )}
         </div>
+
+        <ForecastCard projectId={project.id} />
 
         {usedCategories.length > 1 && (
           <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', alignItems: 'center' }}>

@@ -336,6 +336,13 @@ export function ForecastPanel({ projectId }: { projectId: string }) {
               </tr>
             </tbody>
           </table>
+          {fc.rate_observations.length > 0 && (
+            <p style={{ fontSize: '12px', margin: '4px 0' }}>
+              Live rates from your purchases:{' '}
+              {fc.rate_observations.map((o) => `${o.label} Rs ${o.actual_rate.toLocaleString()}/${o.unit} (reference ${o.reference_rate.toLocaleString()}, ${o.ratio >= 1 ? '+' : ''}${Math.round((o.ratio - 1) * 100)}%)`).join(' · ')}
+              {fc.structure_index_applied ? '' : ' — not applied because a manual Structure factor is set'}
+            </p>
+          )}
           {fc.extras.length > 0 && (
             <p style={{ fontSize: '12px', margin: '4px 0' }}>
               Included extras: {fc.extras.map((e) => `${e.name} (${e.quantity.toLocaleString()} ${e.unit}) ${pkr(e.cost)}`).join(' · ')}

@@ -24,6 +24,31 @@ export const REFERENCE_GROUP_COST: Partial<Record<SectionGroup, number>> = {
 // sides, balconies carry a slab and railing.
 export const EXTRA_COVER_FACTOR: Record<string, number> = { FRONT_SHADE: 0.5, BACK_SHADE: 0.5, PORCH: 0.5, BALCONY: 0.7 };
 export const DEFAULT_BOUNDARY_RATE_PER_FT = 5500;
+// Unit rates paid on the reference house, for the materials that make up most
+// of the structure cost. Real purchases on a project (quantity + unit +
+// amount) are compared against these to measure how today's prices differ.
+export interface RateReference {
+  key: string;
+  label: string;
+  unit: string;
+  units: string[];
+  ref_rate: number;
+  weight: number;
+  match: (description: string) => boolean;
+}
+export const STRUCTURE_MATERIAL_REFERENCE: RateReference[] = [
+  { key: 'BRICKS', label: 'Bricks', unit: 'pc', units: ['PCS'], ref_rate: 21.27, weight: 1_014_800,
+    match: (d) => /brick/i.test(d) && !/design|kinghar/i.test(d) },
+  { key: 'CEMENT', label: 'Cement', unit: 'bag', units: ['BAG'], ref_rate: 1299, weight: 857_450,
+    match: (d) => /cement/i.test(d) },
+  { key: 'SAND', label: 'Sand', unit: 'cft', units: ['CFT'], ref_rate: 74.1, weight: 337_000,
+    match: (d) => /sand/i.test(d) },
+  { key: 'CRUSH', label: 'Crush', unit: 'cft', units: ['CFT'], ref_rate: 93.1, weight: 223_500,
+    match: (d) => /crush/i.test(d) },
+  { key: 'STEEL', label: 'Steel', unit: 'kg', units: ['KG', 'TON'], ref_rate: 216.3, weight: 1_016_575,
+    match: (d) => /steel|sootar|sariya|saria/i.test(d) },
+];
+const MATERIAL_SHARE_OF_STRUCTURE = 3_449_325 / 4_524_925;
 export const REFERENCE_DATE = '2026-05-31';
 export const STALENESS_THRESHOLD_DAYS = 90;
 
@@ -58,6 +83,16 @@ export interface ForecastGroup {
   price_factor: number;
 }
 
+export interface RateObservation {
+  key: string;
+  label: string;
+  unit: string;
+  quantity: number;
+  actual_rate: number;
+  reference_rate: number;
+  ratio: number;
+}
+
 export interface ForecastExtra {
   kind: string;
   name: string;
@@ -69,6 +104,9 @@ export interface ForecastExtra {
 
 export interface ForecastResult {
   extras: ForecastExtra[];
+  rate_observations: RateObservation[];
+  structure_material_index: number | null;
+  structure_index_applied: boolean;
   state: 'FULL' | 'DEGRADED_SUCCESS' | 'NOT_COVERED';
   record_type: 'GENERATED';
   derived_from: string[];
@@ -178,9 +216,46 @@ export class ProjectForecastService {
 
     const spent: Partial<Record<SectionGroup, number>> = {};
     const full = await this.cpSvc.getProjectWithSectionsAndExpenses(projectId);
+    const acc = new Map<string, { amount: number; qty: number }>();
     for (const s of full?.sections ?? []) {
       const g = sectionGroupOf(s.category as SectionCategory);
       spent[g] = (spent[g] ?? 0) + s.subtotal;
+      for (const e of s.expenses ?? []) {
+        if (e.status !== 'ACTIVE' || !e.quantity || !e.unit || !(e.amount > 0)) continue;
+        const ref = STRUCTURE_MATERIAL_REFERENCE.find((r) => r.units.includes(e.unit as string) && r.match(e.description));
+        if (!ref) continue;
+        const qty = ref.key === 'STEEL' && e.unit === 'TON' ? e.quantity * 1000 : e.quantity;
+        const cur = acc.get(ref.key) ?? { amount: 0, qty: 0 };
+        cur.amount += e.amount;
+        cur.qty += qty;
+        acc.set(ref.key, cur);
+      }
+    }
+    const rate_observations: RateObservation[] = [];
+    for (const ref of STRUCTURE_MATERIAL_REFERENCE) {
+      const a = acc.get(ref.key);
+      if (!a || a.qty <= 0) continue;
+      const actual = a.amount / a.qty;
+      rate_observations.push({
+        key: ref.key,
+        label: ref.label,
+        unit: ref.unit,
+        quantity: Math.round(a.qty),
+        actual_rate: Math.round(actual * 100) / 100,
+        reference_rate: ref.ref_rate,
+        ratio: Math.round((actual / ref.ref_rate) * 1000) / 1000,
+      });
+    }
+    let structureIndex: number | null = null;
+    if (rate_observations.length > 0) {
+      let w = 0;
+      let wr = 0;
+      for (const o of rate_observations) {
+        const weight = STRUCTURE_MATERIAL_REFERENCE.find((r) => r.key === o.key)!.weight;
+        w += weight;
+        wr += weight * o.ratio;
+      }
+      structureIndex = Math.min(Math.max(wr / w, 0.5), 2);
     }
 
     const ageDays = (now.getTime() - new Date(REFERENCE_DATE).getTime()) / 86_400_000;
@@ -198,13 +273,21 @@ export class ProjectForecastService {
 
     const order: SectionGroup[] = ['LAND', 'STRUCTURE', 'SERVICES', 'FINISHING', 'SITE_OTHER'];
     const area = layout?.total_area_sqft ?? 0;
+    // Live rates: only when the owner has not set a manual Structure factor,
+    // and only on the material share of the structure cost (labour is not
+    // repriced from material purchases).
+    const manualStructure = layout?.price_factors.STRUCTURE;
+    const indexApplied = layout !== null && structureIndex !== null && manualStructure === undefined;
+    const autoStructure = indexApplied
+      ? MATERIAL_SHARE_OF_STRUCTURE * (structureIndex as number) + (1 - MATERIAL_SHARE_OF_STRUCTURE)
+      : 1;
     const extras: ForecastExtra[] = [];
     const extraByGroup: Partial<Record<SectionGroup, number>> = {};
     if (layout) {
       const rate = (g: SectionGroup) =>
         ((REFERENCE_GROUP_COST[g] ?? 0) / REFERENCE_AREA_SQFT) *
         (FINISH_MULTIPLIER[layout.finish_level][g] ?? 1) *
-        (layout.price_factors[g] ?? 1);
+        (layout.price_factors[g] ?? (g === 'STRUCTURE' ? autoStructure : 1));
       for (const it of layout.extras.items ?? []) {
         const cf = EXTRA_COVER_FACTOR[it.kind] ?? 0.5;
         const st = Math.round(rate('STRUCTURE') * it.area_sqft * cf);
@@ -236,7 +319,7 @@ export class ProjectForecastService {
     }
     const groups: ForecastGroup[] = order.map((g) => {
       const refCost = REFERENCE_GROUP_COST[g];
-      const factor = layout?.price_factors[g] ?? 1;
+      const factor = layout?.price_factors[g] ?? (g === 'STRUCTURE' ? autoStructure : 1);
       const mult = layout ? (FINISH_MULTIPLIER[layout.finish_level][g] ?? 1) : 1;
       const estimated =
         layout && refCost !== undefined
@@ -264,6 +347,9 @@ export class ProjectForecastService {
         ...base,
         state: 'NOT_COVERED',
         extras: [],
+        rate_observations,
+        structure_material_index: structureIndex,
+        structure_index_applied: false,
         derived_from: [],
         layout: null,
         groups,
@@ -293,6 +379,11 @@ export class ProjectForecastService {
         notes.push(`${f.name}: ${f.area_sqft} sq ft is above the allowable ${a} sq ft.`);
       }
     }
+    if (indexApplied && structureIndex !== null) {
+      notes.push(
+        `Structure materials are repriced from your real purchases (${rate_observations.map((o) => o.label).join(', ')}): ${structureIndex >= 1 ? '+' : ''}${Math.round((structureIndex - 1) * 100)}% against the reference house.`,
+      );
+    }
     if (extras.length > 0) {
       notes.push('Shades, balconies and the boundary wall are priced from assumed rates (editable); confirm them with a quote.');
     }
@@ -303,6 +394,9 @@ export class ProjectForecastService {
       ...base,
       state: confirmed ? 'FULL' : 'DEGRADED_SUCCESS',
       extras,
+      rate_observations,
+      structure_material_index: structureIndex,
+      structure_index_applied: indexApplied,
       derived_from: [layout.id],
       layout,
       groups,

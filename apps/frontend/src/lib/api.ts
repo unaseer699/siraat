@@ -1489,8 +1489,21 @@ export interface ForecastExtra {
   basis: string;
 }
 
+export interface RateObservation {
+  key: string;
+  label: string;
+  unit: string;
+  quantity: number;
+  actual_rate: number;
+  reference_rate: number;
+  ratio: number;
+}
+
 export interface ProjectForecast {
   extras: ForecastExtra[];
+  rate_observations: RateObservation[];
+  structure_material_index: number | null;
+  structure_index_applied: boolean;
   state: 'FULL' | 'DEGRADED_SUCCESS' | 'NOT_COVERED';
   record_type: 'GENERATED';
   derived_from: string[];
@@ -1607,4 +1620,8 @@ export async function extractLayoutFromDocument(projectId: string, docId: string
     if (s.status === 'NONE') throw new Error('The read was interrupted (server restarted). Please try again.');
   }
   throw new Error('Reading the drawing took too long. Please try again.');
+}
+
+export async function fetchOwnerForecast(projectId: string): Promise<ProjectForecast | { state: 'NOT_COVERED' }> {
+  return apiFetch(`/v1/construction-intelligence/projects/${projectId}/forecast`);
 }
