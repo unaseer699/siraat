@@ -15,6 +15,8 @@ import { WhatsappBusinessLinkService } from './whatsapp-business-link.service';
 import { WhatsappListingForwarderService } from './whatsapp-listing-forwarder.service';
 import { WhatsappListingParsingService } from './whatsapp-listing-parsing.service';
 import { WhatsappListingAlertService } from './whatsapp-listing-alert.service';
+import { WhatsappExpenseBatchService } from './whatsapp-expense-batch.service';
+import { WhatsappExpenseBatchEntity } from './entities/whatsapp-expense-batch.entity';
 import { WhatsappGroundReportService } from './whatsapp-ground-report.service';
 import { GroundReportsModule } from '../ground-reports/ground-reports.module';
 import { ListingAlertsController } from './listing-alerts.controller';
@@ -65,6 +67,7 @@ import { TrustModule } from '../trust/trust.module';
       WhatsappListingForwarderEntity,
       WhatsappDraftListingEntity,
       ListingAlertSubscriptionEntity,
+      WhatsappExpenseBatchEntity,
     ]),
     ConstructionIntelligenceModule,
     PropertyIntelligenceModule,
@@ -83,6 +86,7 @@ import { TrustModule } from '../trust/trust.module';
     WhatsappListingParsingService,
     WhatsappListingAlertService,
     WhatsappGroundReportService,
+    WhatsappExpenseBatchService,
   ],
   exports: [
     WhatsappService,

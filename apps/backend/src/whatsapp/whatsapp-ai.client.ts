@@ -215,6 +215,66 @@ export function applyMessageRules(text: string, listings: ListingExtraction[]): 
   });
 }
 
+
+// WHATSAPP BULK EXPENSES — a "Project Expense:" ledger message holds many
+// lines, each a TOTAL paid (not a unit rate), grouped under date headings.
+export interface ExpenseBatchLine {
+  date: string | null; // ISO yyyy-mm-dd from a date heading, else null
+  description: string;
+  amount: number; // total paid for the line
+  quantity: number | null;
+  unit: string | null;
+  vendor: string | null;
+  paid_by: string | null;
+  trade_category: TradeCategory | null;
+  raw_line: string;
+}
+
+export interface ExpenseBatchOutcome {
+  project_name: string | null;
+  lines: ExpenseBatchLine[];
+  raw: unknown;
+}
+
+const ExpenseBatchResponseSchema = z.object({
+  project_name: z.string().trim().min(1).nullable().default(null),
+  expenses: z.array(
+    z.object({
+      date: z.preprocess((v) => (typeof v === 'string' && v.trim() === '' ? null : v ?? null), z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable()),
+      description: z.string().trim().min(1),
+      amount: z.preprocess((v) => (typeof v === 'string' ? Number(v.replace(/,/g, '')) : v), z.number().positive()),
+      quantity: numericOrNull,
+      unit: z.preprocess((v) => (typeof v === 'string' && v.trim() === '' ? null : v ?? null), z.string().trim().nullable()),
+      vendor: z.preprocess((v) => (typeof v === 'string' && v.trim() === '' ? null : v ?? null), z.string().trim().nullable()),
+      paid_by: z.preprocess((v) => (typeof v === 'string' && v.trim() === '' ? null : v ?? null), z.string().trim().nullable()),
+      trade_category: z.preprocess((v) => (typeof v === 'string' && !(TRADE_CATEGORIES as readonly string[]).includes(v) ? null : v ?? null), TradeCategorySchema.nullable()),
+      raw_line: z.string().trim().min(1),
+    }),
+  ),
+});
+
+function buildExpenseBatchPrompt(): string {
+  return [
+    'You extract a construction-expense LEDGER from a WhatsApp message sent by a project owner. The message starts with "Project Expense:" and "Project Name: ...", then lists many expense lines, grouped under date headings like "13-9-2026" (day-month-year, Pakistan format). Separator lines made of dashes are just dividers.',
+    'Respond with ONLY a single JSON object — no prose, no markdown fences — matching exactly:',
+    '{"project_name": string|null, "expenses": [{"date": "YYYY-MM-DD"|null, "description": string, "amount": number, "quantity": number|null, "unit": string|null, "vendor": string|null, "paid_by": string|null, "trade_category": string|null, "raw_line": string}]}',
+    '',
+    'Rules:',
+    '- project_name: the text after "Project Name:", or null.',
+    '- One element per expense line. Ignore headings, dividers and the Project lines.',
+    '- amount: the TOTAL paid for the line — the number after the dash (e.g. "Cement - 74500 50 bags" -> 74500). It is NEVER a per-unit rate. Plain number, no commas. If a line has a second number after another dash (e.g. "Bricks payment Sattar - 850000 - 50k bricks"), the FIRST number after the first dash is the amount and the rest is detail. Numbers like "30k" inside the description are part of the description, not the amount.',
+    '- date: the date heading in force for the line, as ISO yyyy-mm-dd (read dd-mm-yyyy as day-month-year). Lines before any date heading get null.',
+    '- description: what was bought or paid for, short and clear, in the sender\'s words (keep details like "50k bricks"). Do not include the amount, the vendor name or "paid by ...".',
+    '- quantity/unit: only when the line states a simple count with a unit of bags, pcs, kg, ton, cft, sft, rft or ltr (e.g. "50 bags" -> 50, "bags"). Otherwise null — never invent or compute one.',
+    '- vendor: a person/business paid, when the line names one (e.g. "Bricks payment Sattar" -> "Sattar", "Jabbar payment" -> "Jabbar"). Otherwise null.',
+    '- paid_by: the person who paid out of pocket, from phrases like "paid by Abu" -> "Abu". Otherwise null. This is different from vendor.',
+    `- trade_category: your best guess from EXACTLY this list, or null: ${TRADE_CATEGORIES.join(', ')}.`,
+    '- raw_line: the exact original line.',
+    '',
+    'If there are no expense lines, return {"project_name": null, "expenses": []}. Always return valid JSON.',
+  ].join('\n');
+}
+
 const DEFAULT_MODEL = 'claude-haiku-4-5-20251001';
 const REQUEST_TIMEOUT_MS = 15_000;
 const LISTING_REQUEST_TIMEOUT_MS = 90_000;
@@ -312,6 +372,94 @@ export class WhatsappAiClient {
   // response falls back to {listings: []} rather than throwing, same
   // "don't treat a bad AI answer as a retryable infra failure" rule
   // extractExpense already follows.
+  // WHATSAPP BULK EXPENSES — chunked like extractListings (a long ledger would
+  // overflow one response); each chunk re-sends the two header lines plus the
+  // date heading in force, so dates survive a chunk boundary. THROWS on any
+  // failure so the caller can tell the sender instead of silently saving
+  // nothing.
+  async extractExpenseBatch(messageText: string): Promise<ExpenseBatchOutcome> {
+    const lines = messageText.split('\n');
+    const isDate = (l: string) => /\b\d{1,2}[-/.]\d{1,2}[-/.]\d{2,4}\b/.test(l) && !/[-–]\s*\d{3,}/.test(l);
+    const SOFT = 30;
+    const HARD = 45;
+
+    if (lines.length <= HARD) return this.extractExpenseBatchChunk(messageText);
+
+    const preamble = lines.slice(0, 2).join('\n');
+    const all: ExpenseBatchLine[] = [];
+    const raws: unknown[] = [];
+    let projectName: string | null = null;
+    let dateLine = '';
+    let buf: string[] = [];
+    const flush = async () => {
+      if (buf.length === 0) return;
+      const chunk = [preamble, isDate(buf[0]) ? '' : dateLine, ...buf].filter(Boolean).join('\n');
+      const out = await this.extractExpenseBatchChunk(chunk);
+      projectName = projectName ?? out.project_name;
+      all.push(...out.lines);
+      raws.push(out.raw);
+      buf = [];
+    };
+    for (const line of lines.slice(2)) {
+      if (buf.length >= HARD || (buf.length >= SOFT && isDate(line))) await flush();
+      buf.push(line);
+      if (isDate(line)) dateLine = line;
+    }
+    await flush();
+    return { project_name: projectName, lines: all, raw: { chunks: raws.length, responses: raws } };
+  }
+
+  private async extractExpenseBatchChunk(messageText: string): Promise<ExpenseBatchOutcome> {
+    const apiKey = process.env.ANTHROPIC_API_KEY;
+    if (!apiKey) throw new Error('ANTHROPIC_API_KEY not set — cannot parse expenses');
+
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), LISTING_REQUEST_TIMEOUT_MS);
+    let response: Response;
+    try {
+      response = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', 'x-api-key': apiKey, 'anthropic-version': '2023-06-01' },
+        body: JSON.stringify({
+          model: process.env.ANTHROPIC_MODEL ?? DEFAULT_MODEL,
+          max_tokens: 8192,
+          system: buildExpenseBatchPrompt(),
+          messages: [{ role: 'user', content: messageText }],
+        }),
+        signal: controller.signal,
+      });
+    } finally {
+      clearTimeout(timeout);
+    }
+    if (!response.ok) {
+      throw new Error(`Anthropic API returned ${response.status}: ${await response.text().catch(() => '<unreadable>')}`);
+    }
+    const json: unknown = await response.json();
+    const textBlock = (json as { content?: Array<{ text?: unknown }> }).content?.[0]?.text;
+    if (typeof textBlock !== 'string') throw new Error('Anthropic response missing text content block');
+    if ((json as { stop_reason?: unknown }).stop_reason === 'max_tokens') {
+      throw new Error('Expense ledger response was truncated (max_tokens)');
+    }
+    const validated = ExpenseBatchResponseSchema.safeParse(extractJsonObject(textBlock));
+    if (!validated.success) throw new Error(`Expense ledger failed shape validation: ${validated.error.message}`);
+
+    return {
+      project_name: validated.data.project_name,
+      raw: json,
+      lines: validated.data.expenses.map((e) => ({
+        date: e.date,
+        description: e.description,
+        amount: e.amount,
+        quantity: e.quantity,
+        unit: e.unit,
+        vendor: e.vendor,
+        paid_by: e.paid_by,
+        trade_category: e.trade_category,
+        raw_line: e.raw_line,
+      })),
+    };
+  }
+
   async extractListings(messageText: string): Promise<ListingExtractionOutcome> {
     // A daily inventory can run to hundreds of lines — far more JSON than one
     // response can hold. Split at line boundaries (preferring a section

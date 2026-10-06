@@ -1,0 +1,24 @@
+import { buildBatchSummary, isCancelReply, isExpenseBatchMessage, projectNamesMatch } from './whatsapp-expense-batch.service';
+
+describe('expense batch helpers', () => {
+  it('detects ledger messages', () => {
+    expect(isExpenseBatchMessage('Project Expense:\nProject Name: X')).toBe(true);
+    expect(isExpenseBatchMessage('cement 50 bags')).toBe(false);
+  });
+  it('recognizes cancel replies', () => {
+    expect(isCancelReply('Cancel')).toBe(true);
+    expect(isCancelReply('yes')).toBe(false);
+  });
+  it('matches project names loosely', () => {
+    expect(projectNamesMatch('2 Kanal Farm House', '2 kanal farm house')).toBe(true);
+    expect(projectNamesMatch('Other Site', '2 Kanal Farm House')).toBe(false);
+  });
+  it('builds a summary with total and prompt', () => {
+    const t = buildBatchSummary('P', [
+      { date: '2026-09-12', description: 'Duck', amount: 4000, quantity: null, unit: null, vendor: 'Not specified', paid_by: 'Abu', trade_category: 'MISCELLANEOUS', raw_line: '' },
+    ], 4000);
+    expect(t).toContain('Total: 4,000');
+    expect(t).toContain('paid by Abu');
+    expect(t).toContain('Reply YES');
+  });
+});

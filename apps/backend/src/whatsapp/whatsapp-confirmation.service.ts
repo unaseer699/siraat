@@ -77,7 +77,7 @@ const UNIT_ALIASES: Record<string, ExpenseUnit> = {
   litres: 'LTR',
 };
 
-function mapToExpenseUnit(rawUnit: string | null): ExpenseUnit | null {
+export function mapToExpenseUnit(rawUnit: string | null): ExpenseUnit | null {
   if (!rawUnit) return null;
   return UNIT_ALIASES[rawUnit.trim().toLowerCase()] ?? null;
 }
@@ -381,7 +381,7 @@ export class WhatsappConfirmationService {
   // creates one — via ConstructionProjectService's own public methods only
   // (Law 9: no reaching into its repos/schema directly), same as
   // AdminService's composition-at-the-orchestrator pattern.
-  private async findOrCreateSection(projectId: string, category: TradeCategory): Promise<string> {
+  async findOrCreateSection(projectId: string, category: TradeCategory): Promise<string> {
     const project = await this.cpSvc.getProjectWithSectionsAndExpenses(projectId);
     if (!project) {
       throw new Error(`Project ${projectId} not found — cannot record confirmed WhatsApp expense`);

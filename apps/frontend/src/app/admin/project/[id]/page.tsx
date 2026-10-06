@@ -581,6 +581,7 @@ function ExpenseRow({
       </td>
       <td style={tdStyle}>
         <VendorLabel vendor_name={expense.vendor_name} source={expense.source} />
+        {expense.paid_by && <span style={{ fontSize: '11px', color: 'var(--muted)', display: 'block' }}>paid by {expense.paid_by}</span>}
         {(expense.linked_contractor_id || expense.linked_supplier_id) && (
           <span style={{ fontSize: '11px', color: TRUST_GREEN, marginLeft: '6px' }}>✓ linked</span>
         )}

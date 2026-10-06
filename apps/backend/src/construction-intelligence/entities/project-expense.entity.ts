@@ -121,6 +121,10 @@ export class ProjectExpenseEntity {
   @Column({ type: 'varchar', length: 10, nullable: true })
   source: ExpenseSource | null;
 
+  // Who paid out of pocket ("paid by Abu"). Optional metadata.
+  @Column({ type: 'varchar', length: 100, nullable: true })
+  paid_by: string | null;
+
   @CreateDateColumn()
   created_at: Date;
 }

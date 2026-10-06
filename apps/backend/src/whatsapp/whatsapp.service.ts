@@ -16,6 +16,11 @@ import { WhatsappListingForwarderService } from './whatsapp-listing-forwarder.se
 import { WhatsappListingParsingService } from './whatsapp-listing-parsing.service';
 import { WhatsappListingAlertService } from './whatsapp-listing-alert.service';
 import { WhatsappGroundReportService } from './whatsapp-ground-report.service';
+import { WhatsappExpenseBatchService, isExpenseBatchMessage } from './whatsapp-expense-batch.service';
+
+function countNonEmptyLines(text: string | null): number {
+  return (text ?? '').split('\n').filter((l) => l.trim().length > 0).length;
+}
 import { maskPhone } from './whatsapp-phone.util';
 
 export { maskPhone };
@@ -165,6 +170,7 @@ export class WhatsappService {
     private readonly listingAlertSvc?: WhatsappListingAlertService,
     @Optional()
     private readonly groundReportSvc?: WhatsappGroundReportService,
+    @Optional() private readonly expenseBatchSvc?: WhatsappExpenseBatchService,
   ) {}
 
   // ── [SECURITY] Webhook verification handshake (GET) ──────────────────────
@@ -333,6 +339,15 @@ export class WhatsappService {
     // awaited here (same "DB writes are awaited, only the slow external
     // call is fire-and-forgotten" line Phase 1/2 already draw) rather than
     // adding it to the fire-and-forget branch below.
+    if (this.expenseBatchSvc) {
+      const pendingBatch = await this.expenseBatchSvc.findPendingBatch(message.project_ref);
+      if (pendingBatch && (await this.expenseBatchSvc.handleReply(pendingBatch, message))) return;
+      if (isExpenseBatchMessage(message.message_text) && countNonEmptyLines(message.message_text) > 3) {
+        void this.expenseBatchSvc.parseAndStoreBatch(message);
+        return;
+      }
+    }
+
     const matchedDraft = await this.confirmationSvc?.findMatchingPendingDraft(message, contextId);
     if (matchedDraft) {
       void this.confirmationSvc?.handleReply(matchedDraft, message);

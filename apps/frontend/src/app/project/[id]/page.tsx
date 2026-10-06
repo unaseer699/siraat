@@ -50,7 +50,7 @@ function ExpenseLine({ expense }: { expense: ExpenseResult }) {
           {expense.source === 'WHATSAPP' && <WhatsappBadge />}
         </span>
         <span style={{ fontSize: '12px', color: 'var(--muted)' }}>
-          <VendorLabel vendor_name={expense.vendor_name} source={expense.source} /> · {formatDate(expense.expense_date)}
+          <VendorLabel vendor_name={expense.vendor_name} source={expense.source} />{expense.paid_by ? ` · paid by ${expense.paid_by}` : ''} · {formatDate(expense.expense_date)}
         </span>
       </div>
       <span

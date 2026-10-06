@@ -137,6 +137,8 @@ export interface CreateExpenseInput {
   // every CreateExpenseInput site — defaults to null (same as an
   // unspecified manual entry) when omitted. See ProjectExpenseEntity.source.
   source?: ExpenseSource | null;
+  // WHATSAPP BULK EXPENSES — optional so every existing caller is unchanged.
+  paid_by?: string | null;
 }
 
 // EXPENSE EDIT/DELETE Chunk 1 — same field shape as create; a PATCH submits
@@ -162,6 +164,7 @@ export interface ExpenseResult {
   supersedes_id: string | null;
   void_reason: string | null;
   source: ExpenseSource | null;
+  paid_by: string | null;
 }
 
 // EXPENSE QUANTITY/RATE Chunk 1 — the one place `amount` is required vs.
@@ -209,6 +212,7 @@ function toExpenseResult(e: ProjectExpenseEntity): ExpenseResult {
     supersedes_id: e.supersedes_id,
     void_reason: e.void_reason,
     source: e.source ?? null,
+    paid_by: e.paid_by ?? null,
   };
 }
 
@@ -443,6 +447,7 @@ export class ConstructionProjectService {
       // field a caller (WhatsappConfirmationService.confirmDraft) sets to
       // trace the row's origin, defaulting to null for every other caller.
       source: data.source ?? null,
+      paid_by: data.paid_by ?? null,
     });
     const saved = await this.expenseRepo.save(entity);
     return toExpenseResult(saved);
@@ -495,6 +500,8 @@ export class ConstructionProjectService {
         status: 'ACTIVE',
         supersedes_id: original.id,
         void_reason: null,
+        // An edit that doesn't mention paid_by keeps the original's.
+        paid_by: data.paid_by ?? original.paid_by,
       });
       const saved = await manager.save(newRow);
 

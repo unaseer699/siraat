@@ -1004,6 +1004,7 @@ export interface ExpenseResult {
   expense_date: string;
   description: string;
   vendor_name: string;
+  paid_by?: string | null;
   vendor_contact: string | null;
   linked_contractor_id: string | null;
   linked_supplier_id: string | null;
