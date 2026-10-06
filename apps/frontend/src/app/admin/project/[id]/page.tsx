@@ -2,6 +2,7 @@
 
 import { Fragment, useEffect, useRef, useState, type CSSProperties, type FormEvent } from 'react';
 import Link from 'next/link';
+import { ForecastPanel } from '@/components/ForecastPanel';
 import type { SectionCategory, ExpenseKind } from '@siraat/shared-types';
 import {
   fetchProject,
@@ -1182,6 +1183,10 @@ export default function AdminProjectPage({ params }: Props) {
               </div>
             )}
           </div>
+        </div>
+
+        <div style={{ marginTop: '24px' }}>
+          <ForecastPanel projectId={params.id} />
         </div>
 
         {refetchError && (

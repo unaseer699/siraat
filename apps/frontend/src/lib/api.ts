@@ -1457,3 +1457,64 @@ export async function approveGroundReport(id: string): Promise<void> {
 export async function rejectGroundReport(id: string, reason: string | null): Promise<void> {
   await apiFetch(`/v1/admin/ground-reports/${id}/reject`, { method: 'POST', body: JSON.stringify({ reason }) });
 }
+
+export type FinishLevel = 'BASIC' | 'STANDARD' | 'PREMIUM';
+export type ForecastGroupKey = 'STRUCTURE' | 'SERVICES' | 'FINISHING' | 'SITE_OTHER';
+
+export interface ProjectLayout {
+  id: string;
+  project_ref: string;
+  floors: { name: string; area_sqft: number }[];
+  total_area_sqft: number;
+  finish_level: FinishLevel;
+  price_factors: Partial<Record<ForecastGroupKey, number>>;
+  status: 'UNTRUSTED_DATA' | 'CONFIRMED';
+  source_note: string | null;
+  confirmed_at: string | null;
+}
+
+export interface ProjectForecast {
+  state: 'FULL' | 'DEGRADED_SUCCESS' | 'NOT_COVERED';
+  record_type: 'GENERATED';
+  derived_from: string[];
+  layout: ProjectLayout | null;
+  groups: {
+    group: string;
+    label: string;
+    estimated: number | null;
+    spent: number;
+    forecast_at_completion: number;
+    remaining: number;
+    price_factor: number;
+  }[];
+  estimated_total: number;
+  spent_total: number;
+  forecast_total: number;
+  per_sqft: number | null;
+  reference: { area_sqft: number; date: string; source: string };
+  confidence_score: number;
+  is_stale: boolean;
+  staleness_threshold_days: number;
+  affiliation_disclosure: string | null;
+  notes: string[];
+}
+
+export async function fetchProjectForecast(projectId: string): Promise<ProjectForecast> {
+  return apiFetch(`/v1/admin/projects/${projectId}/forecast`);
+}
+
+export async function saveProjectLayout(
+  projectId: string,
+  body: {
+    floors: { name: string; area_sqft: number }[];
+    finish_level: FinishLevel;
+    price_factors?: Partial<Record<ForecastGroupKey, number>> | null;
+    source_note?: string | null;
+  },
+): Promise<ProjectForecast> {
+  return apiFetch(`/v1/admin/projects/${projectId}/layout`, { method: 'PUT', body: JSON.stringify(body) });
+}
+
+export async function confirmProjectLayout(projectId: string): Promise<ProjectForecast> {
+  return apiFetch(`/v1/admin/projects/${projectId}/layout/confirm`, { method: 'POST' });
+}

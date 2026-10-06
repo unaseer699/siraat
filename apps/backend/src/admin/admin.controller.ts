@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, HttpCode, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, HttpCode, Param, Patch, Post, Put, Query, UseGuards } from '@nestjs/common';
 import type { GroundReportStatus } from '../ground-reports/ground-report-submission.entity';
 import { z } from 'zod';
 import {
@@ -397,6 +397,15 @@ const MoveExpensesBodySchema = z.object({
   kind: ExpenseKindSchema.nullable().optional(),
 });
 type MoveExpensesBody = z.infer<typeof MoveExpensesBodySchema>;
+
+// --- Layout & forecast ---
+const LayoutBodySchema = z.object({
+  floors: z.array(z.object({ name: z.string().min(1).max(60), area_sqft: z.number().positive().max(100000) })).min(1).max(10),
+  finish_level: z.enum(['BASIC', 'STANDARD', 'PREMIUM']),
+  price_factors: z.record(z.enum(['STRUCTURE', 'SERVICES', 'FINISHING', 'SITE_OTHER']), z.number().min(0.5).max(2)).nullable().optional(),
+  source_note: z.string().max(255).nullable().optional(),
+});
+type LayoutBody = z.infer<typeof LayoutBodySchema>;
 
 // --- POST /v1/admin/projects/:projectId/import-expenses ---
 const ImportExpensesBodySchema = z.object({
@@ -885,6 +894,25 @@ export class AdminController {
     @Body(new ZodValidationPipe(MoveExpensesBodySchema)) body: MoveExpensesBody,
   ) {
     return this.adminSvc.moveProjectExpenses(projectId, body.expense_ids, body.category, body.kind ?? null);
+  }
+
+  @Get('projects/:projectId/forecast')
+  getProjectForecast(@Param('projectId') projectId: string) {
+    return this.adminSvc.getProjectForecast(projectId);
+  }
+
+  @Put('projects/:projectId/layout')
+  saveProjectLayout(
+    @Param('projectId') projectId: string,
+    @Body(new ZodValidationPipe(LayoutBodySchema)) body: LayoutBody,
+  ) {
+    return this.adminSvc.saveProjectLayout(projectId, body);
+  }
+
+  @Post('projects/:projectId/layout/confirm')
+  @HttpCode(200)
+  confirmProjectLayout(@Param('projectId') projectId: string) {
+    return this.adminSvc.confirmProjectLayout(projectId);
   }
 
   @Post('projects/:projectId/import-expenses')

@@ -1,4 +1,4 @@
-import { Injectable, BadRequestException, Logger, NotFoundException } from '@nestjs/common';
+import { Injectable, BadRequestException, Logger, NotFoundException, Optional } from '@nestjs/common';
 import { GroundReportSubmissionService } from '../ground-reports/ground-report-submission.service';
 import type { GroundReportStatus } from '../ground-reports/ground-report-submission.entity';
 import type {
@@ -194,6 +194,9 @@ export interface UpdateHousePlanInput {
 // don't need to reach into ../whatsapp/whatsapp.service directly.
 export type CreateWhatsappMappingInput = WhatsappCreateMappingInput;
 
+import { ProjectForecastService, FinishLevel } from '../construction-intelligence/project-forecast.service';
+import { LayoutFloor } from '../construction-intelligence/entities/project-layout.entity';
+
 @Injectable()
 export class AdminService {
   private readonly logger = new Logger(AdminService.name);
@@ -210,6 +213,7 @@ export class AdminService {
     private readonly waListingForwarderSvc: WhatsappListingForwarderService,
     private readonly waListingParsingSvc: WhatsappListingParsingService,
     private readonly groundReportSvc: GroundReportSubmissionService,
+    @Optional() private readonly forecastSvc?: ProjectForecastService,
   ) {}
 
   // CLEANUP — was AdminService's own CandidateSocietyEntity repository
@@ -793,6 +797,34 @@ export class AdminService {
     const project = await this.cpSvc.findProjectById(projectId);
     if (!project) throw new NotFoundException(`Project ${projectId} not found`);
     return this.cpSvc.moveExpenses(projectId, expenseIds, category, kind);
+  }
+
+  private forecast(): ProjectForecastService {
+    if (!this.forecastSvc) throw new BadRequestException('Forecast service unavailable');
+    return this.forecastSvc;
+  }
+
+  async getProjectForecast(projectId: string) {
+    const project = await this.cpSvc.findProjectById(projectId);
+    if (!project) throw new NotFoundException(`Project ${projectId} not found`);
+    return this.forecast().forecast(projectId);
+  }
+
+  async saveProjectLayout(
+    projectId: string,
+    input: { floors: LayoutFloor[]; finish_level: FinishLevel; price_factors?: Record<string, number> | null; source_note?: string | null },
+  ) {
+    const project = await this.cpSvc.findProjectById(projectId);
+    if (!project) throw new NotFoundException(`Project ${projectId} not found`);
+    await this.forecast().saveLayout(projectId, input);
+    return this.forecast().forecast(projectId);
+  }
+
+  async confirmProjectLayout(projectId: string) {
+    const project = await this.cpSvc.findProjectById(projectId);
+    if (!project) throw new NotFoundException(`Project ${projectId} not found`);
+    await this.forecast().confirmLayout(projectId);
+    return this.forecast().forecast(projectId);
   }
 
   async importProjectExpenses(
