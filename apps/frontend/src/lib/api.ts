@@ -1595,5 +1595,16 @@ export async function deleteProjectDocument(projectId: string, docId: string) {
 }
 
 export async function extractLayoutFromDocument(projectId: string, docId: string): Promise<LayoutExtraction> {
-  return apiFetch(`/v1/admin/projects/${projectId}/documents/${docId}/extract-layout`, { method: 'POST' });
+  await apiFetch(`/v1/admin/projects/${projectId}/documents/${docId}/extract-layout`, { method: 'POST' });
+  const deadline = Date.now() + 5 * 60_000;
+  while (Date.now() < deadline) {
+    await new Promise((r) => setTimeout(r, 4000));
+    const s = await apiFetch<{ status: string; result: LayoutExtraction | null; error: string | null }>(
+      `/v1/admin/projects/${projectId}/documents/${docId}/extract-layout`,
+    );
+    if (s.status === 'DONE' && s.result) return s.result;
+    if (s.status === 'FAILED') throw new Error(s.error ?? 'The drawing could not be read');
+    if (s.status === 'NONE') throw new Error('The read was interrupted (server restarted). Please try again.');
+  }
+  throw new Error('Reading the drawing took too long. Please try again.');
 }

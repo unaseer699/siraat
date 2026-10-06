@@ -952,8 +952,13 @@ export class AdminController {
 
   @Post('projects/:projectId/documents/:docId/extract-layout')
   @HttpCode(200)
-  extractProjectLayout(@Param('projectId') projectId: string, @Param('docId') docId: string) {
-    return this.adminSvc.extractProjectLayout(projectId, docId);
+  startProjectLayoutRead(@Param('projectId') projectId: string, @Param('docId') docId: string) {
+    return this.adminSvc.startProjectLayoutRead(projectId, docId);
+  }
+
+  @Get('projects/:projectId/documents/:docId/extract-layout')
+  getProjectLayoutRead(@Param('projectId') projectId: string, @Param('docId') docId: string) {
+    return this.adminSvc.getProjectLayoutRead(projectId, docId);
   }
 
   @Delete('projects/:projectId/documents/:docId')

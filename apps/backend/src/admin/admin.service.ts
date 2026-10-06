@@ -847,9 +847,18 @@ export class AdminService {
     return { ok: true };
   }
 
-  async extractProjectLayout(projectId: string, docId: string) {
+  async startProjectLayoutRead(projectId: string, docId: string) {
     if (!this.extractorSvc) throw new BadRequestException('Layout reader unavailable');
-    return this.extractorSvc.extract(projectId, docId);
+    await this.requireProject(projectId);
+    const { status } = this.extractorSvc.start(projectId, docId);
+    return { status };
+  }
+
+  async getProjectLayoutRead(projectId: string, docId: string) {
+    if (!this.extractorSvc) throw new BadRequestException('Layout reader unavailable');
+    await this.requireProject(projectId);
+    const job = this.extractorSvc.status(docId);
+    return { status: job.status, result: job.result ?? null, error: job.error ?? null };
   }
 
   async getProjectForecast(projectId: string) {
