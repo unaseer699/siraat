@@ -49,7 +49,7 @@ import {
   WhatsappListingForwarderService,
   type CreateListingForwarderInput,
 } from '../whatsapp/whatsapp-listing-forwarder.service';
-import { WhatsappListingParsingService } from '../whatsapp/whatsapp-listing-parsing.service';
+import { WhatsappListingParsingService, type WhatsappDraftListingWithFlags } from '../whatsapp/whatsapp-listing-parsing.service';
 import type { WhatsappProjectMappingEntity } from '../whatsapp/entities/whatsapp-project-mapping.entity';
 import type {
   WhatsappDraftExpenseEntity,
@@ -903,7 +903,7 @@ export class AdminService {
   }
 
   // GET /v1/admin/whatsapp-listing-drafts
-  async listWhatsappListingDrafts(status?: WhatsappDraftListingStatus): Promise<WhatsappDraftListingEntity[]> {
+  async listWhatsappListingDrafts(status?: WhatsappDraftListingStatus): Promise<WhatsappDraftListingWithFlags[]> {
     return this.waListingParsingSvc.listDrafts(status);
   }
 
@@ -915,5 +915,22 @@ export class AdminService {
   // POST /v1/admin/whatsapp-listing-drafts/:id/reject
   async rejectWhatsappListingDraft(id: string, note: string | null): Promise<WhatsappDraftListingEntity> {
     return this.waListingParsingSvc.rejectDraft(id, note);
+  }
+
+  // POST /v1/admin/whatsapp-listing-drafts/publish-clean
+  async publishCleanWhatsappListingDrafts() {
+    return this.waListingParsingSvc.publishClean();
+  }
+
+  // GET /v1/admin/property-listings?active=true
+  async listPropertyListings(onlyActive: boolean) {
+    return this.piSvc.listPropertyListingsForAdmin(onlyActive);
+  }
+
+  // POST /v1/admin/property-listings/:id/mark-sold
+  async markPropertyListingSold(id: string) {
+    const result = await this.piSvc.markPlotSold(id);
+    if (!result) throw new NotFoundException(`Listing ${id} not found`);
+    return result;
   }
 }

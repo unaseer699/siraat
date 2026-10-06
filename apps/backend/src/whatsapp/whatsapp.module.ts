@@ -14,6 +14,9 @@ import { WhatsappConfirmationService } from './whatsapp-confirmation.service';
 import { WhatsappBusinessLinkService } from './whatsapp-business-link.service';
 import { WhatsappListingForwarderService } from './whatsapp-listing-forwarder.service';
 import { WhatsappListingParsingService } from './whatsapp-listing-parsing.service';
+import { WhatsappListingAlertService } from './whatsapp-listing-alert.service';
+import { ListingAlertsController } from './listing-alerts.controller';
+import { ListingAlertSubscriptionEntity } from './entities/listing-alert-subscription.entity';
 import { WhatsappWebhookController } from './whatsapp-webhook.controller';
 import { ConstructionIntelligenceModule } from '../construction-intelligence/construction-intelligence.module';
 import { PropertyIntelligenceModule } from '../property-intelligence/property-intelligence.module';
@@ -59,12 +62,13 @@ import { TrustModule } from '../trust/trust.module';
       WhatsappSuggestedBusinessLinkEntity,
       WhatsappListingForwarderEntity,
       WhatsappDraftListingEntity,
+      ListingAlertSubscriptionEntity,
     ]),
     ConstructionIntelligenceModule,
     PropertyIntelligenceModule,
     TrustModule,
   ],
-  controllers: [WhatsappWebhookController],
+  controllers: [WhatsappWebhookController, ListingAlertsController],
   providers: [
     WhatsappService,
     WhatsappParsingService,
@@ -74,6 +78,7 @@ import { TrustModule } from '../trust/trust.module';
     WhatsappBusinessLinkService,
     WhatsappListingForwarderService,
     WhatsappListingParsingService,
+    WhatsappListingAlertService,
   ],
   exports: [
     WhatsappService,

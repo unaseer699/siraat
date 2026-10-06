@@ -8,10 +8,14 @@ import {
   fetchWhatsappListingDrafts,
   publishWhatsappListingDraft,
   rejectWhatsappListingDraft,
+  publishCleanListingDrafts,
+  fetchAdminPropertyListings,
+  markPropertyListingSold,
   type WhatsappListingForwarder,
   type WhatsappDraftListing,
   type WhatsappDraftListingStatus,
 } from '@/lib/api';
+import type { PropertyListingSummary } from '@siraat/shared-types';
 import { AdminNav } from '../AdminNav';
 import { primaryButtonStyle, dangerButtonStyle } from '../buttonStyles';
 
@@ -21,6 +25,14 @@ import { primaryButtonStyle, dangerButtonStyle } from '../buttonStyles';
 // the founder has already verified the source message before forwarding).
 
 const DRAFT_STATUS_OPTIONS: WhatsappDraftListingStatus[] = ['PENDING_REVIEW', 'PUBLISHED', 'REJECTED'];
+
+const BLOCKING_FLAGS = ['MISSING_PRICE', 'PRICE_OUTLIER'];
+const FLAG_LABELS: Record<string, string> = {
+  MISSING_PRICE: 'No price',
+  PRICE_OUTLIER: 'Price outlier',
+  MISSING_SIZE: 'No size',
+  REFRESH: 'Refresh',
+};
 
 function formatTimestamp(iso: string): string {
   return new Date(iso).toLocaleString();
@@ -43,6 +55,57 @@ export default function AdminWhatsappListingsPage() {
   const [phoneEdits, setPhoneEdits] = useState<Record<string, string>>({});
   const [actingId, setActingId] = useState<string | null>(null);
   const [rowError, setRowError] = useState<{ id: string; message: string } | null>(null);
+
+  const [bulkBusy, setBulkBusy] = useState(false);
+  const [bulkMessage, setBulkMessage] = useState<string | null>(null);
+
+  const [live, setLive] = useState<PropertyListingSummary[]>([]);
+  const [liveLoading, setLiveLoading] = useState(true);
+  const [liveError, setLiveError] = useState<string | null>(null);
+  const [liveFilter, setLiveFilter] = useState('');
+
+  function loadLive() {
+    setLiveLoading(true);
+    setLiveError(null);
+    fetchAdminPropertyListings(true)
+      .then(setLive)
+      .catch((err) => setLiveError(err instanceof Error ? err.message : 'Failed to load'))
+      .finally(() => setLiveLoading(false));
+  }
+  useEffect(loadLive, []);
+
+  const cleanCount = drafts.filter(
+    (d) => d.status === 'PENDING_REVIEW' && !(d.flags ?? []).some((f) => BLOCKING_FLAGS.includes(f)),
+  ).length;
+
+  async function handlePublishClean() {
+    if (!window.confirm(`Publish ${cleanCount} clean draft(s)? Flagged ones are left for manual review.`)) return;
+    setBulkBusy(true);
+    setBulkMessage(null);
+    try {
+      const r = await publishCleanListingDrafts();
+      setBulkMessage(`Published ${r.published}, left for review ${r.skipped}, failed ${r.failed}.`);
+      loadDrafts();
+      loadLive();
+    } catch (err) {
+      setBulkMessage(err instanceof Error ? err.message : 'Bulk publish failed');
+    } finally {
+      setBulkBusy(false);
+    }
+  }
+
+  async function handleMarkSold(l: PropertyListingSummary) {
+    if (!window.confirm(`Mark plot ${l.plot_number} (${l.society_name ?? l.society_name_raw}) as sold? This hides every dealer's offer for it.`)) return;
+    setActingId(l.id);
+    try {
+      await markPropertyListingSold(l.id);
+      loadLive();
+    } catch (err) {
+      setLiveError(err instanceof Error ? err.message : 'Mark sold failed');
+    } finally {
+      setActingId(null);
+    }
+  }
 
   function loadForwarders() {
     let cancelled = false;
@@ -121,6 +184,7 @@ export default function AdminWhatsappListingsPage() {
       const contactPhone = edited === undefined ? undefined : edited.trim() === '' ? null : edited.trim();
       await publishWhatsappListingDraft(draft.id, contactPhone);
       setDrafts((prev) => prev.filter((d) => d.id !== draft.id));
+      loadLive();
     } catch (err) {
       setRowError({ id: draft.id, message: err instanceof Error ? err.message : 'Publish failed' });
     } finally {
@@ -230,7 +294,16 @@ export default function AdminWhatsappListingsPage() {
         <section style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
             <h2 style={{ fontSize: '18px', fontWeight: 700 }}>Draft Listings</h2>
-            <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+            <div style={{ display: 'flex', gap: '12px', alignItems: 'center', flexWrap: 'wrap' }}>
+              {draftStatus === 'PENDING_REVIEW' && (
+                <button
+                  onClick={handlePublishClean}
+                  disabled={bulkBusy || cleanCount === 0}
+                  style={primaryButtonStyle(bulkBusy || cleanCount === 0)}
+                >
+                  Publish all clean ({cleanCount})
+                </button>
+              )}
               <label style={{ fontSize: '13px', fontWeight: 600 }}>Status</label>
               <select
                 value={draftStatus}
@@ -247,6 +320,7 @@ export default function AdminWhatsappListingsPage() {
           </div>
 
           {draftsError && <ErrorBanner message={draftsError} />}
+          {bulkMessage && <p style={{ fontSize: '13px', fontWeight: 600 }}>{bulkMessage}</p>}
 
           {draftsLoading ? (
             <p style={{ fontSize: '14px', color: 'var(--muted)' }}>Loading…</p>
@@ -278,7 +352,28 @@ export default function AdminWhatsappListingsPage() {
                       <td style={{ ...tdStyle, fontWeight: 600 }}>{d.plot_number}</td>
                       <td style={tdStyle}>{d.size_raw ?? '—'}</td>
                       <td style={tdStyle}>{d.price_lac ?? '—'}</td>
-                      <td style={tdStyle}>{d.status_raw ?? '—'}</td>
+                      <td style={tdStyle}>
+                        {d.status_raw ?? '—'}
+                        {(d.flags ?? []).length > 0 && (
+                          <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap', marginTop: '4px' }}>
+                            {d.flags.map((f) => (
+                              <span
+                                key={f}
+                                style={{
+                                  fontSize: '11px',
+                                  fontWeight: 700,
+                                  padding: '2px 8px',
+                                  borderRadius: '999px',
+                                  background: BLOCKING_FLAGS.includes(f) ? '#fef3c7' : '#f3f4f6',
+                                  color: BLOCKING_FLAGS.includes(f) ? '#92400e' : 'var(--muted)',
+                                }}
+                              >
+                                {FLAG_LABELS[f] ?? f}
+                              </span>
+                            ))}
+                          </div>
+                        )}
+                      </td>
                       <td style={tdStyle}>
                         {d.status === 'PENDING_REVIEW' ? (
                           <input
@@ -320,6 +415,78 @@ export default function AdminWhatsappListingsPage() {
                       </td>
                     </tr>
                   ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </section>
+
+        {/* ─── Published (live) listings ───────────────────────────── */}
+        <section style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+          <h2 style={{ fontSize: '18px', fontWeight: 700 }}>Published Listings ({live.length})</h2>
+          <input
+            value={liveFilter}
+            onChange={(e) => setLiveFilter(e.target.value)}
+            placeholder="Filter by society, block or plot number"
+            style={inputStyle}
+          />
+          {liveError && <ErrorBanner message={liveError} />}
+          {liveLoading ? (
+            <p style={{ fontSize: '14px', color: 'var(--muted)' }}>Loading…</p>
+          ) : live.length === 0 ? (
+            <p style={{ fontSize: '14px', color: 'var(--muted)' }}>No live listings.</p>
+          ) : (
+            <div style={{ overflowX: 'auto', border: '1px solid var(--border)', borderRadius: 'var(--radius)' }}>
+              <table style={{ width: '100%', minWidth: '900px', borderCollapse: 'collapse', fontSize: '14px' }}>
+                <thead>
+                  <tr style={{ background: '#f3f4f6', textAlign: 'left' }}>
+                    <th style={thStyle}>Society</th>
+                    <th style={thStyle}>Block</th>
+                    <th style={thStyle}>Plot</th>
+                    <th style={thStyle}>Size</th>
+                    <th style={thStyle}>Price (Lac)</th>
+                    <th style={thStyle}>Dealer</th>
+                    <th style={thStyle}>Last confirmed</th>
+                    <th style={thStyle}></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {live
+                    .filter((l) => {
+                      const q = liveFilter.trim().toLowerCase();
+                      if (!q) return true;
+                      return [l.society_name ?? '', l.society_name_raw, l.block ?? '', l.plot_number]
+                        .join(' ')
+                        .toLowerCase()
+                        .includes(q);
+                    })
+                    .map((l) => (
+                      <tr key={l.id} style={{ borderTop: '1px solid var(--border)' }}>
+                        <td style={tdStyle}>{l.society_name ?? l.society_name_raw}</td>
+                        <td style={tdStyle}>{l.block ?? '—'}</td>
+                        <td style={{ ...tdStyle, fontWeight: 600 }}>{l.plot_number}</td>
+                        <td style={tdStyle}>{l.size_marla ?? '—'}</td>
+                        <td style={tdStyle}>{l.price_lac ?? '—'}</td>
+                        <td style={tdStyle}>{l.contact_phone ?? '—'}</td>
+                        <td style={tdStyle}>
+                          {formatTimestamp(l.last_confirmed_at)}
+                          {l.may_be_sold && (
+                            <span style={{ marginLeft: '6px', fontSize: '11px', fontWeight: 700, color: '#92400e' }}>
+                              may be sold
+                            </span>
+                          )}
+                        </td>
+                        <td style={tdStyle}>
+                          <button
+                            onClick={() => handleMarkSold(l)}
+                            disabled={actingId === l.id}
+                            style={dangerButtonStyle(actingId === l.id)}
+                          >
+                            Mark sold
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
                 </tbody>
               </table>
             </div>

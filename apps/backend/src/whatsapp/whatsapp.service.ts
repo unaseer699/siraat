@@ -14,6 +14,7 @@ import { WhatsappParsingService } from './whatsapp-parsing.service';
 import { WhatsappConfirmationService } from './whatsapp-confirmation.service';
 import { WhatsappListingForwarderService } from './whatsapp-listing-forwarder.service';
 import { WhatsappListingParsingService } from './whatsapp-listing-parsing.service';
+import { WhatsappListingAlertService } from './whatsapp-listing-alert.service';
 import { maskPhone } from './whatsapp-phone.util';
 
 export { maskPhone };
@@ -159,6 +160,8 @@ export class WhatsappService {
     private readonly listingForwarderSvc?: WhatsappListingForwarderService,
     @Optional()
     private readonly listingParsingSvc?: WhatsappListingParsingService,
+    @Optional()
+    private readonly listingAlertSvc?: WhatsappListingAlertService,
   ) {}
 
   // ── [SECURITY] Webhook verification handshake (GET) ──────────────────────
@@ -209,6 +212,16 @@ export class WhatsappService {
     // project mapping (the two are independent concerns — reusing one
     // WhatsApp number for both, per the founder's confirmed preference, not
     // a dedicated second line).
+    // "STOP" from someone with active plot alerts unsubscribes them and ends
+    // processing — it must never fall through into the expense/unmapped queue.
+    if (msg.text && msg.text.trim().toUpperCase() === 'STOP') {
+      const stopped = (await this.listingAlertSvc?.unsubscribeAll(msg.from)) ?? 0;
+      if (stopped > 0) {
+        this.logger.log(`Listing alerts stopped for ${maskPhone(msg.from)} (${stopped})`);
+        return { stored: false, duplicate: false };
+      }
+    }
+
     const isListingForwarder = (await this.listingForwarderSvc?.isForwarder(msg.from)) ?? false;
     const mapping = isListingForwarder ? null : await this.mappingRepo.findOneBy({ wa_id: msg.from });
     const entity = this.inboundRepo.create({

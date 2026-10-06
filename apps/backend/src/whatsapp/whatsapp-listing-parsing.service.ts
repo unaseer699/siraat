@@ -5,6 +5,32 @@ import { WhatsappAiClient } from './whatsapp-ai.client';
 import { WhatsappInboundMessageEntity } from './entities/whatsapp-inbound-message.entity';
 import { WhatsappDraftListingEntity, type WhatsappDraftListingStatus } from './entities/whatsapp-draft-listing.entity';
 import { PropertyIntelligenceService } from '../property-intelligence/property-intelligence.service';
+import { WhatsappOutboundClient } from './whatsapp-outbound.client';
+import { WhatsappListingAlertService } from './whatsapp-listing-alert.service';
+
+// Review flags shown next to a pending draft. BLOCKING flags keep a draft out
+// of "publish all clean"; INFO flags are shown but don't block.
+export type ListingDraftFlag = 'MISSING_PRICE' | 'PRICE_OUTLIER' | 'MISSING_SIZE' | 'REFRESH';
+const BLOCKING_FLAGS: ListingDraftFlag[] = ['MISSING_PRICE', 'PRICE_OUTLIER'];
+// A draft's price per marla must sit within [LOW, HIGH] x the median of live
+// listings in the same society+block (needs MIN_SAMPLES to be meaningful).
+const OUTLIER_LOW = 0.6;
+const OUTLIER_HIGH = 1.6;
+const OUTLIER_MIN_SAMPLES = 3;
+
+export type WhatsappDraftListingWithFlags = WhatsappDraftListingEntity & { flags: ListingDraftFlag[] };
+
+function median(values: number[]): number {
+  const v = [...values].sort((a, b) => a - b);
+  const mid = Math.floor(v.length / 2);
+  return v.length % 2 ? v[mid] : (v[mid - 1] + v[mid]) / 2;
+}
+
+function sameSociety(a: string, b: string): boolean {
+  const x = a.trim().toLowerCase();
+  const y = b.trim().toLowerCase();
+  return x.length > 0 && y.length > 0 && (x.includes(y) || y.includes(x));
+}
 
 // WHATSAPP LISTING INGESTION — auto-expiry default (confirmed: "~14 days"
 // per the scoping discussion). Same configurable-via-env, read-once-per-call
@@ -41,6 +67,8 @@ export class WhatsappListingParsingService {
     // cross-module pattern WhatsappConfirmationService already uses to
     // resolve a confirmed project's city via PropertyIntelligenceService.
     private readonly propertyIntelSvc: PropertyIntelligenceService,
+    private readonly outbound: WhatsappOutboundClient,
+    private readonly alertSvc: WhatsappListingAlertService,
   ) {}
 
   // Fire-and-forget entry point, called from WhatsappService.routeReceivedMessage
@@ -57,6 +85,14 @@ export class WhatsappListingParsingService {
     if (!text || text.trim().length === 0) {
       this.logger.warn(`WhatsApp listing message id=${message.id} has no text body — nothing to parse`);
       await this.inboundRepo.update({ id: message.id }, { status: 'LISTING_PARSED' });
+      return;
+    }
+
+    // A forwarder replying "SOLD 7473 7915" marks those plots sold — no AI
+    // call, no drafts. See PropertyIntelligenceService.markPlotsSoldByNumber
+    // for why an ambiguous number is reported, not guessed.
+    if (/^\s*sold\b/i.test(text)) {
+      await this.handleSoldMessage(message, text);
       return;
     }
 
@@ -101,9 +137,99 @@ export class WhatsappListingParsingService {
   }
 
   // GET /v1/admin/whatsapp-listing-drafts — defaults to PENDING_REVIEW, same
-  // convention as WhatsappParsingService.listDrafts.
-  async listDrafts(status: WhatsappDraftListingStatus = 'PENDING_REVIEW'): Promise<WhatsappDraftListingEntity[]> {
-    return this.draftRepo.find({ where: { status }, order: { created_at: 'DESC' } });
+  // convention as WhatsappParsingService.listDrafts. PENDING drafts also carry
+  // review `flags` so a reviewer can skim hundreds and only open the odd ones.
+  async listDrafts(status: WhatsappDraftListingStatus = 'PENDING_REVIEW'): Promise<WhatsappDraftListingWithFlags[]> {
+    const drafts = await this.draftRepo.find({ where: { status }, order: { created_at: 'DESC' } });
+    if (status !== 'PENDING_REVIEW' || drafts.length === 0) {
+      return drafts.map((d) => ({ ...d, flags: [] }));
+    }
+
+    const active = (await this.propertyIntelSvc.listActivePropertyListings({})).listings;
+
+    // price-per-marla baseline per society+block, from live offers.
+    const baselineFor = (societyRaw: string, block: string | null): number | null => {
+      const samples = active
+        .filter(
+          (l) =>
+            l.price_per_marla_lac !== null &&
+            (l.block ?? '').toLowerCase() === (block ?? '').toLowerCase() &&
+            (sameSociety(societyRaw, l.society_name_raw) || (l.society_name !== null && sameSociety(societyRaw, l.society_name))),
+        )
+        .map((l) => l.price_per_marla_lac as number);
+      return samples.length >= OUTLIER_MIN_SAMPLES ? median(samples) : null;
+    };
+
+    return drafts.map((d) => {
+      const flags: ListingDraftFlag[] = [];
+      const price = d.price_lac === null ? null : Number(d.price_lac);
+      const size = d.size_marla === null ? null : Number(d.size_marla);
+      if (price === null) flags.push('MISSING_PRICE');
+      if (size === null) flags.push('MISSING_SIZE');
+      if (price !== null && size !== null && size > 0) {
+        const base = baselineFor(d.society_name_raw, d.block);
+        const ppm = price / size;
+        if (base !== null && (ppm < base * OUTLIER_LOW || ppm > base * OUTLIER_HIGH)) flags.push('PRICE_OUTLIER');
+      }
+      const alreadyLive = active.some(
+        (l) =>
+          l.plot_number === d.plot_number &&
+          (l.block ?? '').toLowerCase() === (d.block ?? '').toLowerCase() &&
+          (sameSociety(d.society_name_raw, l.society_name_raw) || (l.society_name !== null && sameSociety(d.society_name_raw, l.society_name))),
+      );
+      if (alreadyLive) flags.push('REFRESH');
+      return { ...d, flags };
+    });
+  }
+
+  // POST /v1/admin/whatsapp-listing-drafts/publish-clean — publishes every
+  // pending draft with no BLOCKING flag (price present and not an outlier).
+  // Missing size / refreshes don't block. Failures are collected, not fatal.
+  async publishClean(): Promise<{ published: number; skipped: number; failed: number }> {
+    const pending = await this.listDrafts('PENDING_REVIEW');
+    let published = 0;
+    let skipped = 0;
+    let failed = 0;
+    for (const d of pending) {
+      if (d.flags.some((f) => BLOCKING_FLAGS.includes(f))) {
+        skipped += 1;
+        continue;
+      }
+      try {
+        await this.publishDraft(d.id);
+        published += 1;
+      } catch (err) {
+        failed += 1;
+        this.logger.error(`Bulk publish failed for draft ${d.id}`, err instanceof Error ? err.stack : String(err));
+      }
+    }
+    return { published, skipped, failed };
+  }
+
+  private async handleSoldMessage(message: WhatsappInboundMessageEntity, text: string): Promise<void> {
+    try {
+      const numbers = text.match(/\b\d{3,6}\b/g) ?? [];
+      const result = numbers.length
+        ? await this.propertyIntelSvc.markPlotsSoldByNumber(numbers)
+        : { marked: [], ambiguous: [], not_found: [] };
+      await this.inboundRepo.update({ id: message.id }, { status: 'LISTING_PARSED' });
+
+      const parts: string[] = [];
+      if (result.marked.length) parts.push(`Marked sold: ${result.marked.join(', ')}`);
+      if (result.ambiguous.length) parts.push(`Several societies have plot ${result.ambiguous.join(', ')} - mark it sold from the admin page`);
+      if (result.not_found.length) parts.push(`No live listing for: ${result.not_found.join(', ')}`);
+      if (!numbers.length) parts.push('No plot numbers found - send like: SOLD 7473 7915');
+      try {
+        await this.outbound.sendTextMessage(message.wa_id, parts.join('. ') + '.');
+      } catch (err) {
+        this.logger.warn(`SOLD confirmation send failed: ${err instanceof Error ? err.message : String(err)}`);
+      }
+    } catch (err) {
+      this.logger.error(
+        `Failed to process SOLD message id=${message.id}`,
+        err instanceof Error ? err.stack : String(err),
+      );
+    }
   }
 
   // POST /v1/admin/whatsapp-listing-drafts/:id/publish — the single admin
@@ -121,7 +247,7 @@ export class WhatsappListingParsingService {
       );
     }
 
-    const listing = await this.propertyIntelSvc.createPropertyListing({
+    const { listing, is_new_plot } = await this.propertyIntelSvc.createPropertyListing({
       society_name_raw: draft.society_name_raw,
       block: draft.block,
       plot_number: draft.plot_number,
@@ -134,6 +260,10 @@ export class WhatsappListingParsingService {
     });
 
     await this.draftRepo.update({ id }, { status: 'PUBLISHED', listing_ref: listing.id });
+
+    // Alert subscribers only for a genuinely NEW plot — a dealer re-forwarding
+    // a plot we already list is a refresh, not news. Fire-and-forget.
+    if (is_new_plot) void this.alertSvc.notifyForNewPlot(listing);
     return { ...draft, status: 'PUBLISHED', listing_ref: listing.id };
   }
 

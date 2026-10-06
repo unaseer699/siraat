@@ -29,7 +29,9 @@ import type {
   HousePlanImageType,
   HousePlanAccessTier,
   PropertyListingListResponse,
+  PropertyListingSummary,
   PropertyListingCountsResponse,
+  DealerProfile,
   HousePlanImageListResponse,
   DocumentType,
 } from '@siraat/shared-types';
@@ -1251,6 +1253,9 @@ export interface WhatsappDraftListing {
   status_raw: string | null;
   contact_phone: string | null;
   raw_line: string;
+  // Review flags (PENDING_REVIEW drafts only): MISSING_PRICE / PRICE_OUTLIER
+  // block "publish all clean"; MISSING_SIZE / REFRESH are informational.
+  flags: ('MISSING_PRICE' | 'PRICE_OUTLIER' | 'MISSING_SIZE' | 'REFRESH')[];
   status: WhatsappDraftListingStatus;
   listing_ref: string | null;
   review_note: string | null;
@@ -1316,4 +1321,37 @@ export async function fetchPropertyListings(params?: {
 // GET /v1/property-intelligence/listings/counts — { [society_id]: active count }.
 export async function fetchPropertyListingCounts(): Promise<PropertyListingCountsResponse> {
   return apiFetch('/v1/property-intelligence/listings/counts');
+}
+
+// GET /v1/property-intelligence/listings/dealer/:key
+export async function fetchDealerProfile(dealerKey: string): Promise<DealerProfile> {
+  return apiFetch(`/v1/property-intelligence/listings/dealer/${encodeURIComponent(dealerKey)}`);
+}
+
+// POST /v1/listing-alerts — visitor signs up for new-plot WhatsApp alerts.
+export async function subscribeListingAlert(data: {
+  phone: string;
+  society_key: string | null;
+  city: string | null;
+  max_price_lac: number | null;
+  min_size_marla: number | null;
+}): Promise<{ id: string; confirmation_sent: boolean }> {
+  return apiFetch('/v1/listing-alerts', { method: 'POST', body: JSON.stringify(data) });
+}
+
+// ─── Admin: published listings ──────────────────────────────────────────
+
+// GET /v1/admin/property-listings?active=
+export async function fetchAdminPropertyListings(active = true): Promise<PropertyListingSummary[]> {
+  return apiFetch(`/v1/admin/property-listings?active=${active}`);
+}
+
+// POST /v1/admin/property-listings/:id/mark-sold — marks the whole plot sold.
+export async function markPropertyListingSold(id: string): Promise<{ marked: number }> {
+  return apiFetch(`/v1/admin/property-listings/${id}/mark-sold`, { method: 'POST', body: JSON.stringify({}) });
+}
+
+// POST /v1/admin/whatsapp-listing-drafts/publish-clean
+export async function publishCleanListingDrafts(): Promise<{ published: number; skipped: number; failed: number }> {
+  return apiFetch('/v1/admin/whatsapp-listing-drafts/publish-clean', { method: 'POST', body: JSON.stringify({}) });
 }

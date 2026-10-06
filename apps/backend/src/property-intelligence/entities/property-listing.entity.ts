@@ -81,6 +81,16 @@ export class PropertyListingEntity {
   @Column({ type: 'timestamptz' })
   expires_at: Date;
 
+  // Set when the plot is marked sold (admin action or a forwarder's "SOLD"
+  // message) — a sold plot is excluded from every public read immediately.
+  @Column({ type: 'timestamptz', nullable: true })
+  sold_at: Date | null;
+
+  // Refreshed whenever a dealer re-forwards the same plot (dedup refresh),
+  // so freshness reflects the latest confirmation, not the first sighting.
+  @Column({ type: 'timestamptz', default: () => 'now()' })
+  last_confirmed_at: Date;
+
   @CreateDateColumn()
   created_at: Date;
 }

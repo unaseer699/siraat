@@ -1011,6 +1011,23 @@ export class AdminController {
   // POST /v1/admin/whatsapp-listing-drafts/:id/publish — the one-click
   // Publish action (no confirm-reply loop — see
   // WhatsappListingParsingService.publishDraft for why).
+  @Post('whatsapp-listing-drafts/publish-clean')
+  @HttpCode(200)
+  publishCleanWhatsappListingDrafts() {
+    return this.adminSvc.publishCleanWhatsappListingDrafts();
+  }
+
+  @Get('property-listings')
+  listPropertyListings(@Query('active') active?: string) {
+    return this.adminSvc.listPropertyListings(active !== 'false');
+  }
+
+  @Post('property-listings/:id/mark-sold')
+  @HttpCode(200)
+  markPropertyListingSold(@Param('id') id: string) {
+    return this.adminSvc.markPropertyListingSold(id);
+  }
+
   @Post('whatsapp-listing-drafts/:id/publish')
   @HttpCode(200)
   publishWhatsappListingDraft(

@@ -296,6 +296,9 @@ export interface HousePlanImageListResponse {
 // verification — there is nothing further derived from it), scoped to a
 // Society once/if one is matched by name, but never required to be (a
 // forwarded block/society name may not match anything in the directory yet).
+
+// One dealer's OFFER on a plot. Several dealers forwarding the same plot are
+// several offers, grouped into one PropertyPlotGroup for display.
 export interface PropertyListingSummary {
   id: string;
   // Effective Society link: the stored society_ref, or a read-time name match
@@ -303,20 +306,52 @@ export interface PropertyListingSummary {
   society_ref: string | null;
   society_name: string | null;
   society_name_raw: string;
+  city: string | null;
   block: string | null;
   plot_number: string;
   size_marla: number | null;
   price_lac: number | null;
+  // price_lac / size_marla, only when both are known — makes plots of
+  // different sizes comparable at a glance.
+  price_per_marla_lac: number | null;
   status_raw: string | null;
   // Optional dealer contact number; null when the source message had none.
   contact_phone: string | null;
+  // Normalized (international digits) contact_phone — the dealer's identity
+  // for /dealers/:key. Null when there is no contact_phone.
+  dealer_key: string | null;
   is_siraat_affiliated: boolean;
   record_type: 'FACT';
   published_at: string;
+  // Latest dealer confirmation (re-forwarding the same plot refreshes it).
+  last_confirmed_at: string;
+  // True when not re-confirmed within the staleness window (default 7 days).
+  may_be_sold: boolean;
+  sold_at: string | null;
   expires_at: string;
 }
 
-// Filter options computed over ALL active listings (not the filtered subset),
+// One physical plot, however many dealers are offering it.
+export interface PropertyPlotGroup {
+  key: string;
+  society_ref: string | null;
+  society_name: string | null;
+  society_name_raw: string;
+  city: string | null;
+  block: string | null;
+  plot_number: string;
+  size_marla: number | null;
+  status_raw: string | null;
+  min_price_lac: number | null;
+  max_price_lac: number | null;
+  min_price_per_marla_lac: number | null;
+  last_confirmed_at: string;
+  // Only true when EVERY offer on the plot is stale.
+  may_be_sold: boolean;
+  offers: PropertyListingSummary[];
+}
+
+// Filter options computed over ALL active plots (not the filtered subset),
 // so a dropdown never collapses to the one value currently selected.
 // Society `key` is the Society id, or `raw:<lowercased name>` for inventory
 // whose Society is not onboarded yet.
@@ -326,15 +361,32 @@ export interface PropertyListingFacets {
 }
 
 export interface PropertyListingListResponse {
+  // Offer-level rows (kept for consumers that want every dealer's row).
   listings: PropertyListingSummary[];
+  // Plot-level rows: duplicates across dealers collapsed into one group.
+  plots: PropertyPlotGroup[];
+  // Number of distinct plots (== plots.length).
   total_count: number;
   facets: PropertyListingFacets;
 }
 
-// Active-listing count per Society, for Browse card badges. Keyed by the
+// Active PLOT count per Society, for Browse card badges. Keyed by the
 // EFFECTIVE society id (the stored society_ref, or — for a listing published
 // before its Society was onboarded — a read-time name match), so a listing
 // starts counting the moment its Society exists, with no backfill.
 export interface PropertyListingCountsResponse {
   counts: Record<string, number>;
+}
+
+export interface DealerProfile {
+  dealer_key: string;
+  contact_phone: string;
+  active_plots: PropertyPlotGroup[];
+  total_published: number;
+  sold_count: number;
+  // Offers re-forwarded at least a day after first posting — a proxy for a
+  // dealer who keeps inventory current.
+  reconfirmed_count: number;
+  first_seen_at: string;
+  last_confirmed_at: string;
 }

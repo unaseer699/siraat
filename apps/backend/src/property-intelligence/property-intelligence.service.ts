@@ -22,6 +22,8 @@ import type {
   PropertyListingSummary,
   PropertyListingListResponse,
   PropertyListingCountsResponse,
+  PropertyPlotGroup,
+  DealerProfile,
 } from '@siraat/shared-types';
 import { TrustService } from '../trust/trust.service';
 import {
@@ -186,25 +188,61 @@ function toHousePlanImageResult(e: HousePlanImageEntity): HousePlanImage {
   };
 }
 
-// WHATSAPP LISTING INGESTION
+// ─── WHATSAPP LISTING INGESTION — pure helpers ──────────────────────────────
+
+const DEFAULT_LISTING_STALE_DAYS = 7;
+
+function listingStaleMs(): number {
+  const days = Number(process.env.LISTING_STALE_DAYS);
+  return (Number.isFinite(days) && days > 0 ? days : DEFAULT_LISTING_STALE_DAYS) * 24 * 60 * 60 * 1000;
+}
+
+// International digits for a Pakistani number: 0300-123 4567 / +92 300... /
+// 92300... all normalize to 923001234567. Anything else is just its digits.
+export function normalizeDealerPhone(phone: string | null): string | null {
+  if (!phone) return null;
+  const digits = phone.replace(/\D/g, '');
+  if (digits.length < 7) return null;
+  return digits.startsWith('0') ? `92${digits.slice(1)}` : digits;
+}
+
+function norm(v: string | null | undefined): string {
+  return (v ?? '').trim().toLowerCase();
+}
+
+function round2(n: number): number {
+  return Math.round(n * 100) / 100;
+}
+
+type SocietyRef = { id: string; name: string };
+
 function toListingResult(
   e: PropertyListingEntity,
-  society: { id: string; name: string } | null = null,
+  society: SocietyRef | null = null,
+  societyCity: string | null = null,
 ): PropertyListingSummary {
+  const price = e.price_lac === null ? null : Number(e.price_lac);
+  const size = e.size_marla === null ? null : Number(e.size_marla);
   return {
     id: e.id,
     society_ref: society?.id ?? e.society_ref,
     society_name: society?.name ?? null,
     society_name_raw: e.society_name_raw,
+    city: societyCity ?? e.city,
     block: e.block,
     plot_number: e.plot_number,
-    size_marla: e.size_marla === null ? null : Number(e.size_marla),
-    price_lac: e.price_lac === null ? null : Number(e.price_lac),
+    size_marla: size,
+    price_lac: price,
+    price_per_marla_lac: price !== null && size !== null && size > 0 ? round2(price / size) : null,
     status_raw: e.status_raw,
     contact_phone: e.contact_phone,
+    dealer_key: normalizeDealerPhone(e.contact_phone),
     is_siraat_affiliated: e.is_siraat_affiliated,
     record_type: e.record_type,
     published_at: e.published_at.toISOString(),
+    last_confirmed_at: e.last_confirmed_at.toISOString(),
+    may_be_sold: Date.now() - e.last_confirmed_at.getTime() > listingStaleMs(),
+    sold_at: e.sold_at ? e.sold_at.toISOString() : null,
     expires_at: e.expires_at.toISOString(),
   };
 }
@@ -212,26 +250,74 @@ function toListingResult(
 // Read-time Society resolution for a forwarded header like "Faisal hills":
 // a stored society_ref wins; otherwise a case-insensitive containment match
 // (either direction) against onboarded Society names. Longest matching name
-// wins so "Faisal Hills Phase 2" beats "Faisal". Pure, so list and counts
-// share exactly one rule.
-function resolveListingSociety(
-  listing: PropertyListingEntity,
-  societies: { id: string; name: string }[],
-): { id: string; name: string } | null {
+// wins so "Faisal Hills Phase 2" beats "Faisal". Pure, so every read shares
+// exactly one rule.
+function resolveListingSociety(listing: PropertyListingEntity, societies: SocietyRef[]): SocietyRef | null {
   if (listing.society_ref) {
     return societies.find((s) => s.id === listing.society_ref) ?? null;
   }
-  const raw = listing.society_name_raw.trim().toLowerCase();
+  const raw = norm(listing.society_name_raw);
   if (!raw) return null;
-  let best: { id: string; name: string } | null = null;
+  let best: SocietyRef | null = null;
   for (const s of societies) {
-    const name = s.name.trim().toLowerCase();
+    const name = norm(s.name);
     if (!name) continue;
     if (raw.includes(name) || name.includes(raw)) {
-      if (!best || name.length > best.name.length) best = s;
+      if (!best || name.length > norm(best.name).length) best = s;
     }
   }
   return best;
+}
+
+// Society identity for grouping/filtering: the Society id when resolved,
+// else `raw:<lowercased header>`. Matches PropertyListingFacets.society keys.
+function societyKeyOf(e: PropertyListingEntity, society: SocietyRef | null): string {
+  return society ? society.id : `raw:${norm(e.society_name_raw)}`;
+}
+
+// One physical plot = society + block + plot number. Several dealers
+// offering it are several offers under one key.
+function plotKeyOf(e: PropertyListingEntity, society: SocietyRef | null): string {
+  return `${societyKeyOf(e, society)}|${norm(e.block)}|${norm(e.plot_number)}`;
+}
+
+function groupOffersIntoPlots(
+  rows: { e: PropertyListingEntity; society: SocietyRef | null; city: string | null }[],
+): PropertyPlotGroup[] {
+  const map = new Map<string, { e: PropertyListingEntity; society: SocietyRef | null; city: string | null; offers: PropertyListingSummary[] }>();
+  for (const r of rows) {
+    const key = plotKeyOf(r.e, r.society);
+    const offer = toListingResult(r.e, r.society, r.city);
+    const g = map.get(key);
+    if (g) g.offers.push(offer);
+    else map.set(key, { ...r, offers: [offer] });
+  }
+
+  return [...map.entries()].map(([key, g]) => {
+    const prices = g.offers.map((o) => o.price_lac).filter((p): p is number => p !== null);
+    const ppm = g.offers.map((o) => o.price_per_marla_lac).filter((p): p is number => p !== null);
+    const sizes = g.offers.map((o) => o.size_marla).filter((x): x is number => x !== null);
+    const lastConfirmed = g.offers.reduce((m, o) => (o.last_confirmed_at > m ? o.last_confirmed_at : m), g.offers[0].last_confirmed_at);
+    // Cheapest offer first.
+    const offers = [...g.offers].sort((x, y) => (x.price_lac ?? Infinity) - (y.price_lac ?? Infinity));
+    return {
+      key,
+      society_ref: g.society?.id ?? g.e.society_ref,
+      society_name: g.society?.name ?? null,
+      society_name_raw: g.e.society_name_raw,
+      city: g.city ?? g.e.city,
+      block: g.e.block,
+      plot_number: g.e.plot_number,
+      size_marla: sizes.length ? sizes[0] : null,
+      status_raw: g.offers.find((o) => o.status_raw)?.status_raw ?? null,
+      min_price_lac: prices.length ? Math.min(...prices) : null,
+      max_price_lac: prices.length ? Math.max(...prices) : null,
+      min_price_per_marla_lac: ppm.length ? Math.min(...ppm) : null,
+      last_confirmed_at: lastConfirmed,
+      may_be_sold: g.offers.every((o) => o.may_be_sold),
+      offers,
+    };
+  });
 }
 
 @Injectable()
@@ -1158,10 +1244,14 @@ export class PropertyIntelligenceService {
   // Called only from WhatsappListingParsingService.publishDraft (Law 9:
   // public API call, same cross-module composition every other
   // WhatsappModule -> PropertyIntelligenceModule call in this file's own
-  // history already uses) — never anything else, so there is no separate
-  // dedup check here: one draft publishes to exactly one listing row, and
-  // the draft's own status transition (PENDING_REVIEW -> PUBLISHED) is what
-  // prevents a double-publish, not a query against this table.
+  // history already uses).
+  //
+  // DEDUP: the same plot is forwarded repeatedly (several groups, several
+  // days). An offer is "the same" when plot (society + block + number) AND
+  // dealer phone match an active listing — then it is REFRESHED (latest
+  // price/size/status, new last_confirmed_at, expiry pushed out) instead of
+  // inserted again. A different dealer's offer on the same plot is a new
+  // offer row, grouped with the others at read time.
   async createPropertyListing(data: {
     society_name_raw: string;
     block: string | null;
@@ -1172,7 +1262,7 @@ export class PropertyIntelligenceService {
     contact_phone: string | null;
     source_ref: string;
     expires_at: Date;
-  }): Promise<PropertyListingSummary> {
+  }): Promise<{ listing: PropertyListingSummary; outcome: 'CREATED' | 'REFRESHED'; is_new_plot: boolean }> {
     // Never let the match attempt block the publish itself — same
     // "a nice-to-have enrichment must not take down the primary action"
     // discipline as logObservation's own try/catch above.
@@ -1185,21 +1275,74 @@ export class PropertyIntelligenceService {
       );
     }
 
-    const entity = this.listingRepo.create({
+    const societies = await this.societyRepo.find({ select: ['id', 'name'] });
+    const candidate = this.listingRepo.create({
       ...data,
       society_ref: matchedSociety?.id ?? null,
       city: matchedSociety?.city ?? null,
       is_siraat_affiliated: false,
       record_type: 'FACT',
       published_at: new Date(),
+      last_confirmed_at: new Date(),
+      sold_at: null,
     });
-    const saved = await this.listingRepo.save(entity);
-    return toListingResult(saved);
+    const candidateKey = plotKeyOf(candidate, resolveListingSociety(candidate, societies));
+    const candidatePhone = normalizeDealerPhone(data.contact_phone);
+
+    const samePlotRows = await this.listingRepo
+      .createQueryBuilder('l')
+      .where('l.plot_number = :plot', { plot: data.plot_number })
+      .andWhere('l.sold_at IS NULL')
+      .andWhere('l.expires_at > :now', { now: new Date() })
+      .getMany();
+
+    const samePlot = samePlotRows.filter((r) => plotKeyOf(r, resolveListingSociety(r, societies)) === candidateKey);
+    const sameOffer = samePlot.find((r) => normalizeDealerPhone(r.contact_phone) === candidatePhone);
+
+    if (sameOffer) {
+      sameOffer.price_lac = data.price_lac;
+      sameOffer.size_marla = data.size_marla ?? sameOffer.size_marla;
+      sameOffer.status_raw = data.status_raw ?? sameOffer.status_raw;
+      sameOffer.contact_phone = data.contact_phone ?? sameOffer.contact_phone;
+      sameOffer.last_confirmed_at = new Date();
+      sameOffer.expires_at = data.expires_at;
+      const refreshed = await this.listingRepo.save(sameOffer);
+      return {
+        listing: toListingResult(refreshed, resolveListingSociety(refreshed, societies)),
+        outcome: 'REFRESHED',
+        is_new_plot: false,
+      };
+    }
+
+    const saved = await this.listingRepo.save(candidate);
+    return {
+      listing: toListingResult(saved, resolveListingSociety(saved, societies)),
+      outcome: 'CREATED',
+      is_new_plot: samePlot.length === 0,
+    };
   }
 
-  // GET /v1/property-intelligence/listings — only ever surfaces listings
-  // still inside their auto-expiry window (see PropertyListingEntity.expires_at's
-  // own comment); an expired row is never deleted, just no longer returned.
+  // Active = not sold and inside the auto-expiry window. An expired/sold row
+  // is never deleted, just no longer returned (never-delete convention).
+  private async loadActiveListings() {
+    const [entities, societies] = await Promise.all([
+      this.listingRepo
+        .createQueryBuilder('l')
+        .where('l.expires_at > :now', { now: new Date() })
+        .andWhere('l.sold_at IS NULL')
+        .orderBy('l.last_confirmed_at', 'DESC')
+        .getMany(),
+      this.societyRepo.find({ select: ['id', 'name', 'city'] }),
+    ]);
+    const cityById = new Map(societies.map((s) => [s.id, s.city]));
+    const rows = entities.map((e) => {
+      const society = resolveListingSociety(e, societies);
+      return { e, society, city: society ? cityById.get(society.id) ?? null : e.city };
+    });
+    return { rows, societies };
+  }
+
+  // GET /v1/property-intelligence/listings
   //
   // Society linkage is resolved at READ time (resolveListingSociety), not just
   // from the stored society_ref: daily inventory routinely arrives before its
@@ -1214,50 +1357,40 @@ export class PropertyIntelligenceService {
     min_size_marla?: number;
     max_size_marla?: number;
   }): Promise<PropertyListingListResponse> {
-    const [entities, societies] = await Promise.all([
-      this.listingRepo
-        .createQueryBuilder('l')
-        .where('l.expires_at > :now', { now: new Date() })
-        .orderBy('l.published_at', 'DESC')
-        .getMany(),
-      this.societyRepo.find({ select: ['id', 'name', 'city'] }),
-    ]);
-
-    const cityById = new Map(societies.map((s) => [s.id, s.city]));
+    const { rows } = await this.loadActiveListings();
     const wantCity = params.city?.trim().toLowerCase();
+
+    // Facets are built from EVERY active plot, before any filter, and count
+    // distinct plots (not offers).
+    const allPlots = groupOffersIntoPlots(rows);
+    const facetCities = new Set<string>();
+    const facetSocieties = new Map<string, { key: string; name: string; count: number }>();
+    for (const g of allPlots) {
+      if (g.city) facetCities.add(g.city);
+      const key = g.society_ref ?? `raw:${norm(g.society_name_raw)}`;
+      const f = facetSocieties.get(key) ?? { key, name: g.society_name ?? g.society_name_raw.trim(), count: 0 };
+      f.count += 1;
+      facetSocieties.set(key, f);
+    }
 
     // `society_id` is a Society id, or `raw:<lowercased name>` for inventory
     // whose Society isn't onboarded yet (see PropertyListingFacets).
-    const rawKeyOf = (e: PropertyListingEntity) => `raw:${e.society_name_raw.trim().toLowerCase()}`;
-
-    const facetCities = new Set<string>();
-    const facetSocieties = new Map<string, { key: string; name: string; count: number }>();
-    const listings: PropertyListingSummary[] = [];
-
-    for (const e of entities) {
-      const society = resolveListingSociety(e, societies);
-      const key = society ? society.id : rawKeyOf(e);
-      const city = society ? cityById.get(society.id) ?? null : e.city;
-
-      // Facets are built from EVERY active listing, before any filter.
-      if (city) facetCities.add(city);
-      const f = facetSocieties.get(key) ?? { key, name: society?.name ?? e.society_name_raw.trim(), count: 0 };
-      f.count += 1;
-      facetSocieties.set(key, f);
-
-      if (params.society_id && key !== params.society_id) continue;
-      if (wantCity && city?.toLowerCase() !== wantCity) continue;
+    const filtered = rows.filter(({ e, society, city }) => {
+      if (params.society_id && societyKeyOf(e, society) !== params.society_id) return false;
+      if (wantCity && city?.toLowerCase() !== wantCity) return false;
       const price = e.price_lac === null ? null : Number(e.price_lac);
       const size = e.size_marla === null ? null : Number(e.size_marla);
-      if (params.max_price_lac != null && (price === null || price > params.max_price_lac)) continue;
-      if (params.min_size_marla != null && (size === null || size < params.min_size_marla)) continue;
-      if (params.max_size_marla != null && (size === null || size > params.max_size_marla)) continue;
-      listings.push(toListingResult(e, society));
-    }
+      if (params.max_price_lac != null && (price === null || price > params.max_price_lac)) return false;
+      if (params.min_size_marla != null && (size === null || size < params.min_size_marla)) return false;
+      if (params.max_size_marla != null && (size === null || size > params.max_size_marla)) return false;
+      return true;
+    });
 
+    const plots = groupOffersIntoPlots(filtered);
     return {
-      listings,
-      total_count: listings.length,
+      listings: filtered.map((r) => toListingResult(r.e, r.society, r.city)),
+      plots,
+      total_count: plots.length,
       facets: {
         cities: [...facetCities].sort(),
         societies: [...facetSocieties.values()].sort((x, y) => x.name.localeCompare(y.name)),
@@ -1265,20 +1398,109 @@ export class PropertyIntelligenceService {
     };
   }
 
-  // GET /v1/property-intelligence/listings/counts — Browse card badges.
+  // GET /v1/property-intelligence/listings/counts — Browse card badges
+  // (distinct PLOTS per society, not offers).
   async countActivePropertyListingsBySociety(): Promise<PropertyListingCountsResponse> {
-    const [entities, societies] = await Promise.all([
-      this.listingRepo
-        .createQueryBuilder('l')
-        .where('l.expires_at > :now', { now: new Date() })
-        .getMany(),
-      this.societyRepo.find({ select: ['id', 'name'] }),
-    ]);
+    const { rows } = await this.loadActiveListings();
     const counts: Record<string, number> = {};
-    for (const e of entities) {
-      const society = resolveListingSociety(e, societies);
-      if (society) counts[society.id] = (counts[society.id] ?? 0) + 1;
+    for (const g of groupOffersIntoPlots(rows)) {
+      if (g.society_ref) counts[g.society_ref] = (counts[g.society_ref] ?? 0) + 1;
     }
     return { counts };
+  }
+
+  // GET /v1/property-intelligence/listings/dealer/:key — a dealer's public
+  // track record, keyed by normalized phone. Counts ALL their offers ever
+  // (including sold/expired) so reliability isn't just "what's live now".
+  async getDealerProfile(rawKey: string): Promise<DealerProfile | null> {
+    const key = normalizeDealerPhone(rawKey);
+    if (!key) return null;
+    const variants = [key, key.startsWith('92') ? `0${key.slice(2)}` : key];
+
+    const all = await this.listingRepo
+      .createQueryBuilder('l')
+      .where("regexp_replace(l.contact_phone, '[^0-9]', '', 'g') IN (:...variants)", { variants })
+      .orderBy('l.published_at', 'ASC')
+      .getMany();
+    if (all.length === 0) return null;
+
+    const societies = await this.societyRepo.find({ select: ['id', 'name', 'city'] });
+    const cityById = new Map(societies.map((s) => [s.id, s.city]));
+    const now = Date.now();
+    const activeRows = all
+      .filter((e) => !e.sold_at && e.expires_at.getTime() > now)
+      .map((e) => {
+        const society = resolveListingSociety(e, societies);
+        return { e, society, city: society ? cityById.get(society.id) ?? null : e.city };
+      });
+
+    return {
+      dealer_key: key,
+      contact_phone: all[all.length - 1].contact_phone ?? key,
+      active_plots: groupOffersIntoPlots(activeRows),
+      total_published: all.length,
+      sold_count: all.filter((e) => e.sold_at).length,
+      reconfirmed_count: all.filter((e) => e.last_confirmed_at.getTime() - e.published_at.getTime() > 24 * 60 * 60 * 1000).length,
+      first_seen_at: all[0].published_at.toISOString(),
+      last_confirmed_at: new Date(Math.max(...all.map((e) => e.last_confirmed_at.getTime()))).toISOString(),
+    };
+  }
+
+  // Admin: every offer, newest first, optionally only live ones — so an
+  // admin can mark a plot sold.
+  async listPropertyListingsForAdmin(onlyActive: boolean): Promise<PropertyListingSummary[]> {
+    const qb = this.listingRepo.createQueryBuilder('l').orderBy('l.last_confirmed_at', 'DESC').limit(500);
+    if (onlyActive) {
+      qb.where('l.sold_at IS NULL').andWhere('l.expires_at > :now', { now: new Date() });
+    }
+    const [entities, societies] = await Promise.all([qb.getMany(), this.societyRepo.find({ select: ['id', 'name', 'city'] })]);
+    const cityById = new Map(societies.map((s) => [s.id, s.city]));
+    return entities.map((e) => {
+      const society = resolveListingSociety(e, societies);
+      return toListingResult(e, society, society ? cityById.get(society.id) ?? null : e.city);
+    });
+  }
+
+  // Marks the WHOLE PLOT sold (every dealer's offer on it), not just the one
+  // row clicked — a plot is sold or it isn't, whoever listed it.
+  async markPlotSold(listingId: string): Promise<{ marked: number } | null> {
+    const target = await this.listingRepo.findOneBy({ id: listingId });
+    if (!target) return null;
+    const societies = await this.societyRepo.find({ select: ['id', 'name'] });
+    const key = plotKeyOf(target, resolveListingSociety(target, societies));
+
+    const sameNumber = await this.listingRepo.find({ where: { plot_number: target.plot_number } });
+    const ids = sameNumber
+      .filter((r) => !r.sold_at && plotKeyOf(r, resolveListingSociety(r, societies)) === key)
+      .map((r) => r.id);
+    if (ids.length === 0) return { marked: 0 };
+    await this.listingRepo.update({ id: In(ids) }, { sold_at: new Date() });
+    return { marked: ids.length };
+  }
+
+  // Used by a forwarder's "SOLD 7473 7915" WhatsApp message. A bare plot
+  // number can legitimately exist in several societies; if a number matches
+  // more than one distinct active PLOT it is reported ambiguous and left
+  // alone rather than guessed at (marking the wrong plot sold hides a real
+  // listing).
+  async markPlotsSoldByNumber(numbers: string[]): Promise<{ marked: string[]; ambiguous: string[]; not_found: string[] }> {
+    const result = { marked: [] as string[], ambiguous: [] as string[], not_found: [] as string[] };
+    const societies = await this.societyRepo.find({ select: ['id', 'name'] });
+    for (const n of [...new Set(numbers)]) {
+      const rows = await this.listingRepo
+        .createQueryBuilder('l')
+        .where('l.plot_number = :n', { n })
+        .andWhere('l.sold_at IS NULL')
+        .andWhere('l.expires_at > :now', { now: new Date() })
+        .getMany();
+      const keys = new Set(rows.map((r) => plotKeyOf(r, resolveListingSociety(r, societies))));
+      if (rows.length === 0) result.not_found.push(n);
+      else if (keys.size > 1) result.ambiguous.push(n);
+      else {
+        await this.listingRepo.update({ id: In(rows.map((r) => r.id)) }, { sold_at: new Date() });
+        result.marked.push(n);
+      }
+    }
+    return result;
   }
 }

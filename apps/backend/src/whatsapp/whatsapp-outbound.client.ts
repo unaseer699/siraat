@@ -62,4 +62,44 @@ export class WhatsappOutboundClient {
       throw new Error(`WhatsApp send failed (${response.status}): ${bodyText}`);
     }
   }
+
+  // Business-initiated message OUTSIDE the 24-hour customer-service window
+  // (e.g. a listing alert to someone who hasn't messaged us today). Meta only
+  // allows pre-approved templates there; free-form text is rejected. The
+  // template is expected to have ONE body variable ({{1}}) carrying the text.
+  async sendTemplateMessage(to: string, templateName: string, languageCode: string, bodyText: string): Promise<void> {
+    const accessToken = process.env.WHATSAPP_ACCESS_TOKEN;
+    const phoneNumberId = process.env.WHATSAPP_PHONE_NUMBER_ID;
+    if (!accessToken || !phoneNumberId) {
+      throw new Error('WHATSAPP_ACCESS_TOKEN or WHATSAPP_PHONE_NUMBER_ID not configured — cannot send');
+    }
+
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+    let response: Response;
+    try {
+      response = await fetch(`https://graph.facebook.com/${GRAPH_API_VERSION}/${phoneNumberId}/messages`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', authorization: `Bearer ${accessToken}` },
+        body: JSON.stringify({
+          messaging_product: 'whatsapp',
+          to,
+          type: 'template',
+          template: {
+            name: templateName,
+            language: { code: languageCode },
+            components: [{ type: 'body', parameters: [{ type: 'text', text: bodyText }] }],
+          },
+        }),
+        signal: controller.signal,
+      });
+    } finally {
+      clearTimeout(timeout);
+    }
+
+    if (!response.ok) {
+      const bodyText2 = await response.text().catch(() => '<unreadable body>');
+      throw new Error(`WhatsApp template send failed (${response.status}): ${bodyText2}`);
+    }
+  }
 }

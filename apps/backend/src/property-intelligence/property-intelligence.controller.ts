@@ -48,6 +48,13 @@ export class PropertyIntelligenceController {
     return this.piSvc.countActivePropertyListingsBySociety();
   }
 
+  @Get('listings/dealer/:key')
+  async getDealer(@Param('key') key: string) {
+    const profile = await this.piSvc.getDealerProfile(key);
+    if (!profile) throw new NotFoundException('Dealer not found');
+    return profile;
+  }
+
   @Get('listings')
   async listListings(
     @Query('city') city?: string,

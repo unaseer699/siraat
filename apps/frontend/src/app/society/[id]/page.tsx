@@ -1,7 +1,7 @@
 import { notFound } from 'next/navigation';
 import Link from 'next/link';
 import { fetchSocietyVerifications, fetchSocietyScore, fetchPropertyListings } from '@/lib/api';
-import { PlotListingCard, ListingDisclaimer } from '@/components/PlotListings';
+import { PlotGroupCard, ListingDisclaimer } from '@/components/PlotListings';
 import { EvidenceDrawer } from '@/components/EvidenceDrawer';
 import { CopyLinkButton } from '@/components/CopyLinkButton';
 import { WatchButton } from '@/components/WatchButton';
@@ -10,7 +10,7 @@ import StatCard from '@/components/StatCard';
 import { ConfidenceGauge } from '@/components/ConfidenceGauge';
 import { ScoreBreakdown } from '@/components/ScoreBreakdown';
 import { TRUST_GREEN, WARNING_AMBER, DANGER_RED, REVOKED_SLATE, REVOKED_SLATE_BG, REVOKED_SLATE_BORDER } from '@/styles/tokens';
-import type { VerificationResponse, SocietyScoreResponse, PropertyListingSummary } from '@siraat/shared-types';
+import type { VerificationResponse, SocietyScoreResponse, PropertyPlotGroup } from '@siraat/shared-types';
 
 interface Props {
   params: { id: string };
@@ -160,9 +160,9 @@ export default async function SocietyProfilePage({ params }: Props) {
   }
 
   // Plot listings are an enrichment — never let their failure break the profile.
-  let listings: PropertyListingSummary[] = [];
+  let listings: PropertyPlotGroup[] = [];
   try {
-    listings = (await fetchPropertyListings({ society_id: params.id })).listings;
+    listings = (await fetchPropertyListings({ society_id: params.id })).plots;
   } catch {
     listings = [];
   }
@@ -236,7 +236,7 @@ export default async function SocietyProfilePage({ params }: Props) {
               Available Plots ({listings.length})
             </h2>
             {listings.slice(0, 6).map((l) => (
-              <PlotListingCard key={l.id} listing={l} />
+              <PlotGroupCard key={l.key} plot={l} />
             ))}
             {listings.length > 6 && (
               <Link
