@@ -11,13 +11,13 @@ import { createHmac, timingSafeEqual } from 'crypto';
 import { WhatsappInboundMessageEntity } from './entities/whatsapp-inbound-message.entity';
 import { WhatsappProjectMappingEntity } from './entities/whatsapp-project-mapping.entity';
 import { WhatsappParsingService } from './whatsapp-parsing.service';
-import { WhatsappConfirmationService } from './whatsapp-confirmation.service';
+import { WhatsappConfirmationService, isConfirmationReply } from './whatsapp-confirmation.service';
 import { WhatsappListingForwarderService } from './whatsapp-listing-forwarder.service';
 import { WhatsappListingParsingService } from './whatsapp-listing-parsing.service';
 import { WhatsappListingAlertService } from './whatsapp-listing-alert.service';
 import { WhatsappGroundReportService } from './whatsapp-ground-report.service';
 import { WhatsappProjectResolverService } from './whatsapp-project-resolver.service';
-import { WhatsappExpenseBatchService, isExpenseBatchMessage } from './whatsapp-expense-batch.service';
+import { WhatsappExpenseBatchService, isExpenseBatchMessage, isCancelReply } from './whatsapp-expense-batch.service';
 
 function countNonEmptyLines(text: string | null): number {
   return (text ?? '').split('\n').filter((l) => l.trim().length > 0).length;
@@ -237,7 +237,15 @@ export class WhatsappService {
     // expenses. A message that announces itself as a project expense
     // ("Project Expense: ...") must go to the expense flow even from a
     // listing-forwarder number; everything else from a forwarder is inventory.
-    const looksLikeExpense = !!msg.text && /^\s*project\s+expense\b/i.test(msg.text);
+    let looksLikeExpense = !!msg.text && /^\s*project\s+expense\b/i.test(msg.text);
+    if (!looksLikeExpense && this.projectResolver && (isConfirmationReply(msg.text) || isCancelReply(msg.text))) {
+      try {
+        const refs = (await this.mappingRepo.find({ where: { wa_id: msg.from } })).map((m) => m.project_ref);
+        looksLikeExpense = await this.projectResolver.hasPending(refs);
+      } catch (err) {
+        this.logger.warn(`Pending-expense check failed — routing normally: ${err instanceof Error ? err.message : String(err)}`);
+      }
+    }
     const isListingForwarder =
       !looksLikeExpense && ((await this.listingForwarderSvc?.isForwarder(msg.from)) ?? false);
 

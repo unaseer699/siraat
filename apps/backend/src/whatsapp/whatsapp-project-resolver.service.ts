@@ -110,6 +110,16 @@ export class WhatsappProjectResolverService {
     return { kind: 'resolved', project_ref: match.id };
   }
 
+  // True when any of these projects has a PENDING ledger batch or draft
+  // awaiting a YES/CANCEL — used to keep a reply from a listing-forwarder
+  // number out of the inventory flow.
+  async hasPending(projectRefs: string[]): Promise<boolean> {
+    if (projectRefs.length === 0) return false;
+    const where = projectRefs.map((r) => ({ project_ref: r, status: 'PENDING' as const }));
+    const [b, d] = await Promise.all([this.batchRepo.count({ where }), this.draftRepo.count({ where })]);
+    return b + d > 0;
+  }
+
   async ask(to: string, text: string): Promise<void> {
     try {
       await this.outbound.sendTextMessage(to, text);
