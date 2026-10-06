@@ -31,3 +31,9 @@ describe('heading detection', () => {
     expect(isExpenseBatchMessage('Society: Faisal Hills\n5 Marla plot\n10 Marla plot\nProject Expense later')).toBe(false);
   });
 });
+
+describe('project-name header', () => {
+  it('treats a Project Name line at the top as a ledger', () => {
+    expect(isExpenseBatchMessage('Project Name: THE COURTYARD\n\nItems\nDuck - 4000')).toBe(true);
+  });
+});

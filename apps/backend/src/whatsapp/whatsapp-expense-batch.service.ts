@@ -19,7 +19,9 @@ const SUMMARY_LINE_LIMIT = 25;
 export function isExpenseBatchMessage(text: string | null): boolean {
   if (!text) return false;
   const head = text.split('\n').map((l) => l.trim()).filter(Boolean).slice(0, 3);
-  return head.some((l) => BATCH_TRIGGER.test(l));
+  // A "Project Name:" line near the top also marks an expense ledger (listing
+  // messages use "Society:" instead).
+  return head.some((l) => BATCH_TRIGGER.test(l) || /^project\s*name\s*[:\-]/i.test(l));
 }
 
 export function isCancelReply(text: string | null): boolean {
