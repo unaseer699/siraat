@@ -16,6 +16,7 @@ import { WhatsappListingForwarderService } from './whatsapp-listing-forwarder.se
 import { WhatsappListingParsingService } from './whatsapp-listing-parsing.service';
 import { WhatsappListingAlertService } from './whatsapp-listing-alert.service';
 import { WhatsappGroundReportService } from './whatsapp-ground-report.service';
+import { WhatsappProjectResolverService } from './whatsapp-project-resolver.service';
 import { WhatsappExpenseBatchService, isExpenseBatchMessage } from './whatsapp-expense-batch.service';
 
 function countNonEmptyLines(text: string | null): number {
@@ -171,6 +172,7 @@ export class WhatsappService {
     @Optional()
     private readonly groundReportSvc?: WhatsappGroundReportService,
     @Optional() private readonly expenseBatchSvc?: WhatsappExpenseBatchService,
+    @Optional() private readonly projectResolver?: WhatsappProjectResolverService,
   ) {}
 
   // ── [SECURITY] Webhook verification handshake (GET) ──────────────────────
@@ -279,7 +281,20 @@ export class WhatsappService {
       }
     }
 
-    const mapping = isListingForwarder ? null : await this.mappingRepo.findOneBy({ wa_id: msg.from });
+    let mapping: { project_ref: string } | null = null;
+    let askReply: string | null = null;
+    if (!isListingForwarder) {
+      if (this.projectResolver) {
+        const mappings = await this.mappingRepo.find({ where: { wa_id: msg.from }, order: { created_at: 'ASC' } });
+        if (mappings.length > 0) {
+          const r = await this.projectResolver.resolve(msg.from, msg.text, mappings);
+          if (r.kind === 'resolved') mapping = { project_ref: r.project_ref };
+          else askReply = r.reply;
+        }
+      } else {
+        mapping = await this.mappingRepo.findOneBy({ wa_id: msg.from });
+      }
+    }
     const entity = this.inboundRepo.create({
       wa_message_id: msg.id,
       wa_id: msg.from,
@@ -288,7 +303,7 @@ export class WhatsappService {
       wa_timestamp: msg.timestamp,
       raw_payload: msg.rawPayload,
       project_ref: mapping?.project_ref ?? null,
-      status: isListingForwarder ? 'LISTING_RECEIVED' : mapping ? 'RECEIVED' : 'UNMAPPED',
+      status: isListingForwarder ? 'LISTING_RECEIVED' : askReply ? 'PARSED' : mapping ? 'RECEIVED' : 'UNMAPPED',
     });
 
     try {
@@ -296,6 +311,11 @@ export class WhatsappService {
       this.logger.log(
         `Stored WhatsApp message id=${msg.id} from ${maskPhone(msg.from)} status=${saved.status}`,
       );
+
+      if (askReply) {
+        void this.projectResolver?.ask(msg.from, askReply);
+        return { stored: true, duplicate: false, message: saved };
+      }
 
       await this.routeReceivedMessage(saved, msg.contextId);
 
@@ -413,11 +433,11 @@ export class WhatsappService {
   // ── Admin mapping CRUD (POST/GET/DELETE /v1/admin/whatsapp-mappings) ─────
 
   async createMapping(data: CreateMappingInput): Promise<WhatsappProjectMappingEntity> {
-    const existing = await this.mappingRepo.findOneBy({ wa_id: data.wa_id });
+    const existing = await this.mappingRepo.findOneBy({ wa_id: data.wa_id, project_ref: data.project_ref });
     if (existing) {
       throw new ConflictException({
         error_code: 'DUPLICATE_MAPPING',
-        message: 'This WhatsApp number is already mapped to a project',
+        message: 'This WhatsApp number is already mapped to this project',
       });
     }
 
@@ -428,7 +448,7 @@ export class WhatsappService {
       if (isUniqueViolation(err)) {
         throw new ConflictException({
           error_code: 'DUPLICATE_MAPPING',
-          message: 'This WhatsApp number is already mapped to a project',
+          message: 'This WhatsApp number is already mapped to this project',
         });
       }
       throw err;

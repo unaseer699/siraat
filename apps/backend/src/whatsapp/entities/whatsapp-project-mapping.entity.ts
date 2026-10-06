@@ -15,13 +15,13 @@ import { Entity, Column, PrimaryGeneratedColumn, CreateDateColumn, Index } from 
 // lives in the ingestion bounded context, not construction_intelligence,
 // even though `project_ref` points at a ConstructionProjectEntity row
 // there. project_ref stays a plain uuid string, never a SQL FK.
+@Index(['wa_id', 'project_ref'], { unique: true })
 @Entity({ name: 'whatsapp_project_mappings', schema: 'data_acquisition' })
 export class WhatsappProjectMappingEntity {
   @PrimaryGeneratedColumn('uuid')
   id: string;
 
   // Meta's WhatsApp sender identifier (E.164-ish digits, no '+'), e.g. "923001234567".
-  @Index({ unique: true })
   @Column({ type: 'varchar', length: 32 })
   wa_id: string;
 
