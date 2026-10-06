@@ -63,10 +63,10 @@ function contactButtonStyle(color: string): React.CSSProperties {
   };
 }
 
-function OfferRow({ offer, title, societyName }: { offer: PropertyListingSummary; title: string; societyName: string }) {
+function OfferRow({ offer, title, societyName, showPrice }: { offer: PropertyListingSummary; title: string; societyName: string; showPrice: boolean }) {
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap', padding: '8px 0', borderTop: '1px solid var(--border)' }}>
-      <span style={{ fontWeight: 700, fontSize: '14px', minWidth: '110px' }}>{formatLac(offer.price_lac)}</span>
+      {showPrice && <span style={{ fontWeight: 700, fontSize: '14px', minWidth: '110px' }}>{formatLac(offer.price_lac)}</span>}
       <span style={{ fontSize: '12px', color: 'var(--muted)' }}>
         {offer.dealer_key ? (
           <Link href={`/dealers/${offer.dealer_key}`} style={{ color: ACCENT_BLUE, fontWeight: 600 }}>
@@ -155,7 +155,7 @@ export function PlotGroupCard({ plot, showSociety }: { plot: PropertyPlotGroup; 
       {plot.offers.some((o) => o.contact_phone || plot.offers.length > 1) && (
         <div style={{ display: 'flex', flexDirection: 'column', marginTop: '4px' }}>
           {plot.offers.map((o) => (
-            <OfferRow key={o.id} offer={o} title={title} societyName={societyName} />
+            <OfferRow key={o.id} offer={o} title={title} societyName={societyName} showPrice={plot.offers.length > 1} />
           ))}
         </div>
       )}

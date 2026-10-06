@@ -147,7 +147,7 @@ function buildListingSystemPrompt(): string {
     '',
     'Field rules:',
     '- society_name_raw: the single society named by the sender (e.g. the "Society: Faisal Hills" line -> "Faisal Hills"). Never a block/size heading and never a line like "Inventory Updated: 6th Oct". Identical for every plot in the message.',
-    '- block: a block letter/code if the plot code or its section heading names one — e.g. "FHC 7473" means Society abbreviation "FH" + Block letter "C", so block = "C"; a heading "FHA - 25x50" means block = "A" and size = 25x50 for the plots under it. Null if no block is indicated.',
+    '- block: a block letter/code if the plot code or its section heading names one — e.g. "FHC 7473" means Society abbreviation "FH" + Block letter "C", so block = "C"; a heading "FHA - 25x50" means block = "A" and size = 25x50 for the plots under it; a heading with a block NAME instead of a letter, such as "FH Executive - 40x80", means block = "Executive" (title case) and size = 40x80. Null if no block is indicated.',
     '- plot_number: the plot\'s own number as a string, e.g. "7473".',
     '- size_raw: the plot size, usually a dimension in a section heading such as "25x50", "25 * 50" or "30 x 60" (feet) — normalize to the form "25x50" (lowercase x, no spaces). A size given in Marla/Kanal is written like "5 Marla" / "1 Kanal". A size heading applies to every plot under it until the next heading. Null only if no size is stated for the plot.',
     '- size_marla: always null — the server derives it from size_raw. Do NOT compute it yourself.',

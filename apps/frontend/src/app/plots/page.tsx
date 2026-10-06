@@ -22,6 +22,13 @@ const controlStyle: React.CSSProperties = {
   background: '#fff',
 };
 
+// Sort key for a plot's size: dimensions by area, otherwise Marla (225 sq ft).
+function sizeArea(label: string | null, marla: number | null): number {
+  const m = label?.match(/^(\d+(?:\.\d+)?)x(\d+(?:\.\d+)?)$/);
+  if (m) return Number(m[1]) * Number(m[2]);
+  return marla !== null ? marla * 225 : Number.MAX_SAFE_INTEGER;
+}
+
 function AlertPanel({ city, societyKey, maxPrice }: { city: string; societyKey: string; maxPrice: string }) {
   const [open, setOpen] = useState(false);
   const [phone, setPhone] = useState('');
@@ -166,6 +173,23 @@ function PlotsView() {
       s.blocks.set(bKey, [...(s.blocks.get(bKey) ?? []), p]);
       societies.set(sKey, s);
     }
+    // Default ("Recently confirmed") order is meaningless inside one block —
+    // a whole forwarded message shares one timestamp — so list smallest size
+    // first, cheapest first. An explicit sort choice is left untouched.
+    if (sort === 'newest') {
+      for (const s of societies.values()) {
+        for (const [b, items] of s.blocks) {
+          s.blocks.set(
+            b,
+            [...items].sort(
+              (x, y) =>
+                sizeArea(x.size_label, x.size_marla) - sizeArea(y.size_label, y.size_marla) ||
+                (x.min_price_lac ?? Infinity) - (y.min_price_lac ?? Infinity),
+            ),
+          );
+        }
+      }
+    }
     return [...societies.entries()].map(([key, s]) => ({
       key,
       name: s.name,
@@ -173,7 +197,7 @@ function PlotsView() {
       count: [...s.blocks.values()].reduce((n, b) => n + b.length, 0),
       blocks: [...s.blocks.entries()].sort(([a], [b]) => a.localeCompare(b)),
     }));
-  }, [sorted, visible]);
+  }, [sorted, visible, sort]);
 
   return (
     <main style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '48px 16px 32px' }}>
