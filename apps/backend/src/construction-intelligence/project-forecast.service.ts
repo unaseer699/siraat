@@ -108,23 +108,42 @@ export class ProjectForecastService {
     },
   ): Promise<LayoutResult> {
     if (input.floors.length === 0) throw new BadRequestException('At least one floor is required');
-    let e = await this.layoutRepo.findOneBy({ project_ref: projectId });
-    if (!e) e = this.layoutRepo.create({ project_ref: projectId });
-    e.floors = input.floors.map((f) => ({ name: f.name, area_sqft: Number(f.area_sqft) }));
-    e.finish_level = input.finish_level;
-    e.price_factors = input.price_factors ?? null;
-    e.source_note = input.source_note ?? null;
-    e.status = 'UNTRUSTED_DATA';
-    e.confirmed_at = null;
-    return toLayoutResult(await this.layoutRepo.save(e));
+    const floors = input.floors.map((f) => ({ name: f.name, area_sqft: Number(f.area_sqft) }));
+    await this.layoutRepo.query(
+      `INSERT INTO construction_intelligence.project_layouts
+         (project_ref, floors, finish_level, price_factors, source_note, status, confirmed_at)
+       VALUES ($1, $2::jsonb, $3, $4::jsonb, $5, 'UNTRUSTED_DATA', NULL)
+       ON CONFLICT (project_ref) DO UPDATE SET
+         floors = EXCLUDED.floors,
+         finish_level = EXCLUDED.finish_level,
+         price_factors = EXCLUDED.price_factors,
+         source_note = EXCLUDED.source_note,
+         status = 'UNTRUSTED_DATA',
+         confirmed_at = NULL,
+         updated_at = now()`,
+      [
+        projectId,
+        JSON.stringify(floors),
+        input.finish_level,
+        input.price_factors ? JSON.stringify(input.price_factors) : null,
+        input.source_note ?? null,
+      ],
+    );
+    const saved = await this.layoutRepo.findOneByOrFail({ project_ref: projectId });
+    return toLayoutResult(saved);
   }
 
   async confirmLayout(projectId: string): Promise<LayoutResult> {
-    const e = await this.layoutRepo.findOneBy({ project_ref: projectId });
-    if (!e) throw new BadRequestException('No layout saved for this project');
-    e.status = 'CONFIRMED';
-    e.confirmed_at = new Date();
-    return toLayoutResult(await this.layoutRepo.save(e));
+    const existing = await this.layoutRepo.findOneBy({ project_ref: projectId });
+    if (!existing) throw new BadRequestException('No layout saved for this project');
+    await this.layoutRepo.query(
+      `UPDATE construction_intelligence.project_layouts
+         SET status = 'CONFIRMED', confirmed_at = now(), updated_at = now()
+       WHERE project_ref = $1`,
+      [projectId],
+    );
+    const saved = await this.layoutRepo.findOneByOrFail({ project_ref: projectId });
+    return toLayoutResult(saved);
   }
 
   async forecast(projectId: string, now: Date = new Date()): Promise<ForecastResult> {
