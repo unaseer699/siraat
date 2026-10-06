@@ -1,7 +1,15 @@
-// Reference Bill of Quantities for a 5 Marla house, taken from the founder's
-// own completed project sheet (Islamabad, 2025-26). Indicative only: one
-// project, prices as paid at the time. Quantities are the ones recorded in the
-// sheet; rows without a recorded quantity show cost only.
+// Reference Bill of Quantities for a 5 Marla class house (25 x 50 plot), taken
+// from the founder's own completed project (Islamabad, finished May 2026).
+// Indicative only: one project, prices as paid at the time. Quantities are the
+// ones recorded in the sheet; rows without a recorded quantity show cost only.
+export const BOQ_COVERED_AREA_SQFT = 2700;
+export const BOQ_PROJECT_SPEC = [
+  'Plot 25 × 50 ft (5 Marla class)',
+  'About 2,700 sq ft covered',
+  'Double storey + mumty room',
+  '5 bedrooms · 2 kitchens · 4 washrooms',
+];
+
 export interface BoqRow {
   item: string;
   quantity?: string;
@@ -14,7 +22,7 @@ export interface BoqGroup {
   rows: BoqRow[];
 }
 
-export const BOQ_5_MARLA_SOURCE = 'Completed 5 Marla project, Islamabad, 2025–26 (actual costs paid)';
+export const BOQ_5_MARLA_SOURCE = 'a real 25 × 50 house, Islamabad, completed May 2026 (actual costs paid)';
 
 export const BOQ_5_MARLA: BoqGroup[] = [
   {
@@ -71,3 +79,16 @@ export function boqGroupTotal(group: BoqGroup): number {
 export function boqConstructionTotal(): number {
   return BOQ_5_MARLA.reduce((s, g) => s + boqGroupTotal(g), 0);
 }
+
+export function perSqft(amount: number): number {
+  return Math.round(amount / BOQ_COVERED_AREA_SQFT);
+}
+
+// Material quantities per sq ft of covered area, from the same project.
+export const BOQ_RULES_OF_THUMB: { label: string; value: string }[] = [
+  { label: 'Bricks', value: `${(47_710 / BOQ_COVERED_AREA_SQFT).toFixed(1)} pcs / sq ft` },
+  { label: 'Cement', value: `${(660 / BOQ_COVERED_AREA_SQFT).toFixed(2)} bags / sq ft` },
+  { label: 'Steel', value: `${((4.7 * 1000) / BOQ_COVERED_AREA_SQFT).toFixed(1)} kg / sq ft` },
+  { label: 'Sand', value: `${(4_550 / BOQ_COVERED_AREA_SQFT).toFixed(1)} cft / sq ft` },
+  { label: 'Crush', value: `${(2_400 / BOQ_COVERED_AREA_SQFT).toFixed(1)} cft / sq ft` },
+];
