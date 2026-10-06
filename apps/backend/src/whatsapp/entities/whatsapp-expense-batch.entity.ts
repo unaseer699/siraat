@@ -14,6 +14,7 @@ export interface ExpenseBatchStoredLine {
   vendor: string;
   paid_by: string | null;
   trade_category: string;
+  kind: string | null;
   raw_line: string;
 }
 

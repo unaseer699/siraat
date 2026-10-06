@@ -17,6 +17,8 @@ import type {
   SocietyChangesRequest,
   SocietyChangesResponse,
   TradeCategory,
+  SectionCategory,
+  ExpenseKind,
   MaterialCategory,
   HousePlanStyle,
   ContractorSummary,
@@ -965,13 +967,13 @@ export async function fetchAdminProjects(params?: { page?: number; limit?: numbe
 export interface SectionResult {
   id: string;
   project_ref: string;
-  category: TradeCategory;
+  category: SectionCategory;
   display_order: number;
   record_type: 'FACT';
 }
 
 export interface CreateSectionBody {
-  category: TradeCategory;
+  category: SectionCategory;
   display_order: number;
 }
 
@@ -996,7 +998,7 @@ export const EXPENSE_UNIT_OPTIONS: ExpenseUnit[] = ['PCS', 'KG', 'TON', 'BAG', '
 // (construction-intelligence/entities/project-expense.entity.ts) exactly —
 // this type was already returned by the API since WhatsApp Integration
 // Phase 5 but had no frontend consumer until now.
-export type ExpenseSource = 'WHATSAPP' | 'MANUAL';
+export type ExpenseSource = 'WHATSAPP' | 'MANUAL' | 'IMPORT';
 
 export interface ExpenseResult {
   id: string;
@@ -1005,6 +1007,7 @@ export interface ExpenseResult {
   description: string;
   vendor_name: string;
   paid_by?: string | null;
+  kind?: ExpenseKind | null;
   vendor_contact: string | null;
   linked_contractor_id: string | null;
   linked_supplier_id: string | null;
@@ -1078,6 +1081,28 @@ export async function voidProjectExpense(
   return apiFetch(`/v1/admin/projects/${projectId}/expenses/${expenseId}`, {
     method: 'DELETE',
     body: JSON.stringify({ reason }),
+  });
+}
+
+export async function moveProjectExpenses(
+  projectId: string,
+  expenseIds: string[],
+  category: SectionCategory,
+  kind: ExpenseKind | null,
+): Promise<{ moved: number; skipped: number }> {
+  return apiFetch(`/v1/admin/projects/${projectId}/expenses/move`, {
+    method: 'POST',
+    body: JSON.stringify({ expense_ids: expenseIds, category, kind }),
+  });
+}
+
+export async function importProjectExpenses(
+  projectId: string,
+  lines: unknown[],
+): Promise<{ imported: number; total: number }> {
+  return apiFetch(`/v1/admin/projects/${projectId}/import-expenses`, {
+    method: 'POST',
+    body: JSON.stringify({ lines }),
   });
 }
 

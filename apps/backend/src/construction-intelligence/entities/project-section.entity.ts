@@ -1,5 +1,5 @@
 import { Entity, Column, PrimaryGeneratedColumn, CreateDateColumn } from 'typeorm';
-import type { TradeCategory } from '@siraat/shared-types';
+import type { SectionCategory } from '@siraat/shared-types';
 
 // PROJECT COST TRACKER Chunk 1 — a named cost category within a
 // ConstructionProject (e.g. "Wood Work", "Tile Work"), matching how the real
@@ -19,7 +19,7 @@ export class ProjectSectionEntity {
   // One of TRADE_CATEGORIES (shared-types) — stored as plain varchar, not
   // constrained at the DB level (same convention as MaterialRateEntity.source_tier).
   @Column({ type: 'varchar', length: 30 })
-  category: TradeCategory;
+  category: SectionCategory;
 
   // Preserves display order, matching how the real sheet lists sections.
   @Column({ type: 'int' })

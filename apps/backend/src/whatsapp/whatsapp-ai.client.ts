@@ -1,7 +1,17 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { z } from 'zod';
 import { normalizeSizeLabel, sizeLabelToMarla } from '../common/plot-size';
-import { TradeCategorySchema, TRADE_CATEGORIES, type TradeCategory } from '@siraat/shared-types';
+import {
+  TradeCategorySchema,
+  TRADE_CATEGORIES,
+  SectionCategorySchema,
+  SECTION_CATEGORIES,
+  ExpenseKindSchema,
+  EXPENSE_KINDS,
+  type TradeCategory,
+  type SectionCategory,
+  type ExpenseKind,
+} from '@siraat/shared-types';
 
 // WHATSAPP INTEGRATION Phase 2 — AI PARSING. No AI/LLM integration existed
 // anywhere else in this codebase (checked: no SDK dependency, no client
@@ -226,7 +236,8 @@ export interface ExpenseBatchLine {
   unit: string | null;
   vendor: string | null;
   paid_by: string | null;
-  trade_category: TradeCategory | null;
+  trade_category: SectionCategory | null;
+  kind: ExpenseKind | null;
   raw_line: string;
 }
 
@@ -247,7 +258,8 @@ const ExpenseBatchResponseSchema = z.object({
       unit: z.preprocess((v) => (typeof v === 'string' && v.trim() === '' ? null : v ?? null), z.string().trim().nullable()),
       vendor: z.preprocess((v) => (typeof v === 'string' && v.trim() === '' ? null : v ?? null), z.string().trim().nullable()),
       paid_by: z.preprocess((v) => (typeof v === 'string' && v.trim() === '' ? null : v ?? null), z.string().trim().nullable()),
-      trade_category: z.preprocess((v) => (typeof v === 'string' && !(TRADE_CATEGORIES as readonly string[]).includes(v) ? null : v ?? null), TradeCategorySchema.nullable()),
+      trade_category: z.preprocess((v) => (typeof v === 'string' && !(SECTION_CATEGORIES as readonly string[]).includes(v) ? null : v ?? null), SectionCategorySchema.nullable()),
+      kind: z.preprocess((v) => (typeof v === 'string' && !(EXPENSE_KINDS as readonly string[]).includes(v) ? null : v ?? null), ExpenseKindSchema.nullable()),
       raw_line: z.string().trim().min(1),
     }),
   ),
@@ -257,7 +269,7 @@ function buildExpenseBatchPrompt(): string {
   return [
     'You extract a construction-expense LEDGER from a WhatsApp message sent by a project owner. The message starts with "Project Expense:" and "Project Name: ...", then lists many expense lines, grouped under date headings like "13-9-2026" (day-month-year, Pakistan format). Separator lines made of dashes are just dividers.',
     'Respond with ONLY a single JSON object — no prose, no markdown fences — matching exactly:',
-    '{"project_name": string|null, "expenses": [{"date": "YYYY-MM-DD"|null, "description": string, "amount": number, "quantity": number|null, "unit": string|null, "vendor": string|null, "paid_by": string|null, "trade_category": string|null, "raw_line": string}]}',
+    '{"project_name": string|null, "expenses": [{"date": "YYYY-MM-DD"|null, "description": string, "amount": number, "quantity": number|null, "unit": string|null, "vendor": string|null, "paid_by": string|null, "trade_category": string|null, "kind": string|null, "raw_line": string}]}',
     '',
     'Rules:',
     '- project_name: the text after "Project Name:", or null.',
@@ -268,7 +280,9 @@ function buildExpenseBatchPrompt(): string {
     '- quantity/unit: only when the line states a simple count with a unit of bags, pcs, kg, ton, cft, sft, rft or ltr (e.g. "50 bags" -> 50, "bags"). Otherwise null — never invent or compute one.',
     '- vendor: a person/business paid, when the line names one (e.g. "Bricks payment Sattar" -> "Sattar", "Jabbar payment" -> "Jabbar"). Otherwise null.',
     '- paid_by: the person who paid out of pocket, from phrases like "paid by Abu" -> "Abu". Otherwise null. This is different from vendor.',
-    `- trade_category: your best guess from EXACTLY this list, or null: ${TRADE_CATEGORIES.join(', ')}.`,
+    `- trade_category: the section the line belongs to, from EXACTLY this list, or null: ${SECTION_CATEGORIES.join(', ')}.`,
+    '  Guidance: bricks -> BRICKS; cement -> CEMENT; steel/sootar/rebar/building wire -> STEEL_MATERIAL; sand, crush, bajri -> SAND_CRUSH; gera/gara/compaction -> MASON_GREY_STRUCTURE; mason/labour/mistri payments -> MASON_LABOUR; pipes, wire for electric -> ELECTRICIAN; plumbing -> PLUMBER; tiles/chips -> TILE_WORK; paint -> PAINTER; wood/doors -> WOODWORK_CARPENTER; windows/glass/aluminium -> ALUMINUM_GLASS; marble -> MARBLE; gates/grills -> STEEL_WORK; tea, lunch, refreshment, duck/daig -> REFRESHMENT; salary of a caretaker/supervisor -> SITE_STAFF; carriage/transport goes with the material it carries.',
+    `- kind: one of ${EXPENSE_KINDS.join(', ')}: MATERIAL for goods, LABOUR for workers, FEE for permits/approvals/commission, OTHER otherwise. Null if unsure.`,
     '- raw_line: the exact original line.',
     '',
     'If there are no expense lines, return {"project_name": null, "expenses": []}. Always return valid JSON.',
@@ -455,6 +469,7 @@ export class WhatsappAiClient {
         vendor: e.vendor,
         paid_by: e.paid_by,
         trade_category: e.trade_category,
+        kind: e.kind,
         raw_line: e.raw_line,
       })),
     };

@@ -5,7 +5,8 @@ export type ProjectExpenseStatus = 'ACTIVE' | 'CORRECTED' | 'VOID';
 // WHATSAPP INTEGRATION Phase 5 — DASHBOARD WIRING. Which channel created
 // this row. Not an enum of every possible future channel — just the two
 // that exist today.
-export type ExpenseSource = 'WHATSAPP' | 'MANUAL';
+export type ExpenseSource = 'WHATSAPP' | 'MANUAL' | 'IMPORT';
+export type ExpenseKindValue = 'MATERIAL' | 'LABOUR' | 'FEE' | 'OTHER';
 
 // EXPENSE QUANTITY/RATE Chunk 1 — enum, not free-text, same discipline
 // TradeCategory/MaterialCategory already follow elsewhere in this schema.
@@ -124,6 +125,10 @@ export class ProjectExpenseEntity {
   // Who paid out of pocket ("paid by Abu"). Optional metadata.
   @Column({ type: 'varchar', length: 100, nullable: true })
   paid_by: string | null;
+
+  // Material / Labour / Fee tag, independent of the section.
+  @Column({ type: 'varchar', length: 10, nullable: true })
+  kind: ExpenseKindValue | null;
 
   @CreateDateColumn()
   created_at: Date;

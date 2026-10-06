@@ -147,6 +147,94 @@ export function tradeCategoryLabel(category: TradeCategory): string {
     .join(' ');
 }
 
+// ─── PROJECT SECTION CATEGORIES ──────────────────────────────────────────────
+// A project section is a superset of TradeCategory: the trade categories plus
+// material, land and site sections that a real project sheet is organised by.
+// Kept separate so the contractor directory's trade list is not polluted.
+export const SectionCategorySchema = z.enum([
+  ...TradeCategorySchema.options,
+  'LAND_TRANSFER',
+  'PRE_CONSTRUCTION',
+  'MASON_LABOUR',
+  'CEMENT',
+  'BRICKS',
+  'STEEL_MATERIAL',
+  'SAND_CRUSH',
+  'MARBLE',
+  'STEEL_WORK',
+  'SITE_STAFF',
+  'REFRESHMENT',
+  'LAWN_CLEANING',
+  'HANDOVER',
+]);
+export type SectionCategory = z.infer<typeof SectionCategorySchema>;
+export const SECTION_CATEGORIES = SectionCategorySchema.options;
+
+const SECTION_LABEL_OVERRIDES: Partial<Record<SectionCategory, string>> = {
+  LAND_TRANSFER: 'Land & Transfer',
+  PRE_CONSTRUCTION: 'Pre-Construction & Approvals',
+  MASON_LABOUR: 'Labour: Mason Work',
+  STEEL_MATERIAL: 'Steel',
+  SAND_CRUSH: 'Sand & Crush',
+  STEEL_WORK: 'Steel Work (Gates & Grills)',
+  SITE_STAFF: 'Site Staff & Supervision',
+  REFRESHMENT: 'Refreshment & Site Expenses',
+  LAWN_CLEANING: 'Lawn & Cleaning',
+};
+
+export function sectionCategoryLabel(category: SectionCategory): string {
+  return SECTION_LABEL_OVERRIDES[category] ?? tradeCategoryLabel(category as TradeCategory);
+}
+
+export type SectionGroup = 'LAND' | 'STRUCTURE' | 'SERVICES' | 'FINISHING' | 'SITE_OTHER';
+
+export const SECTION_GROUP_LABELS: Record<SectionGroup, string> = {
+  LAND: 'Land & Approvals',
+  STRUCTURE: 'Structure',
+  SERVICES: 'Services',
+  FINISHING: 'Finishing',
+  SITE_OTHER: 'Site & Other',
+};
+
+const SECTION_GROUPS: Record<SectionCategory, SectionGroup> = {
+  LAND_TRANSFER: 'LAND',
+  PRE_CONSTRUCTION: 'LAND',
+  EXCAVATION: 'STRUCTURE',
+  MASON_GREY_STRUCTURE: 'STRUCTURE',
+  MASON_LABOUR: 'STRUCTURE',
+  STEEL_FIXING: 'STRUCTURE',
+  SHUTTERING: 'STRUCTURE',
+  CEMENT: 'STRUCTURE',
+  BRICKS: 'STRUCTURE',
+  STEEL_MATERIAL: 'STRUCTURE',
+  SAND_CRUSH: 'STRUCTURE',
+  ELECTRICIAN: 'SERVICES',
+  PLUMBER: 'SERVICES',
+  FALSE_CEILING: 'SERVICES',
+  TILE_WORK: 'FINISHING',
+  MARBLE: 'FINISHING',
+  WOODWORK_CARPENTER: 'FINISHING',
+  ALUMINUM_GLASS: 'FINISHING',
+  STEEL_WORK: 'FINISHING',
+  PAINTER: 'FINISHING',
+  KITCHEN_WORK: 'FINISHING',
+  GENERAL_CONTRACTOR: 'SITE_OTHER',
+  SITE_STAFF: 'SITE_OTHER',
+  REFRESHMENT: 'SITE_OTHER',
+  LAWN_CLEANING: 'SITE_OTHER',
+  MISCELLANEOUS: 'SITE_OTHER',
+  HANDOVER: 'SITE_OTHER',
+};
+
+export function sectionGroupOf(category: SectionCategory): SectionGroup {
+  return SECTION_GROUPS[category] ?? 'SITE_OTHER';
+}
+
+// Material / Labour / Fee tag on an expense, independent of its section.
+export const ExpenseKindSchema = z.enum(['MATERIAL', 'LABOUR', 'FEE', 'OTHER']);
+export type ExpenseKind = z.infer<typeof ExpenseKindSchema>;
+export const EXPENSE_KINDS = ExpenseKindSchema.options;
+
 // ─── SUPPLIER DIRECTORY Chunk 1 ──────────────────────────────────────────────
 // Same organization as TradeCategory above — a Supplier is the material-supply
 // counterpart to Contractor (trades), living in the same property_intelligence

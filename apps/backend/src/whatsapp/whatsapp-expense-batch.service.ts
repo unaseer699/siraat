@@ -1,7 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import type { TradeCategory } from '@siraat/shared-types';
+import { sectionCategoryLabel, type SectionCategory, type ExpenseKind } from '@siraat/shared-types';
 import { WhatsappAiClient } from './whatsapp-ai.client';
 import { WhatsappOutboundClient } from './whatsapp-outbound.client';
 import { WhatsappConfirmationService, isConfirmationReply, mapToExpenseUnit } from './whatsapp-confirmation.service';
@@ -50,11 +50,11 @@ export function buildBatchSummary(projectName: string, lines: ExpenseBatchStored
       out.push('', l.date);
       lastDate = l.date;
     }
-    const extras = [l.vendor !== 'Not specified' ? l.vendor : null, l.paid_by ? `paid by ${l.paid_by}` : null].filter(Boolean);
+    const extras = [sectionCategoryLabel(l.trade_category as SectionCategory), l.vendor !== 'Not specified' ? l.vendor : null, l.paid_by ? `paid by ${l.paid_by}` : null].filter(Boolean);
     out.push(`${i + 1}. ${l.description} — ${money(l.amount)}${extras.length ? ` (${extras.join(', ')})` : ''}`);
   });
   if (lines.length > SUMMARY_LINE_LIMIT) out.push(`…and ${lines.length - SUMMARY_LINE_LIMIT} more`);
-  out.push('', `Total: ${money(total)}`, '', 'Reply YES to save all, CANCEL to discard, or resend a corrected message.');
+  out.push('', `Total: ${money(total)}`, '', 'Reply YES to save all, CANCEL to discard, or resend a corrected message. You can move expenses between sections later in Admin.');
   return out.join('\n');
 }
 
@@ -99,17 +99,28 @@ export class WhatsappExpenseBatchService {
       }
 
       const fallbackDate = isoDay(message.wa_timestamp);
-      const lines: ExpenseBatchStoredLine[] = outcome.lines.map((l) => ({
-        date: l.date ?? fallbackDate,
-        description: l.description,
-        amount: l.amount,
-        quantity: l.quantity,
-        unit: l.unit,
-        vendor: l.vendor?.trim() || 'Not specified',
-        paid_by: l.paid_by,
-        trade_category: l.trade_category ?? 'MISCELLANEOUS',
-        raw_line: l.raw_line,
-      }));
+      const lines: ExpenseBatchStoredLine[] = [];
+      for (const l of outcome.lines) {
+        // The founder's own rules and past section moves beat the AI's guess.
+        let rule: { category: SectionCategory; kind: ExpenseKind | null } | null = null;
+        try {
+          rule = await this.cpSvc.findCategoryRule(`${l.description} ${l.raw_line}`);
+        } catch {
+          rule = null;
+        }
+        lines.push({
+          date: l.date ?? fallbackDate,
+          description: l.description,
+          amount: l.amount,
+          quantity: l.quantity,
+          unit: l.unit,
+          vendor: l.vendor?.trim() || 'Not specified',
+          paid_by: l.paid_by,
+          trade_category: rule?.category ?? l.trade_category ?? 'MISCELLANEOUS',
+          kind: rule?.kind ?? l.kind,
+          raw_line: l.raw_line,
+        });
+      }
       const total = lines.reduce((s, l) => s + l.amount, 0);
 
       await this.batchRepo.update(
@@ -174,7 +185,7 @@ export class WhatsappExpenseBatchService {
     for (let i = 0; i < batch.lines.length; i++) {
       const l = batch.lines[i];
       try {
-        const sectionId = await this.confirmationSvc.findOrCreateSection(batch.project_ref, l.trade_category as TradeCategory);
+        const sectionId = await this.cpSvc.findOrCreateSectionByCategory(batch.project_ref, l.trade_category as SectionCategory);
         const expense = await this.cpSvc.createExpense(sectionId, {
           expense_date: l.date,
           description: l.description,
@@ -188,6 +199,7 @@ export class WhatsappExpenseBatchService {
           rate: null,
           source: 'WHATSAPP',
           paid_by: l.paid_by,
+          kind: (l.kind as ExpenseKind | null) ?? null,
         });
         saved++;
         savedTotal += l.amount;

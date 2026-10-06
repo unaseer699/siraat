@@ -6,7 +6,7 @@ import {
   type ProjectWithSectionsAndExpenses,
   type ExpenseResult,
 } from '@/lib/api';
-import { TRADE_CATEGORY_OPTIONS } from '@/lib/tradeCategories';
+import { sectionLabel } from '@/lib/sectionCategories';
 import { RADIUS } from '@/styles/tokens';
 import WhatsappBadge from '@/components/WhatsappBadge';
 import VendorLabel from '@/components/VendorLabel';
@@ -20,7 +20,7 @@ function formatPKR(n: number): string {
 }
 
 function tradeLabel(value: string): string {
-  return TRADE_CATEGORY_OPTIONS.find((t) => t.value === value)?.label ?? value;
+  return sectionLabel(value);
 }
 
 function formatDate(iso: string): string {

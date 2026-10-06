@@ -2,6 +2,8 @@ import { Injectable, BadRequestException, Logger, NotFoundException } from '@nes
 import { GroundReportSubmissionService } from '../ground-reports/ground-report-submission.service';
 import type { GroundReportStatus } from '../ground-reports/ground-report-submission.entity';
 import type {
+  SectionCategory,
+  ExpenseKind,
   TradeCategory,
   MaterialCategory,
   HousePlanStyle,
@@ -36,6 +38,7 @@ import {
   type CreateExpenseInput,
   type EditExpenseInput,
   type ExpenseResult,
+  type ImportExpenseLine,
   type ProjectWithSectionsAndExpenses,
 } from '../construction-intelligence/construction-project.service';
 import {
@@ -779,6 +782,26 @@ export class AdminService {
     const project = await this.cpSvc.findProjectById(projectId);
     if (!project) throw new NotFoundException(`Project ${projectId} not found`);
     return this.cpSvc.editExpense(projectId, expenseId, data);
+  }
+
+  async moveProjectExpenses(
+    projectId: string,
+    expenseIds: string[],
+    category: SectionCategory,
+    kind: ExpenseKind | null,
+  ): Promise<{ moved: number; skipped: number }> {
+    const project = await this.cpSvc.findProjectById(projectId);
+    if (!project) throw new NotFoundException(`Project ${projectId} not found`);
+    return this.cpSvc.moveExpenses(projectId, expenseIds, category, kind);
+  }
+
+  async importProjectExpenses(
+    projectId: string,
+    lines: ImportExpenseLine[],
+  ): Promise<{ imported: number; total: number }> {
+    const project = await this.cpSvc.findProjectById(projectId);
+    if (!project) throw new NotFoundException(`Project ${projectId} not found`);
+    return this.cpSvc.importExpenses(projectId, lines);
   }
 
   // DELETE /v1/admin/projects/:projectId/expenses/:id — voids, never deletes.

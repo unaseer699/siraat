@@ -1,7 +1,8 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException, Optional } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { In, Repository } from 'typeorm';
-import type { TradeCategory } from '@siraat/shared-types';
+import type { SectionCategory, ExpenseKind } from '@siraat/shared-types';
+import { ExpenseCategoryRuleEntity } from './entities/expense-category-rule.entity';
 import { ConstructionProjectEntity, type ConstructionProjectStatus } from './entities/construction-project.entity';
 import { ProjectSectionEntity } from './entities/project-section.entity';
 import { ProjectExpenseEntity, type ProjectExpenseStatus, type ExpenseUnit, type ExpenseSource } from './entities/project-expense.entity';
@@ -86,15 +87,27 @@ export interface ProjectListResponse {
   total_pages: number;
 }
 
+export interface ImportExpenseLine {
+  category: SectionCategory;
+  kind?: ExpenseKind | null;
+  description: string;
+  vendor_name?: string | null;
+  amount: number;
+  quantity?: number | null;
+  unit?: ExpenseUnit | null;
+  expense_date?: string | null;
+  paid_by?: string | null;
+}
+
 export interface CreateSectionInput {
-  category: TradeCategory;
+  category: SectionCategory;
   display_order: number;
 }
 
 export interface SectionResult {
   id: string;
   project_ref: string;
-  category: TradeCategory;
+  category: SectionCategory;
   display_order: number;
   record_type: 'FACT';
 }
@@ -139,6 +152,7 @@ export interface CreateExpenseInput {
   source?: ExpenseSource | null;
   // WHATSAPP BULK EXPENSES — optional so every existing caller is unchanged.
   paid_by?: string | null;
+  kind?: ExpenseKind | null;
 }
 
 // EXPENSE EDIT/DELETE Chunk 1 — same field shape as create; a PATCH submits
@@ -165,6 +179,7 @@ export interface ExpenseResult {
   void_reason: string | null;
   source: ExpenseSource | null;
   paid_by: string | null;
+  kind: ExpenseKind | null;
 }
 
 // EXPENSE QUANTITY/RATE Chunk 1 — the one place `amount` is required vs.
@@ -213,6 +228,7 @@ function toExpenseResult(e: ProjectExpenseEntity): ExpenseResult {
     void_reason: e.void_reason,
     source: e.source ?? null,
     paid_by: e.paid_by ?? null,
+    kind: e.kind ?? null,
   };
 }
 
@@ -287,6 +303,9 @@ export class ConstructionProjectService {
     // the existing public method rather than duplicating an Observation
     // repo/helper a third time in this schema.
     private readonly ciSvc: ConstructionIntelligenceService,
+    @Optional()
+    @InjectRepository(ExpenseCategoryRuleEntity)
+    private readonly ruleRepo?: Repository<ExpenseCategoryRuleEntity>,
   ) {}
 
   async createProject(data: CreateProjectInput): Promise<ProjectResult> {
@@ -448,6 +467,7 @@ export class ConstructionProjectService {
       // trace the row's origin, defaulting to null for every other caller.
       source: data.source ?? null,
       paid_by: data.paid_by ?? null,
+      kind: data.kind ?? null,
     });
     const saved = await this.expenseRepo.save(entity);
     return toExpenseResult(saved);
@@ -502,6 +522,7 @@ export class ConstructionProjectService {
         void_reason: null,
         // An edit that doesn't mention paid_by keeps the original's.
         paid_by: data.paid_by ?? original.paid_by,
+        kind: data.kind ?? original.kind,
       });
       const saved = await manager.save(newRow);
 
@@ -524,6 +545,128 @@ export class ConstructionProjectService {
     });
 
     return toExpenseResult(replacement);
+  }
+
+  // ─── MOVE BETWEEN SECTIONS + LEARNED CATEGORY RULES ─────────────────────
+
+  static normalizeRulePattern(description: string): string {
+    return description.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim().slice(0, 200);
+  }
+
+  // Finds this project's section for the category, creating it when absent.
+  async findOrCreateSectionByCategory(projectId: string, category: SectionCategory): Promise<string> {
+    const existing = await this.sectionRepo.findOne({ where: { project_ref: projectId, category } });
+    if (existing) return existing.id;
+    const count = await this.sectionRepo.count({ where: { project_ref: projectId } });
+    const created = await this.createSection(projectId, { category, display_order: count });
+    return created.id;
+  }
+
+  // A move is a correction (Law 3): a new ACTIVE row in the target section
+  // supersedes the original, which flips to CORRECTED, in one transaction.
+  async moveExpenses(
+    projectId: string,
+    expenseIds: string[],
+    category: SectionCategory,
+    kind?: ExpenseKind | null,
+  ): Promise<{ moved: number; skipped: number }> {
+    const targetSectionId = await this.findOrCreateSectionByCategory(projectId, category);
+    let moved = 0;
+    let skipped = 0;
+    for (const id of expenseIds) {
+      const original = await this.findExpenseInProject(projectId, id);
+      if (original.status !== 'ACTIVE' || original.section_ref === targetSectionId) {
+        skipped++;
+        continue;
+      }
+      await this.expenseRepo.manager.transaction(async (manager) => {
+        const copy = manager.create(ProjectExpenseEntity, {
+          expense_date: original.expense_date,
+          description: original.description,
+          vendor_name: original.vendor_name,
+          vendor_contact: original.vendor_contact,
+          linked_contractor_id: original.linked_contractor_id,
+          linked_supplier_id: original.linked_supplier_id,
+          amount: original.amount,
+          quantity: original.quantity,
+          unit: original.unit,
+          rate: original.rate,
+          source: original.source,
+          paid_by: original.paid_by,
+          kind: kind ?? original.kind,
+          section_ref: targetSectionId,
+          record_type: 'FACT',
+          status: 'ACTIVE',
+          supersedes_id: original.id,
+          void_reason: null,
+        });
+        await manager.save(copy);
+        await manager.update(ProjectExpenseEntity, { id: original.id }, { status: 'CORRECTED' });
+      });
+      moved++;
+      await this.learnCategoryRule(original.description, category, kind ?? original.kind);
+    }
+    return { moved, skipped };
+  }
+
+  async learnCategoryRule(description: string, category: SectionCategory, kind: string | null): Promise<void> {
+    if (!this.ruleRepo) return;
+    const pattern = ConstructionProjectService.normalizeRulePattern(description);
+    if (!pattern) return;
+    try {
+      const existing = await this.ruleRepo.findOneBy({ pattern });
+      if (existing) await this.ruleRepo.update({ id: existing.id }, { category, kind });
+      else await this.ruleRepo.save(this.ruleRepo.create({ pattern, category, kind }));
+    } catch {
+      // Learning is best-effort and must never fail a move.
+    }
+  }
+
+  // Longest matching pattern wins, so "mason work labour" beats a shorter rule.
+  async findCategoryRule(description: string): Promise<{ category: SectionCategory; kind: ExpenseKind | null } | null> {
+    if (!this.ruleRepo) return null;
+    const text = ConstructionProjectService.normalizeRulePattern(description);
+    if (!text) return null;
+    const rules = await this.ruleRepo.find();
+    let best: ExpenseCategoryRuleEntity | null = null;
+    for (const r of rules) {
+      if (text.includes(r.pattern) && (!best || r.pattern.length > best.pattern.length)) best = r;
+    }
+    return best ? { category: best.category as SectionCategory, kind: (best.kind as ExpenseKind | null) ?? null } : null;
+  }
+
+  // Imports lines from a finished project's sheet. Rows without a date use
+  // today's date and carry source 'IMPORT' so they read as undated history.
+  async importExpenses(projectId: string, lines: ImportExpenseLine[]): Promise<{ imported: number; total: number }> {
+    const sectionIds = new Map<string, string>();
+    const today = new Date().toISOString().slice(0, 10);
+    let imported = 0;
+    let total = 0;
+    for (const l of lines) {
+      let sectionId = sectionIds.get(l.category);
+      if (!sectionId) {
+        sectionId = await this.findOrCreateSectionByCategory(projectId, l.category);
+        sectionIds.set(l.category, sectionId);
+      }
+      await this.createExpense(sectionId, {
+        expense_date: l.expense_date ?? today,
+        description: l.description,
+        vendor_name: l.vendor_name?.trim() || 'Not specified',
+        vendor_contact: null,
+        linked_contractor_id: null,
+        linked_supplier_id: null,
+        amount: l.amount,
+        quantity: l.quantity ?? null,
+        unit: l.unit ?? null,
+        rate: null,
+        source: 'IMPORT',
+        paid_by: l.paid_by ?? null,
+        kind: l.kind ?? null,
+      });
+      imported++;
+      total += l.amount;
+    }
+    return { imported, total };
   }
 
   // Delete never removes a row (Law 3) — it voids it in place. void_reason

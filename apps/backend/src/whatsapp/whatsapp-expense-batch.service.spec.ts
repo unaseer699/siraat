@@ -15,7 +15,7 @@ describe('expense batch helpers', () => {
   });
   it('builds a summary with total and prompt', () => {
     const t = buildBatchSummary('P', [
-      { date: '2026-09-12', description: 'Duck', amount: 4000, quantity: null, unit: null, vendor: 'Not specified', paid_by: 'Abu', trade_category: 'MISCELLANEOUS', raw_line: '' },
+      { date: '2026-09-12', description: 'Duck', amount: 4000, quantity: null, unit: null, vendor: 'Not specified', paid_by: 'Abu', trade_category: 'MISCELLANEOUS', kind: null, raw_line: '' },
     ], 4000);
     expect(t).toContain('Total: 4,000');
     expect(t).toContain('paid by Abu');

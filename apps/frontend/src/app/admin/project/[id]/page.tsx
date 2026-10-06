@@ -2,10 +2,12 @@
 
 import { Fragment, useEffect, useRef, useState, type CSSProperties, type FormEvent } from 'react';
 import Link from 'next/link';
-import type { TradeCategory } from '@siraat/shared-types';
+import type { SectionCategory, ExpenseKind } from '@siraat/shared-types';
 import {
   fetchProject,
   createProjectSection,
+  moveProjectExpenses,
+  importProjectExpenses,
   createSectionExpense,
   editProjectExpense,
   voidProjectExpense,
@@ -21,7 +23,7 @@ import {
   type UpdateProjectBody,
   type ConstructionProjectStatus,
 } from '@/lib/api';
-import { TRADE_CATEGORY_OPTIONS } from '@/lib/tradeCategories';
+import { SECTION_CATEGORY_OPTIONS, SECTION_GROUP_ORDER, SECTION_GROUP_LABELS, sectionLabel } from '@/lib/sectionCategories';
 import { CopyLinkButton } from '@/components/CopyLinkButton';
 import WhatsappBadge from '@/components/WhatsappBadge';
 import VendorLabel from '@/components/VendorLabel';
@@ -54,7 +56,7 @@ function formatQtyRateBreakdown(expense: ExpenseResult): string | null {
 }
 
 function tradeLabel(value: string): string {
-  return TRADE_CATEGORY_OPTIONS.find((t) => t.value === value)?.label ?? value;
+  return sectionLabel(value);
 }
 
 // ADMIN PROJECT EDIT — same closed status list as admin/new-project/page.tsx's
@@ -563,11 +565,15 @@ function ExpenseRow({
   onCorrect,
   onEdit,
   onDeleteClick,
+  selected,
+  onToggleSelect,
 }: {
   expense: ExpenseResult;
   onCorrect: () => void;
   onEdit: () => void;
   onDeleteClick: () => void;
+  selected: boolean;
+  onToggleSelect: () => void;
 }) {
   const isCorrection = expense.amount < 0;
   return (
@@ -575,8 +581,11 @@ function ExpenseRow({
       <td style={tdStyle}>{expense.expense_date}</td>
       <td style={tdStyle}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+          <input type="checkbox" checked={selected} onChange={onToggleSelect} aria-label="Select expense" />
           <span>{expense.description}</span>
           {expense.source === 'WHATSAPP' && <WhatsappBadge />}
+          {expense.source === 'IMPORT' && <span style={{ fontSize: '10px', color: 'var(--muted)' }}>imported · date unknown</span>}
+          {expense.kind && <span style={{ fontSize: '10px', color: 'var(--muted)', border: '1px solid var(--border)', borderRadius: '4px', padding: '0 4px' }}>{expense.kind.toLowerCase()}</span>}
         </div>
       </td>
       <td style={tdStyle}>
@@ -714,7 +723,7 @@ export default function AdminProjectPage({ params }: Props) {
   const [projectEditError, setProjectEditError] = useState<string | null>(null);
 
   const [addingSection, setAddingSection] = useState(false);
-  const [newSectionCategory, setNewSectionCategory] = useState<TradeCategory>(TRADE_CATEGORY_OPTIONS[0].value);
+  const [newSectionCategory, setNewSectionCategory] = useState<SectionCategory>(SECTION_CATEGORY_OPTIONS[0].value);
   const [sectionSubmitting, setSectionSubmitting] = useState(false);
   const [sectionError, setSectionError] = useState<string | null>(null);
 
@@ -755,6 +764,60 @@ export default function AdminProjectPage({ params }: Props) {
   // successful edit/delete should surface as a small banner over the
   // (stale but still valid) data already on screen, not blank the page.
   const [refetchError, setRefetchError] = useState<string | null>(null);
+
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [moveCategory, setMoveCategory] = useState<SectionCategory>('MASON_LABOUR');
+  const [moveKind, setMoveKind] = useState<ExpenseKind | ''>('');
+  const [moving, setMoving] = useState(false);
+  const [moveMessage, setMoveMessage] = useState<string | null>(null);
+  const [importing, setImporting] = useState(false);
+
+  function toggleSelected(id: string) {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  async function handleMoveSelected() {
+    if (selectedIds.size === 0) return;
+    setMoving(true);
+    setMoveMessage(null);
+    try {
+      const r = await moveProjectExpenses(params.id, Array.from(selectedIds), moveCategory, moveKind || null);
+      setMoveMessage(`Moved ${r.moved}${r.skipped ? `, skipped ${r.skipped}` : ''}.`);
+      setSelectedIds(new Set());
+      await refetchProject();
+      if (showHistory) await refetchHistory();
+    } catch (err) {
+      setMoveMessage(err instanceof Error ? err.message : 'Move failed');
+    } finally {
+      setMoving(false);
+    }
+  }
+
+  async function handleImportFile(file: File | null) {
+    if (!file) return;
+    setImporting(true);
+    setMoveMessage(null);
+    try {
+      const parsed = JSON.parse(await file.text()) as { lines?: unknown[] } | unknown[];
+      const lines = Array.isArray(parsed) ? parsed : parsed.lines ?? [];
+      let imported = 0;
+      for (let i = 0; i < lines.length; i += 200) {
+        const r = await importProjectExpenses(params.id, lines.slice(i, i + 200));
+        imported += r.imported;
+      }
+      setMoveMessage(`Imported ${imported} expenses.`);
+      await refetchProject();
+    } catch (err) {
+      setMoveMessage(err instanceof Error ? err.message : 'Import failed');
+    } finally {
+      setImporting(false);
+    }
+  }
 
   useEffect(() => {
     let cancelled = false;
@@ -1118,6 +1181,34 @@ export default function AdminProjectPage({ params }: Props) {
           {historyError && <span style={{ fontSize: '12px', color: 'var(--error)', marginLeft: '10px' }}>{historyError}</span>}
         </div>
 
+        <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap', padding: '10px 14px', background: '#fff', border: '1px solid var(--border)', borderRadius: RADIUS.md }}>
+          <span style={{ fontSize: '13px', fontWeight: 600 }}>{selectedIds.size} selected</span>
+          <select value={moveCategory} onChange={(e) => setMoveCategory(e.target.value as SectionCategory)} style={inputStyle}>
+            {SECTION_GROUP_ORDER.map((g) => (
+              <optgroup key={g} label={SECTION_GROUP_LABELS[g]}>
+                {SECTION_CATEGORY_OPTIONS.filter((o) => o.group === g).map((o) => (
+                  <option key={o.value} value={o.value}>{o.label}</option>
+                ))}
+              </optgroup>
+            ))}
+          </select>
+          <select value={moveKind} onChange={(e) => setMoveKind(e.target.value as ExpenseKind | '')} style={inputStyle}>
+            <option value="">Keep tag</option>
+            <option value="MATERIAL">Material</option>
+            <option value="LABOUR">Labour</option>
+            <option value="FEE">Fee</option>
+            <option value="OTHER">Other</option>
+          </select>
+          <button onClick={handleMoveSelected} disabled={moving || selectedIds.size === 0} style={plainButtonStyle}>
+            {moving ? 'Moving…' : 'Move selected'}
+          </button>
+          <label style={{ fontSize: '12px', color: 'var(--muted)', marginLeft: 'auto' }}>
+            {importing ? 'Importing…' : 'Import expenses (JSON): '}
+            <input type="file" accept="application/json,.json" disabled={importing} onChange={(e) => handleImportFile(e.target.files?.[0] ?? null)} />
+          </label>
+          {moveMessage && <span style={{ fontSize: '12px', color: 'var(--muted)', width: '100%' }}>{moveMessage}</span>}
+        </div>
+
         {project.sections.length === 0 && !addingSection && (
           <p style={{ fontSize: '14px', color: 'var(--muted)' }}>No sections yet — add the first one below.</p>
         )}
@@ -1160,6 +1251,8 @@ export default function AdminProjectPage({ params }: Props) {
                           onCorrect={() => openCorrection(section.id, expense)}
                           onEdit={() => openEditExpense(section.id, expense)}
                           onDeleteClick={() => openVoidPrompt(expense)}
+                          selected={selectedIds.has(expense.id)}
+                          onToggleSelect={() => toggleSelected(expense.id)}
                         />
                         {voidPrompt?.expense.id === expense.id && (
                           <VoidReasonRow
@@ -1208,8 +1301,8 @@ export default function AdminProjectPage({ params }: Props) {
             <form onSubmit={handleAddSection} style={{ display: 'flex', gap: '10px', alignItems: 'flex-end', flexWrap: 'wrap' }}>
               <div style={{ ...fieldGroupStyle, flex: 1, minWidth: '200px' }}>
                 <label style={labelStyle}>Category</label>
-                <select value={newSectionCategory} onChange={(e) => setNewSectionCategory(e.target.value as TradeCategory)} style={inputStyle}>
-                  {TRADE_CATEGORY_OPTIONS.map((o) => (
+                <select value={newSectionCategory} onChange={(e) => setNewSectionCategory(e.target.value as SectionCategory)} style={inputStyle}>
+                  {SECTION_CATEGORY_OPTIONS.map((o) => (
                     <option key={o.value} value={o.value}>
                       {o.label}
                     </option>

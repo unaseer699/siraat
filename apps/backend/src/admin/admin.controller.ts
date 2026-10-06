@@ -3,6 +3,8 @@ import type { GroundReportStatus } from '../ground-reports/ground-report-submiss
 import { z } from 'zod';
 import {
   TradeCategorySchema,
+  SectionCategorySchema,
+  ExpenseKindSchema,
   MaterialCategorySchema,
   HousePlanStyleSchema,
   HousePlanImageTypeSchema,
@@ -335,7 +337,7 @@ type UpdateProjectBody = z.infer<typeof UpdateProjectBodySchema>;
 // KITCHEN_WORK/MISCELLANEOUS) rather than a separate enum.
 
 const CreateSectionBodySchema = z.object({
-  category: TradeCategorySchema,
+  category: SectionCategorySchema,
   display_order: z.number().int().nonnegative(),
 });
 type CreateSectionBody = z.infer<typeof CreateSectionBodySchema>;
@@ -376,6 +378,8 @@ const CreateExpenseBodySchema = z.object({
   unit: z.enum(EXPENSE_UNITS).nullable().default(null),
   rate: z.number().nullable().default(null),
   source: z.enum(EXPENSE_SOURCES).nullable().default(null),
+  paid_by: z.string().max(100).nullable().optional(),
+  kind: ExpenseKindSchema.nullable().optional(),
 });
 type CreateExpenseBody = z.infer<typeof CreateExpenseBodySchema>;
 
@@ -384,6 +388,35 @@ type CreateExpenseBody = z.infer<typeof CreateExpenseBodySchema>;
 // replacement content for the new superseding row (see editExpense).
 const EditExpenseBodySchema = CreateExpenseBodySchema;
 type EditExpenseBody = z.infer<typeof EditExpenseBodySchema>;
+
+// --- POST /v1/admin/projects/:projectId/expenses/move ---
+const MoveExpensesBodySchema = z.object({
+  expense_ids: z.array(z.string().uuid()).min(1).max(200),
+  category: SectionCategorySchema,
+  kind: ExpenseKindSchema.nullable().optional(),
+});
+type MoveExpensesBody = z.infer<typeof MoveExpensesBodySchema>;
+
+// --- POST /v1/admin/projects/:projectId/import-expenses ---
+const ImportExpensesBodySchema = z.object({
+  lines: z
+    .array(
+      z.object({
+        category: SectionCategorySchema,
+        kind: ExpenseKindSchema.nullable().optional(),
+        description: z.string().min(1).max(500),
+        vendor_name: z.string().max(255).nullable().optional(),
+        amount: z.number().positive(),
+        quantity: z.number().nullable().optional(),
+        unit: z.enum(EXPENSE_UNITS).nullable().optional(),
+        expense_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().optional(),
+        paid_by: z.string().max(100).nullable().optional(),
+      }),
+    )
+    .min(1)
+    .max(1000),
+});
+type ImportExpensesBody = z.infer<typeof ImportExpensesBodySchema>;
 
 // --- DELETE /v1/admin/projects/:projectId/expenses/:id (EXPENSE EDIT/DELETE Chunk 1) ---
 // Voids the row (status = VOID) rather than deleting it — reason is
@@ -842,6 +875,24 @@ export class AdminController {
     @Body(new ZodValidationPipe(EditExpenseBodySchema)) body: EditExpenseBody,
   ) {
     return this.adminSvc.editProjectExpense(projectId, id, body);
+  }
+
+  @Post('projects/:projectId/expenses/move')
+  @HttpCode(200)
+  moveProjectExpenses(
+    @Param('projectId') projectId: string,
+    @Body(new ZodValidationPipe(MoveExpensesBodySchema)) body: MoveExpensesBody,
+  ) {
+    return this.adminSvc.moveProjectExpenses(projectId, body.expense_ids, body.category, body.kind ?? null);
+  }
+
+  @Post('projects/:projectId/import-expenses')
+  @HttpCode(200)
+  importProjectExpenses(
+    @Param('projectId') projectId: string,
+    @Body(new ZodValidationPipe(ImportExpensesBodySchema)) body: ImportExpensesBody,
+  ) {
+    return this.adminSvc.importProjectExpenses(projectId, body.lines);
   }
 
   // Voids the row (status = VOID, void_reason set) — never a hard delete.

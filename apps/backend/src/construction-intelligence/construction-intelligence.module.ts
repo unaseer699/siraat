@@ -4,6 +4,7 @@ import { MaterialRateEntity } from './entities/material-rate.entity';
 import { ConstructionEstimateEntity } from './entities/construction-estimate.entity';
 import { ObservationEntity } from './entities/observation.entity';
 import { ConstructionProjectEntity } from './entities/construction-project.entity';
+import { ExpenseCategoryRuleEntity } from './entities/expense-category-rule.entity';
 import { ProjectSectionEntity } from './entities/project-section.entity';
 import { ProjectExpenseEntity } from './entities/project-expense.entity';
 import { ConstructionIntelligenceService } from './construction-intelligence.service';
@@ -22,6 +23,7 @@ import { ConstructionProjectController } from './construction-project.controller
       ConstructionProjectEntity,
       ProjectSectionEntity,
       ProjectExpenseEntity,
+      ExpenseCategoryRuleEntity,
     ]),
   ],
   controllers: [EstimatesController, ConstructionProjectController],
