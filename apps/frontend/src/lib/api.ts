@@ -1534,7 +1534,7 @@ export async function saveProjectLayout(
 }
 
 export async function confirmProjectLayout(projectId: string): Promise<ProjectForecast> {
-  return apiFetch(`/v1/admin/projects/${projectId}/layout/confirm`, { method: 'POST' });
+  return apiFetch(`/v1/admin/projects/${projectId}/layout/confirm`, { method: 'POST', body: '{}' });
 }
 
 export type ProjectDocumentKind = 'ARCHITECTURAL' | 'STRUCTURAL' | 'ELECTRICAL' | 'PLUMBING' | 'SOIL' | 'OTHER';
@@ -1595,7 +1595,7 @@ export async function deleteProjectDocument(projectId: string, docId: string) {
 }
 
 export async function extractLayoutFromDocument(projectId: string, docId: string): Promise<LayoutExtraction> {
-  await apiFetch(`/v1/admin/projects/${projectId}/documents/${docId}/extract-layout`, { method: 'POST' });
+  await apiFetch(`/v1/admin/projects/${projectId}/documents/${docId}/extract-layout`, { method: 'POST', body: '{}' });
   const deadline = Date.now() + 5 * 60_000;
   while (Date.now() < deadline) {
     await new Promise((r) => setTimeout(r, 4000));
