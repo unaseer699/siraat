@@ -225,7 +225,13 @@ export class WhatsappService {
       }
     }
 
-    const isListingForwarder = (await this.listingForwarderSvc?.isForwarder(msg.from)) ?? false;
+    // The founder uses ONE number for both inventory forwarding and project
+    // expenses. A message that announces itself as a project expense
+    // ("Project Expense: ...") must go to the expense flow even from a
+    // listing-forwarder number; everything else from a forwarder is inventory.
+    const looksLikeExpense = !!msg.text && /^\s*project\s+expense\b/i.test(msg.text);
+    const isListingForwarder =
+      !looksLikeExpense && ((await this.listingForwarderSvc?.isForwarder(msg.from)) ?? false);
 
     // GROUND-CONDITION REPORTS — a "REPORT …" message (or a photo/PDF sent
     // right after one) goes to its own handler. Listing forwarders keep
