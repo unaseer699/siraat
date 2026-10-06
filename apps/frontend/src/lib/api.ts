@@ -108,7 +108,9 @@ async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
     cache: 'no-store',
     ...init,
     headers: {
-      'Content-Type': 'application/json',
+      // Fastify rejects a bodiless request that declares a JSON content type
+      // (FST_ERR_CTP_EMPTY_JSON_BODY), so only declare it when sending a body.
+      ...(init?.body !== undefined && init?.body !== null ? { 'Content-Type': 'application/json' } : {}),
       ...headers,
       ...init?.headers,
     },
