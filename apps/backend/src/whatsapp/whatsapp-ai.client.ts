@@ -163,6 +163,7 @@ function buildListingSystemPrompt(): string {
 
 const DEFAULT_MODEL = 'claude-haiku-4-5-20251001';
 const REQUEST_TIMEOUT_MS = 15_000;
+const LISTING_REQUEST_TIMEOUT_MS = 90_000;
 
 // Strips a ```json ... ``` fence if the model wraps its answer in one despite
 // being told not to, then extracts the first {...} block — defensive against
@@ -258,15 +259,37 @@ export class WhatsappAiClient {
   // "don't treat a bad AI answer as a retryable infra failure" rule
   // extractExpense already follows.
   async extractListings(messageText: string): Promise<ListingExtractionOutcome> {
+    // A daily inventory can run to hundreds of lines — far more JSON than one
+    // response can hold. Split at line boundaries and re-send the first two
+    // lines (the "Faisal Hills Inventory…" header) with every chunk so each
+    // one still knows its society context.
+    const lines = messageText.split('\n');
+    const CHUNK_LINES = 40;
+    if (lines.length <= CHUNK_LINES + 5) return this.extractListingsChunk(messageText);
+
+    const header = lines.slice(0, 2).join('\n');
+    const all: ListingExtraction[] = [];
+    const raws: unknown[] = [];
+    for (let i = 2; i < lines.length; i += CHUNK_LINES) {
+      const chunk = `${header}\n${lines.slice(i, i + CHUNK_LINES).join('\n')}`;
+      const out = await this.extractListingsChunk(chunk);
+      all.push(...out.listings);
+      raws.push(out.raw);
+    }
+    return { listings: all, raw: { chunks: raws.length, responses: raws } };
+  }
+
+  private async extractListingsChunk(messageText: string): Promise<ListingExtractionOutcome> {
     const apiKey = process.env.ANTHROPIC_API_KEY;
     if (!apiKey) {
-      this.logger.warn('ANTHROPIC_API_KEY not set — skipping listing extraction');
-      return { listings: [], raw: { skipped: 'no_api_key' } };
+      // Throw (not an empty result) so the message stays LISTING_RECEIVED and
+      // the failure is visible, instead of being silently marked parsed.
+      throw new Error('ANTHROPIC_API_KEY not set — cannot extract listings');
     }
 
     const model = process.env.ANTHROPIC_MODEL ?? DEFAULT_MODEL;
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+    const timeout = setTimeout(() => controller.abort(), LISTING_REQUEST_TIMEOUT_MS);
 
     let response: Response;
     try {
@@ -279,7 +302,7 @@ export class WhatsappAiClient {
         },
         body: JSON.stringify({
           model,
-          max_tokens: 2048,
+          max_tokens: 8192,
           system: buildListingSystemPrompt(),
           messages: [{ role: 'user', content: messageText }],
         }),
@@ -300,18 +323,20 @@ export class WhatsappAiClient {
       throw new Error('Anthropic response missing text content block');
     }
 
+    if ((json as { stop_reason?: unknown }).stop_reason === 'max_tokens') {
+      throw new Error('Listing AI response was truncated (max_tokens) — chunk too large');
+    }
+
     let candidate: unknown;
     try {
       candidate = extractJsonObject(textBlock);
     } catch (err) {
-      this.logger.warn(`Listing AI response was not valid JSON: ${err instanceof Error ? err.message : String(err)}`);
-      return { listings: [], raw: json };
+      throw new Error(`Listing AI response was not valid JSON: ${err instanceof Error ? err.message : String(err)}`);
     }
 
     const validated = ListingExtractionResponseSchema.safeParse(candidate);
     if (!validated.success) {
-      this.logger.warn(`Listing AI extraction failed shape validation: ${validated.error.message}`);
-      return { listings: [], raw: json };
+      throw new Error(`Listing AI extraction failed shape validation: ${validated.error.message}`);
     }
 
     return { listings: validated.data.listings, raw: json };
