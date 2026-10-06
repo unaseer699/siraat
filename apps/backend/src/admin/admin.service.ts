@@ -195,7 +195,10 @@ export interface UpdateHousePlanInput {
 export type CreateWhatsappMappingInput = WhatsappCreateMappingInput;
 
 import { ProjectForecastService, FinishLevel } from '../construction-intelligence/project-forecast.service';
-import { LayoutFloor } from '../construction-intelligence/entities/project-layout.entity';
+import { ProjectDocumentService } from '../construction-intelligence/project-document.service';
+import { LayoutExtractorService } from '../construction-intelligence/layout-extractor.service';
+import type { ProjectDocumentKind } from '../construction-intelligence/entities/project-document.entity';
+import { LayoutFloor, LayoutExtras } from '../construction-intelligence/entities/project-layout.entity';
 
 @Injectable()
 export class AdminService {
@@ -214,6 +217,8 @@ export class AdminService {
     private readonly waListingParsingSvc: WhatsappListingParsingService,
     private readonly groundReportSvc: GroundReportSubmissionService,
     @Optional() private readonly forecastSvc?: ProjectForecastService,
+    @Optional() private readonly docSvc?: ProjectDocumentService,
+    @Optional() private readonly extractorSvc?: LayoutExtractorService,
   ) {}
 
   // CLEANUP — was AdminService's own CandidateSocietyEntity repository
@@ -804,6 +809,49 @@ export class AdminService {
     return this.forecastSvc;
   }
 
+  private docs(): ProjectDocumentService {
+    if (!this.docSvc) throw new BadRequestException('Document service unavailable');
+    return this.docSvc;
+  }
+
+  private async requireProject(projectId: string): Promise<void> {
+    const project = await this.cpSvc.findProjectById(projectId);
+    if (!project) throw new NotFoundException(`Project ${projectId} not found`);
+  }
+
+  async requestProjectDocumentUpload(projectId: string, data: { filename: string; content_type: string }) {
+    await this.requireProject(projectId);
+    return this.docs().requestUpload(projectId, data);
+  }
+
+  async finalizeProjectDocument(
+    projectId: string,
+    data: { key: string; content_type: string; kind: ProjectDocumentKind; title: string; visible_to_owner: boolean },
+  ) {
+    await this.requireProject(projectId);
+    return this.docs().finalize(projectId, data);
+  }
+
+  async listProjectDocuments(projectId: string) {
+    await this.requireProject(projectId);
+    return this.docs().list(projectId, { ownerView: false });
+  }
+
+  async setProjectDocumentVisibility(projectId: string, docId: string, visible: boolean) {
+    await this.docs().setVisibility(projectId, docId, visible);
+    return { ok: true };
+  }
+
+  async deleteProjectDocument(projectId: string, docId: string) {
+    await this.docs().remove(projectId, docId);
+    return { ok: true };
+  }
+
+  async extractProjectLayout(projectId: string, docId: string) {
+    if (!this.extractorSvc) throw new BadRequestException('Layout reader unavailable');
+    return this.extractorSvc.extract(projectId, docId);
+  }
+
   async getProjectForecast(projectId: string) {
     const project = await this.cpSvc.findProjectById(projectId);
     if (!project) throw new NotFoundException(`Project ${projectId} not found`);
@@ -812,7 +860,7 @@ export class AdminService {
 
   async saveProjectLayout(
     projectId: string,
-    input: { floors: LayoutFloor[]; finish_level: FinishLevel; price_factors?: Record<string, number> | null; source_note?: string | null },
+    input: { floors: LayoutFloor[]; finish_level: FinishLevel; price_factors?: Record<string, number> | null; source_note?: string | null; extras?: LayoutExtras | null },
   ) {
     const project = await this.cpSvc.findProjectById(projectId);
     if (!project) throw new NotFoundException(`Project ${projectId} not found`);

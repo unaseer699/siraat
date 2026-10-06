@@ -1461,11 +1461,18 @@ export async function rejectGroundReport(id: string, reason: string | null): Pro
 export type FinishLevel = 'BASIC' | 'STANDARD' | 'PREMIUM';
 export type ForecastGroupKey = 'STRUCTURE' | 'SERVICES' | 'FINISHING' | 'SITE_OTHER';
 
+export type LayoutExtraKind = 'FRONT_SHADE' | 'BACK_SHADE' | 'BALCONY' | 'PORCH';
+export interface LayoutExtras {
+  boundary_wall?: { length_ft: number; rate_per_ft: number } | null;
+  items?: { kind: LayoutExtraKind; name: string; area_sqft: number }[];
+}
+
 export interface ProjectLayout {
   id: string;
   project_ref: string;
   floors: { name: string; area_sqft: number; drawing_area_sqft?: number | null; allowed_area_sqft?: number | null }[];
   total_area_sqft: number;
+  extras: LayoutExtras;
   finish_level: FinishLevel;
   price_factors: Partial<Record<ForecastGroupKey, number>>;
   status: 'UNTRUSTED_DATA' | 'CONFIRMED';
@@ -1473,7 +1480,17 @@ export interface ProjectLayout {
   confirmed_at: string | null;
 }
 
+export interface ForecastExtra {
+  kind: string;
+  name: string;
+  quantity: number;
+  unit: 'sq ft' | 'ft';
+  cost: number;
+  basis: string;
+}
+
 export interface ProjectForecast {
+  extras: ForecastExtra[];
   state: 'FULL' | 'DEGRADED_SUCCESS' | 'NOT_COVERED';
   record_type: 'GENERATED';
   derived_from: string[];
@@ -1510,6 +1527,7 @@ export async function saveProjectLayout(
     finish_level: FinishLevel;
     price_factors?: Partial<Record<ForecastGroupKey, number>> | null;
     source_note?: string | null;
+    extras?: LayoutExtras | null;
   },
 ): Promise<ProjectForecast> {
   return apiFetch(`/v1/admin/projects/${projectId}/layout`, { method: 'POST', body: JSON.stringify(body) });
@@ -1517,4 +1535,65 @@ export async function saveProjectLayout(
 
 export async function confirmProjectLayout(projectId: string): Promise<ProjectForecast> {
   return apiFetch(`/v1/admin/projects/${projectId}/layout/confirm`, { method: 'POST' });
+}
+
+export type ProjectDocumentKind = 'ARCHITECTURAL' | 'STRUCTURAL' | 'ELECTRICAL' | 'PLUMBING' | 'SOIL' | 'OTHER';
+
+export interface ProjectDocument {
+  id: string;
+  kind: ProjectDocumentKind;
+  title: string;
+  content_type: string;
+  size_bytes: number;
+  visible_to_owner: boolean;
+  created_at: string;
+  download_url: string | null;
+}
+
+export interface LayoutExtraction {
+  floors: { name: string; covered_area_sqft?: number | null; allowable_area_sqft?: number | null }[];
+  boundary_wall_length_ft?: number | null;
+  boundary_wall_inferred?: boolean | null;
+  extras: { kind: LayoutExtraKind; name: string; area_sqft?: number | null }[];
+  notes?: string | null;
+}
+
+export async function listAdminProjectDocuments(projectId: string): Promise<ProjectDocument[]> {
+  return apiFetch(`/v1/admin/projects/${projectId}/documents`);
+}
+
+export async function fetchOwnerProjectDocuments(projectId: string): Promise<ProjectDocument[]> {
+  return apiFetch(`/v1/construction-intelligence/projects/${projectId}/documents`);
+}
+
+export async function uploadProjectDocument(
+  projectId: string,
+  file: File,
+  meta: { kind: ProjectDocumentKind; title: string; visible_to_owner: boolean },
+): Promise<ProjectDocument> {
+  const content_type = file.type || 'application/pdf';
+  const { upload_url, key } = await apiFetch<{ upload_url: string; key: string }>(
+    `/v1/admin/projects/${projectId}/documents/upload-url`,
+    { method: 'POST', body: JSON.stringify({ filename: file.name, content_type }) },
+  );
+  await uploadFileToPresignedUrl(upload_url, file);
+  return apiFetch(`/v1/admin/projects/${projectId}/documents/finalize`, {
+    method: 'POST',
+    body: JSON.stringify({ key, content_type, ...meta }),
+  });
+}
+
+export async function setProjectDocumentVisibility(projectId: string, docId: string, visible: boolean) {
+  return apiFetch(`/v1/admin/projects/${projectId}/documents/${docId}/visibility`, {
+    method: 'POST',
+    body: JSON.stringify({ visible_to_owner: visible }),
+  });
+}
+
+export async function deleteProjectDocument(projectId: string, docId: string) {
+  return apiFetch(`/v1/admin/projects/${projectId}/documents/${docId}`, { method: 'DELETE' });
+}
+
+export async function extractLayoutFromDocument(projectId: string, docId: string): Promise<LayoutExtraction> {
+  return apiFetch(`/v1/admin/projects/${projectId}/documents/${docId}/extract-layout`, { method: 'POST' });
 }

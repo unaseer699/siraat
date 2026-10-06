@@ -1,0 +1,3 @@
+CREATE TABLE IF NOT EXISTS construction_intelligence.project_documents (id uuid PRIMARY KEY DEFAULT gen_random_uuid(), project_ref uuid NOT NULL, kind varchar(20) NOT NULL, title varchar(200) NOT NULL, storage_ref varchar(500) NOT NULL, content_type varchar(100) NOT NULL, size_bytes bigint NOT NULL DEFAULT 0, visible_to_owner boolean NOT NULL DEFAULT true, created_at timestamptz NOT NULL DEFAULT now());
+CREATE INDEX IF NOT EXISTS idx_project_documents_project ON construction_intelligence.project_documents (project_ref);
+ALTER TABLE construction_intelligence.project_layouts ADD COLUMN IF NOT EXISTS extras jsonb;

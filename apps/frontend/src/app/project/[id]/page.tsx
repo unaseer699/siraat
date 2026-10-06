@@ -11,6 +11,7 @@ import { RADIUS } from '@/styles/tokens';
 import WhatsappBadge from '@/components/WhatsappBadge';
 import VendorLabel from '@/components/VendorLabel';
 import Boq5MarlaPanel from '@/components/Boq5MarlaPanel';
+import ProjectDocumentsCard from '@/components/ProjectDocumentsCard';
 
 interface Props {
   params: { id: string };
@@ -260,6 +261,9 @@ export default function ProjectDashboardPage({ params }: Props) {
             ))}
           </div>
         )}
+        <div style={{ marginTop: '16px' }}>
+          <ProjectDocumentsCard projectId={project.id} />
+        </div>
       </div>
       {showBoq && (
         <div style={{ flex: '1 1 320px', maxWidth: '420px', minWidth: 0, position: 'sticky', top: '16px' }}>

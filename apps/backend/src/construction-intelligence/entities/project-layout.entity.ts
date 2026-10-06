@@ -7,6 +7,12 @@ export interface LayoutFloor {
   allowed_area_sqft?: number | null;
 }
 
+export type LayoutExtraKind = 'FRONT_SHADE' | 'BACK_SHADE' | 'BALCONY' | 'PORCH';
+export interface LayoutExtras {
+  boundary_wall?: { length_ft: number; rate_per_ft: number } | null;
+  items?: { kind: LayoutExtraKind; name: string; area_sqft: number }[];
+}
+
 // Configuration for a project's cost forecast: the covered area per floor
 // (read from the architect's drawings), the finish level, and per-group price
 // factors. Floor areas start as UNTRUSTED_DATA and only drive a FULL forecast
@@ -23,6 +29,9 @@ export class ProjectLayoutEntity {
 
   @Column({ type: 'jsonb' })
   floors: LayoutFloor[];
+
+  @Column({ type: 'jsonb', nullable: true })
+  extras: LayoutExtras | null;
 
   @Column({ type: 'varchar', length: 10, default: 'STANDARD' })
   finish_level: string;

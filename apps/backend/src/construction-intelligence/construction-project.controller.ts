@@ -1,6 +1,7 @@
 import { Controller, Get, NotFoundException, Param, UseGuards } from '@nestjs/common';
 import { BearerGuard } from '../auth/bearer.guard';
 import { ConstructionProjectService } from './construction-project.service';
+import { ProjectDocumentService } from './project-document.service';
 
 // PROJECT COST TRACKER Chunk 2 fix — a genuinely public route, matching the
 // pattern every other "public" page in this app follows (its own route
@@ -12,12 +13,22 @@ import { ConstructionProjectService } from './construction-project.service';
 @Controller('v1/construction-intelligence')
 @UseGuards(BearerGuard)
 export class ConstructionProjectController {
-  constructor(private readonly cpSvc: ConstructionProjectService) {}
+  constructor(
+    private readonly cpSvc: ConstructionProjectService,
+    private readonly docs: ProjectDocumentService,
+  ) {}
 
   @Get('projects/:id')
   async getProject(@Param('id') id: string) {
     const result = await this.cpSvc.getProjectWithSectionsAndExpenses(id);
     if (!result) throw new NotFoundException(`Project ${id} not found`);
     return result;
+  }
+
+  // Drawings and reports the admin has chosen to show the project owner.
+  // Download links are short-lived presigned URLs.
+  @Get('projects/:id/documents')
+  async getDocuments(@Param('id') id: string) {
+    return this.docs.list(id, { ownerView: true });
   }
 }

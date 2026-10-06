@@ -49,4 +49,21 @@ describe('ProjectForecastService', () => {
     expect(r.notes.join(' ')).toContain('drawing shows 293');
     expect(r.notes.join(' ')).toContain('above the allowable 250');
   });
+  it('boundary wall, shades and balconies raise the forecast', async () => {
+    const plain = await make(layout()).forecast('P1');
+    const withExtras = await make(
+      layout({
+        extras: {
+          boundary_wall: { length_ft: 150, rate_per_ft: 5500 },
+          items: [
+            { kind: 'FRONT_SHADE', name: 'Front porch', area_sqft: 100 },
+            { kind: 'BALCONY', name: 'Balcony', area_sqft: 40 },
+          ],
+        },
+      }),
+    ).forecast('P1');
+    expect(withExtras.extras).toHaveLength(3);
+    expect(withExtras.estimated_total).toBeGreaterThan(plain.estimated_total + 150 * 5500);
+    expect(withExtras.extras.find((e) => e.kind === 'BOUNDARY_WALL')!.cost).toBe(825_000);
+  });
 });

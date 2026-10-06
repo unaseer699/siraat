@@ -100,4 +100,12 @@ export class StorageService {
     const command = new DeleteObjectCommand({ Bucket: this.bucket, Key: key });
     await this.client.send(command);
   }
+
+  // Reads an object's bytes (used to hand a stored drawing to the AI reader).
+  async getObjectBuffer(key: string): Promise<Buffer> {
+    const out = await this.client.send(new GetObjectCommand({ Bucket: this.bucket, Key: key }));
+    const bytes = await out.Body?.transformToByteArray();
+    if (!bytes) throw new Error(`Object ${key} is empty`);
+    return Buffer.from(bytes);
+  }
 }

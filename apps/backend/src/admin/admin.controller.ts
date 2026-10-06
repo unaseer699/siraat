@@ -404,8 +404,29 @@ const LayoutBodySchema = z.object({
   finish_level: z.enum(['BASIC', 'STANDARD', 'PREMIUM']),
   price_factors: z.record(z.enum(['STRUCTURE', 'SERVICES', 'FINISHING', 'SITE_OTHER']), z.number().min(0.5).max(2)).nullable().optional(),
   source_note: z.string().max(255).nullable().optional(),
+  extras: z
+    .object({
+      boundary_wall: z.object({ length_ft: z.number().positive().max(100000), rate_per_ft: z.number().positive().max(1000000) }).nullable().optional(),
+      items: z.array(z.object({ kind: z.enum(['FRONT_SHADE', 'BACK_SHADE', 'BALCONY', 'PORCH']), name: z.string().min(1).max(60), area_sqft: z.number().positive().max(100000) })).max(20).optional(),
+    })
+    .nullable()
+    .optional(),
 });
 type LayoutBody = z.infer<typeof LayoutBodySchema>;
+
+// --- Project documents ---
+const DocUploadUrlBodySchema = z.object({ filename: z.string().min(1).max(200), content_type: z.string().min(1) });
+type DocUploadUrlBody = z.infer<typeof DocUploadUrlBodySchema>;
+const DocFinalizeBodySchema = z.object({
+  key: z.string().min(1),
+  content_type: z.string().min(1),
+  kind: z.enum(['ARCHITECTURAL', 'STRUCTURAL', 'ELECTRICAL', 'PLUMBING', 'SOIL', 'OTHER']),
+  title: z.string().trim().min(1).max(200),
+  visible_to_owner: z.boolean(),
+});
+type DocFinalizeBody = z.infer<typeof DocFinalizeBodySchema>;
+const DocVisibilityBodySchema = z.object({ visible_to_owner: z.boolean() });
+type DocVisibilityBody = z.infer<typeof DocVisibilityBodySchema>;
 
 // --- POST /v1/admin/projects/:projectId/import-expenses ---
 const ImportExpensesBodySchema = z.object({
@@ -894,6 +915,50 @@ export class AdminController {
     @Body(new ZodValidationPipe(MoveExpensesBodySchema)) body: MoveExpensesBody,
   ) {
     return this.adminSvc.moveProjectExpenses(projectId, body.expense_ids, body.category, body.kind ?? null);
+  }
+
+  @Get('projects/:projectId/documents')
+  listProjectDocuments(@Param('projectId') projectId: string) {
+    return this.adminSvc.listProjectDocuments(projectId);
+  }
+
+  @Post('projects/:projectId/documents/upload-url')
+  @HttpCode(200)
+  requestProjectDocumentUpload(
+    @Param('projectId') projectId: string,
+    @Body(new ZodValidationPipe(DocUploadUrlBodySchema)) body: DocUploadUrlBody,
+  ) {
+    return this.adminSvc.requestProjectDocumentUpload(projectId, body);
+  }
+
+  @Post('projects/:projectId/documents/finalize')
+  @HttpCode(200)
+  finalizeProjectDocument(
+    @Param('projectId') projectId: string,
+    @Body(new ZodValidationPipe(DocFinalizeBodySchema)) body: DocFinalizeBody,
+  ) {
+    return this.adminSvc.finalizeProjectDocument(projectId, body);
+  }
+
+  @Post('projects/:projectId/documents/:docId/visibility')
+  @HttpCode(200)
+  setProjectDocumentVisibility(
+    @Param('projectId') projectId: string,
+    @Param('docId') docId: string,
+    @Body(new ZodValidationPipe(DocVisibilityBodySchema)) body: DocVisibilityBody,
+  ) {
+    return this.adminSvc.setProjectDocumentVisibility(projectId, docId, body.visible_to_owner);
+  }
+
+  @Post('projects/:projectId/documents/:docId/extract-layout')
+  @HttpCode(200)
+  extractProjectLayout(@Param('projectId') projectId: string, @Param('docId') docId: string) {
+    return this.adminSvc.extractProjectLayout(projectId, docId);
+  }
+
+  @Delete('projects/:projectId/documents/:docId')
+  deleteProjectDocument(@Param('projectId') projectId: string, @Param('docId') docId: string) {
+    return this.adminSvc.deleteProjectDocument(projectId, docId);
   }
 
   @Get('projects/:projectId/forecast')
