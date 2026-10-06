@@ -12,6 +12,8 @@ const DIMENSION_MARLA: Record<string, number> = {
   '35x70': 10,
   '40x80': 14,
   '50x90': 20, // 1 Kanal
+  '75x120': 40, // 2 Kanal
+  '70x120': 37.33, // 8,400 sq ft / 225 = 37.33 Marla (1 Kanal 17.33 Marla)
 };
 
 // "25 * 50", "25*50", "25 X 50", "25×50" -> "25x50"; "5 marla" -> "5 Marla";
