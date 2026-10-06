@@ -68,14 +68,17 @@ function OfferRow({ offer, title, societyName, showPrice }: { offer: PropertyLis
     <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap', padding: '8px 0', borderTop: '1px solid var(--border)' }}>
       {showPrice && <span style={{ fontWeight: 700, fontSize: '14px', minWidth: '110px' }}>{formatLac(offer.price_lac)}</span>}
       <span style={{ fontSize: '12px', color: 'var(--muted)' }}>
-        {offer.dealer_key ? (
-          <Link href={`/dealers/${offer.dealer_key}`} style={{ color: ACCENT_BLUE, fontWeight: 600 }}>
-            Dealer {offer.contact_phone?.slice(-4)}
-          </Link>
-        ) : (
-          'Dealer'
-        )}{' '}
-        · confirmed {formatAge(offer.last_confirmed_at)}
+        {/* No dealer names are captured, so the contact number itself is the
+            label (linking to that dealer's profile); no number -> no label. */}
+        {offer.dealer_key && offer.contact_phone && (
+          <>
+            <Link href={`/dealers/${offer.dealer_key}`} style={{ color: ACCENT_BLUE, fontWeight: 600 }}>
+              {offer.contact_phone}
+            </Link>
+            {' · '}
+          </>
+        )}
+        confirmed {formatAge(offer.last_confirmed_at)}
       </span>
       {offer.contact_phone && (
         <span style={{ display: 'inline-flex', gap: '8px', marginLeft: 'auto' }}>
