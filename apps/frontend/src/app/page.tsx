@@ -14,6 +14,7 @@ import {
   HardHat,
   Package,
   Home,
+  LandPlot,
   type LucideProps,
 } from 'lucide-react';
 import type {
@@ -572,6 +573,10 @@ function HomeView() {
           Looking for something else?
         </p>
         <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', justifyContent: 'center' }}>
+          <Link href="/plots" className="quick-link-pill" style={quickLinkPillStyle('#7c3aed')}>
+            <LandPlot size={18} color="#7c3aed" aria-hidden="true" />
+            Plots for Sale
+          </Link>
           <Link href="/contractors" className="quick-link-pill" style={quickLinkPillStyle(TRUST_GREEN)}>
             <HardHat size={18} color={TRUST_GREEN} aria-hidden="true" />
             Contractors

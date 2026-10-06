@@ -1,6 +1,7 @@
 import { notFound } from 'next/navigation';
 import Link from 'next/link';
-import { fetchSocietyVerifications, fetchSocietyScore } from '@/lib/api';
+import { fetchSocietyVerifications, fetchSocietyScore, fetchPropertyListings } from '@/lib/api';
+import { PlotListingCard, ListingDisclaimer } from '@/components/PlotListings';
 import { EvidenceDrawer } from '@/components/EvidenceDrawer';
 import { CopyLinkButton } from '@/components/CopyLinkButton';
 import { WatchButton } from '@/components/WatchButton';
@@ -9,7 +10,7 @@ import StatCard from '@/components/StatCard';
 import { ConfidenceGauge } from '@/components/ConfidenceGauge';
 import { ScoreBreakdown } from '@/components/ScoreBreakdown';
 import { TRUST_GREEN, WARNING_AMBER, DANGER_RED, REVOKED_SLATE, REVOKED_SLATE_BG, REVOKED_SLATE_BORDER } from '@/styles/tokens';
-import type { VerificationResponse, SocietyScoreResponse } from '@siraat/shared-types';
+import type { VerificationResponse, SocietyScoreResponse, PropertyListingSummary } from '@siraat/shared-types';
 
 interface Props {
   params: { id: string };
@@ -158,6 +159,14 @@ export default async function SocietyProfilePage({ params }: Props) {
     score = null;
   }
 
+  // Plot listings are an enrichment — never let their failure break the profile.
+  let listings: PropertyListingSummary[] = [];
+  try {
+    listings = (await fetchPropertyListings({ society_id: params.id })).listings;
+  } catch {
+    listings = [];
+  }
+
   const primaryClaims = claims.filter((c) => c.status !== 'DISPUTED');
   const adverseClaims = claims.filter((c) => c.status === 'DISPUTED');
 
@@ -218,6 +227,27 @@ export default async function SocietyProfilePage({ params }: Props) {
               <ScoreBreakdown breakdown={score.breakdown} />
             </div>
           </div>
+        )}
+
+        {/* Available plots (WhatsApp listing ingestion) */}
+        {listings.length > 0 && (
+          <section style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+            <h2 style={{ fontSize: '16px', fontWeight: 800 }}>
+              Available Plots ({listings.length})
+            </h2>
+            {listings.slice(0, 6).map((l) => (
+              <PlotListingCard key={l.id} listing={l} />
+            ))}
+            {listings.length > 6 && (
+              <Link
+                href={`/plots?society_id=${params.id}`}
+                style={{ fontSize: '13px', fontWeight: 600, color: '#2563eb' }}
+              >
+                View all {listings.length} plots →
+              </Link>
+            )}
+            <ListingDisclaimer />
+          </section>
         )}
 
         {/* Primary claims */}

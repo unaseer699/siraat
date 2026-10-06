@@ -6,7 +6,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { Spinner } from '@/components/Spinner';
 import { paginationButtonStyle } from '@/styles/pagination';
 import type { SocietyListResponse, SocietyBrowseSummary } from '@siraat/shared-types';
-import { fetchSocieties, fetchPlatformStats } from '@/lib/api';
+import { fetchSocieties, fetchPlatformStats, fetchPropertyListingCounts } from '@/lib/api';
 import { BackLink } from '@/components/BackLink';
 import {
   TRUST_GREEN,
@@ -77,7 +77,7 @@ function StatusBadge({ status }: { status: SocietyBrowseSummary['verification_st
   );
 }
 
-function SocietyCard({ society }: { society: SocietyBrowseSummary }) {
+function SocietyCard({ society, plotCount }: { society: SocietyBrowseSummary; plotCount: number }) {
   return (
     <Link
       href={`/society/${society.id}`}
@@ -104,6 +104,22 @@ function SocietyCard({ society }: { society: SocietyBrowseSummary }) {
         <p style={{ fontSize: '15px', fontWeight: 600, color: 'var(--text)' }}>
           {formatRange(society.price_range)}
         </p>
+        {plotCount > 0 && (
+          <span
+            style={{
+              alignSelf: 'flex-start',
+              fontSize: '12px',
+              fontWeight: 700,
+              color: '#1a56db',
+              background: '#eff6ff',
+              border: '1px solid #bfdbfe',
+              borderRadius: '99px',
+              padding: '4px 10px',
+            }}
+          >
+            {plotCount} plot{plotCount === 1 ? '' : 's'} available
+          </span>
+        )}
       </article>
     </Link>
   );
@@ -120,6 +136,7 @@ function BrowseView() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [cities, setCities] = useState<string[]>([]);
+  const [plotCounts, setPlotCounts] = useState<Record<string, number>>({});
 
   useEffect(() => {
     fetchPlatformStats()
@@ -127,6 +144,13 @@ function BrowseView() {
       .catch(() => {
         // City filter is a nice-to-have — leave the dropdown at "All cities" if this fails.
       });
+  }, []);
+
+  useEffect(() => {
+    // Plot badges are an enrichment — silently absent if this fails.
+    fetchPropertyListingCounts()
+      .then((r) => setPlotCounts(r.counts))
+      .catch(() => {});
   }, []);
 
   useEffect(() => {
@@ -193,6 +217,12 @@ function BrowseView() {
           <p style={{ fontSize: '13px', color: 'var(--muted)', marginTop: '4px' }}>
             {data ? `${data.total_count} societ${data.total_count === 1 ? 'y' : 'ies'} on record` : 'Loading…'}
           </p>
+          <Link
+            href="/plots"
+            style={{ display: 'inline-block', marginTop: '8px', fontSize: '13px', fontWeight: 700, color: '#1a56db' }}
+          >
+            See plots for sale →
+          </Link>
         </div>
 
         <div style={{ display: 'flex', gap: '12px', alignItems: 'center', flexWrap: 'wrap' }}>
@@ -270,7 +300,7 @@ function BrowseView() {
               }}
             >
               {data.societies.map((s) => (
-                <SocietyCard key={s.id} society={s} />
+                <SocietyCard key={s.id} society={s} plotCount={plotCounts[s.id] ?? 0} />
               ))}
             </div>
 

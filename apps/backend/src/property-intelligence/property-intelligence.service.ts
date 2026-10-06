@@ -21,6 +21,7 @@ import type {
   HousePlanAccessTier,
   PropertyListingSummary,
   PropertyListingListResponse,
+  PropertyListingCountsResponse,
 } from '@siraat/shared-types';
 import { TrustService } from '../trust/trust.service';
 import {
@@ -186,10 +187,14 @@ function toHousePlanImageResult(e: HousePlanImageEntity): HousePlanImage {
 }
 
 // WHATSAPP LISTING INGESTION
-function toListingResult(e: PropertyListingEntity): PropertyListingSummary {
+function toListingResult(
+  e: PropertyListingEntity,
+  society: { id: string; name: string } | null = null,
+): PropertyListingSummary {
   return {
     id: e.id,
-    society_ref: e.society_ref,
+    society_ref: society?.id ?? e.society_ref,
+    society_name: society?.name ?? null,
     society_name_raw: e.society_name_raw,
     block: e.block,
     plot_number: e.plot_number,
@@ -201,6 +206,31 @@ function toListingResult(e: PropertyListingEntity): PropertyListingSummary {
     published_at: e.published_at.toISOString(),
     expires_at: e.expires_at.toISOString(),
   };
+}
+
+// Read-time Society resolution for a forwarded header like "Faisal hills":
+// a stored society_ref wins; otherwise a case-insensitive containment match
+// (either direction) against onboarded Society names. Longest matching name
+// wins so "Faisal Hills Phase 2" beats "Faisal". Pure, so list and counts
+// share exactly one rule.
+function resolveListingSociety(
+  listing: PropertyListingEntity,
+  societies: { id: string; name: string }[],
+): { id: string; name: string } | null {
+  if (listing.society_ref) {
+    return societies.find((s) => s.id === listing.society_ref) ?? null;
+  }
+  const raw = listing.society_name_raw.trim().toLowerCase();
+  if (!raw) return null;
+  let best: { id: string; name: string } | null = null;
+  for (const s of societies) {
+    const name = s.name.trim().toLowerCase();
+    if (!name) continue;
+    if (raw.includes(name) || name.includes(raw)) {
+      if (!best || name.length > best.name.length) best = s;
+    }
+  }
+  return best;
 }
 
 @Injectable()
@@ -1167,20 +1197,65 @@ export class PropertyIntelligenceService {
 
   // GET /v1/property-intelligence/listings — only ever surfaces listings
   // still inside their auto-expiry window (see PropertyListingEntity.expires_at's
-  // own comment); an expired row is never deleted, just no longer returned
-  // here, matching this codebase's standing never-delete-just-stop-showing
-  // convention elsewhere (e.g. CancelledEntity-style records).
-  async listActivePropertyListings(params: { city?: string; society_id?: string }): Promise<PropertyListingListResponse> {
-    const qb = this.listingRepo.createQueryBuilder('l').where('l.expires_at > :now', { now: new Date() });
+  // own comment); an expired row is never deleted, just no longer returned.
+  //
+  // Society linkage is resolved at READ time (resolveListingSociety), not just
+  // from the stored society_ref: daily inventory routinely arrives before its
+  // Society is onboarded, and those listings must attach themselves the moment
+  // it is. Filtering therefore happens in memory after resolution. That is
+  // deliberate at this scale (a 14-day window of forwarded inventory is
+  // hundreds of rows, not millions); revisit with a SQL-side join if it grows.
+  async listActivePropertyListings(params: {
+    city?: string;
+    society_id?: string;
+    max_price_lac?: number;
+    min_size_marla?: number;
+    max_size_marla?: number;
+  }): Promise<PropertyListingListResponse> {
+    const [entities, societies] = await Promise.all([
+      this.listingRepo
+        .createQueryBuilder('l')
+        .where('l.expires_at > :now', { now: new Date() })
+        .orderBy('l.published_at', 'DESC')
+        .getMany(),
+      this.societyRepo.find({ select: ['id', 'name', 'city'] }),
+    ]);
 
-    if (params.society_id) {
-      qb.andWhere('l.society_ref = :societyId', { societyId: params.society_id });
-    }
-    if (params.city) {
-      qb.andWhere('LOWER(l.city) = LOWER(:city)', { city: params.city });
-    }
+    const cityById = new Map(societies.map((s) => [s.id, s.city]));
+    const wantCity = params.city?.trim().toLowerCase();
 
-    const entities = await qb.orderBy('l.published_at', 'DESC').getMany();
-    return { listings: entities.map(toListingResult), total_count: entities.length };
+    const listings: PropertyListingSummary[] = [];
+    for (const e of entities) {
+      const society = resolveListingSociety(e, societies);
+      if (params.society_id && society?.id !== params.society_id) continue;
+      if (wantCity) {
+        const city = (society ? cityById.get(society.id) : e.city)?.toLowerCase();
+        if (city !== wantCity) continue;
+      }
+      const price = e.price_lac === null ? null : Number(e.price_lac);
+      const size = e.size_marla === null ? null : Number(e.size_marla);
+      if (params.max_price_lac != null && (price === null || price > params.max_price_lac)) continue;
+      if (params.min_size_marla != null && (size === null || size < params.min_size_marla)) continue;
+      if (params.max_size_marla != null && (size === null || size > params.max_size_marla)) continue;
+      listings.push(toListingResult(e, society));
+    }
+    return { listings, total_count: listings.length };
+  }
+
+  // GET /v1/property-intelligence/listings/counts — Browse card badges.
+  async countActivePropertyListingsBySociety(): Promise<PropertyListingCountsResponse> {
+    const [entities, societies] = await Promise.all([
+      this.listingRepo
+        .createQueryBuilder('l')
+        .where('l.expires_at > :now', { now: new Date() })
+        .getMany(),
+      this.societyRepo.find({ select: ['id', 'name'] }),
+    ]);
+    const counts: Record<string, number> = {};
+    for (const e of entities) {
+      const society = resolveListingSociety(e, societies);
+      if (society) counts[society.id] = (counts[society.id] ?? 0) + 1;
+    }
+    return { counts };
   }
 }

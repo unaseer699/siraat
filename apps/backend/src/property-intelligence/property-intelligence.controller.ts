@@ -41,13 +41,29 @@ export class PropertyIntelligenceController {
   }
 
   // WHATSAPP LISTING INGESTION — public, read-only. Only ever returns
-  // listings still inside their auto-expiry window (see
-  // PropertyIntelligenceService.listActivePropertyListings). Society search
-  // surfacing (showing these inline on Browse/society pages) is a deliberate
-  // follow-up, not blocked on this route existing.
+  // listings still inside their auto-expiry window. `counts` is declared
+  // BEFORE any :id-style route so it is never captured as a parameter.
+  @Get('listings/counts')
+  async countListings() {
+    return this.piSvc.countActivePropertyListingsBySociety();
+  }
+
   @Get('listings')
-  async listListings(@Query('city') city?: string, @Query('society_id') society_id?: string) {
-    return this.piSvc.listActivePropertyListings({ city, society_id });
+  async listListings(
+    @Query('city') city?: string,
+    @Query('society_id') society_id?: string,
+    @Query('max_price_lac') max_price_lac?: string,
+    @Query('min_size_marla') min_size_marla?: string,
+    @Query('max_size_marla') max_size_marla?: string,
+  ) {
+    const num = (v?: string) => (v !== undefined && v !== '' && Number.isFinite(Number(v)) ? Number(v) : undefined);
+    return this.piSvc.listActivePropertyListings({
+      city,
+      society_id,
+      max_price_lac: num(max_price_lac),
+      min_size_marla: num(min_size_marla),
+      max_size_marla: num(max_size_marla),
+    });
   }
 
   // Watchlist Chunk 1 — session-based watchlist lives in the browser; this reports

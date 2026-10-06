@@ -28,6 +28,8 @@ import type {
   HousePlanImage,
   HousePlanImageType,
   HousePlanAccessTier,
+  PropertyListingListResponse,
+  PropertyListingCountsResponse,
   HousePlanImageListResponse,
   DocumentType,
 } from '@siraat/shared-types';
@@ -1284,4 +1286,29 @@ export async function rejectWhatsappListingDraft(
     method: 'POST',
     body: JSON.stringify({ reason }),
   });
+}
+
+// ─── WHATSAPP LISTING INGESTION — public read side ───────────────────────
+
+// GET /v1/property-intelligence/listings — active (unexpired) plot listings.
+export async function fetchPropertyListings(params?: {
+  city?: string;
+  society_id?: string;
+  max_price_lac?: number;
+  min_size_marla?: number;
+  max_size_marla?: number;
+}): Promise<PropertyListingListResponse> {
+  const qs = new URLSearchParams();
+  if (params?.city) qs.set('city', params.city);
+  if (params?.society_id) qs.set('society_id', params.society_id);
+  if (params?.max_price_lac != null) qs.set('max_price_lac', String(params.max_price_lac));
+  if (params?.min_size_marla != null) qs.set('min_size_marla', String(params.min_size_marla));
+  if (params?.max_size_marla != null) qs.set('max_size_marla', String(params.max_size_marla));
+  const suffix = qs.toString() ? `?${qs.toString()}` : '';
+  return apiFetch(`/v1/property-intelligence/listings${suffix}`);
+}
+
+// GET /v1/property-intelligence/listings/counts — { [society_id]: active count }.
+export async function fetchPropertyListingCounts(): Promise<PropertyListingCountsResponse> {
+  return apiFetch('/v1/property-intelligence/listings/counts');
 }

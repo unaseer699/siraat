@@ -298,7 +298,10 @@ export interface HousePlanImageListResponse {
 // forwarded block/society name may not match anything in the directory yet).
 export interface PropertyListingSummary {
   id: string;
+  // Effective Society link: the stored society_ref, or a read-time name match
+  // when the listing was published before its Society was onboarded.
   society_ref: string | null;
+  society_name: string | null;
   society_name_raw: string;
   block: string | null;
   plot_number: string;
@@ -314,4 +317,12 @@ export interface PropertyListingSummary {
 export interface PropertyListingListResponse {
   listings: PropertyListingSummary[];
   total_count: number;
+}
+
+// Active-listing count per Society, for Browse card badges. Keyed by the
+// EFFECTIVE society id (the stored society_ref, or — for a listing published
+// before its Society was onboarded — a read-time name match), so a listing
+// starts counting the moment its Society exists, with no backfill.
+export interface PropertyListingCountsResponse {
+  counts: Record<string, number>;
 }
