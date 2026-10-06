@@ -1512,7 +1512,7 @@ export async function saveProjectLayout(
     source_note?: string | null;
   },
 ): Promise<ProjectForecast> {
-  return apiFetch(`/v1/admin/projects/${projectId}/layout`, { method: 'PUT', body: JSON.stringify(body) });
+  return apiFetch(`/v1/admin/projects/${projectId}/layout`, { method: 'POST', body: JSON.stringify(body) });
 }
 
 export async function confirmProjectLayout(projectId: string): Promise<ProjectForecast> {

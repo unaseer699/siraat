@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, HttpCode, Param, Patch, Post, Put, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, HttpCode, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
 import type { GroundReportStatus } from '../ground-reports/ground-report-submission.entity';
 import { z } from 'zod';
 import {
@@ -901,7 +901,8 @@ export class AdminController {
     return this.adminSvc.getProjectForecast(projectId);
   }
 
-  @Put('projects/:projectId/layout')
+  @Post('projects/:projectId/layout')
+  @HttpCode(200)
   saveProjectLayout(
     @Param('projectId') projectId: string,
     @Body(new ZodValidationPipe(LayoutBodySchema)) body: LayoutBody,
