@@ -1249,6 +1249,7 @@ export interface WhatsappDraftListing {
   size_marla: number | null;
   price_lac: number | null;
   status_raw: string | null;
+  contact_phone: string | null;
   raw_line: string;
   status: WhatsappDraftListingStatus;
   listing_ref: string | null;
@@ -1270,10 +1271,14 @@ export async function fetchWhatsappListingDrafts(
 // explicit empty JSON body — apiFetch always sets Content-Type:
 // application/json, and Fastify's JSON body parser (FST_ERR_CTP_EMPTY_JSON_BODY)
 // rejects a request that declares that content-type but sends no body at all.
-export async function publishWhatsappListingDraft(id: string): Promise<WhatsappDraftListing> {
+// contactPhone: omit = keep the draft's own number, null = none, string = corrected.
+export async function publishWhatsappListingDraft(
+  id: string,
+  contactPhone?: string | null,
+): Promise<WhatsappDraftListing> {
   return apiFetch(`/v1/admin/whatsapp-listing-drafts/${id}/publish`, {
     method: 'POST',
-    body: JSON.stringify({}),
+    body: JSON.stringify(contactPhone === undefined ? {} : { contact_phone: contactPhone }),
   });
 }
 

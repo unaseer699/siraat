@@ -49,6 +49,10 @@ export class PropertyListingEntity {
   @Column({ type: 'text', nullable: true })
   status_raw: string | null;
 
+  // Optional dealer contact number (see WhatsappDraftListingEntity.contact_phone).
+  @Column({ type: 'varchar', length: 32, nullable: true })
+  contact_phone: string | null;
+
   // The WhatsappDraftListingEntity.id this was published from — kept even
   // though that row also stores listing_ref back to this one, so a listing
   // can always be traced to its source without a join through the draft

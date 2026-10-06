@@ -98,6 +98,7 @@ export interface ListingExtraction {
   size_marla: number | null;
   price_lac: number | null;
   status_raw: string | null;
+  contact_phone: string | null;
   raw_line: string;
 }
 
@@ -116,6 +117,8 @@ const ListingExtractionResponseSchema = z.object({
       size_marla: numericOrNull,
       price_lac: numericOrNull,
       status_raw: z.string().trim().min(1).nullable(),
+      // Lenient: the model may omit it entirely; absent/blank both mean null.
+      contact_phone: z.preprocess((v) => (typeof v === 'string' && v.trim() === '' ? null : v ?? null), z.string().trim().nullable()),
       raw_line: z.string().trim().min(1),
     }),
   ),
@@ -139,7 +142,7 @@ function buildListingSystemPrompt(): string {
   return [
     'You extract structured real-estate plot-inventory data from a WhatsApp message forwarded by a real estate group. The message lists one or more plots for sale, usually grouped under a bold society-name header line that applies to every plot below it until the next header.',
     'Respond with ONLY a single JSON object — no prose, no markdown code fences — matching exactly this shape:',
-    '{"listings": [{"society_name_raw": string, "block": string|null, "plot_number": string, "size_raw": string|null, "size_marla": number|null, "price_lac": number|null, "status_raw": string|null, "raw_line": string}]}',
+    '{"listings": [{"society_name_raw": string, "block": string|null, "plot_number": string, "size_raw": string|null, "size_marla": number|null, "price_lac": number|null, "status_raw": string|null, "contact_phone": string|null, "raw_line": string}]}',
     '',
     'Field rules:',
     '- society_name_raw: the header line this plot falls under (e.g. "Faisal hills"), exactly as written.',
@@ -148,6 +151,7 @@ function buildListingSystemPrompt(): string {
     '- size_raw / size_marla: the plot size as written (e.g. "5 Marla"), and your best normalization to Marla as a number (convert Kanal to Marla: 1 Kanal = 20 Marla). Both null if no size is mentioned anywhere for this plot.',
     '- price_lac: the final price in Lac as a decimal number. CRITICAL decimal rule, apply exactly: a price written as a plain multi-digit number with MORE than 2 digits (e.g. "5450") means insert a decimal point 2 digits from the right, giving 54.50 — NOT 5450.00. A number with 2 or fewer digits (e.g. "52") is already a whole Lac value and stays as-is (52.00), it does NOT become 0.52. A price written with a literal apostrophe as the decimal separator (e.g. "47\'50") means 47.50 directly — use the apostrophe position, do not also apply the digit-count rule to it. If no price is given for a plot, use null.',
     '- status_raw: copy the legal/possession status phrase verbatim exactly as written in the message (e.g. "MDR back NDC open", "NDC open", "NDC Closed", "Sun face NDC open") — do not normalize, abbreviate, or map it to a fixed set of values.',
+    '- contact_phone: a dealer/contact phone number written in the message that applies to this plot (often a trailing line like "Contact: 0300-1234567" covering every plot above it, or one per society block), copied as written. Null if the message contains no phone number. Never invent or guess a number.',
     '- raw_line: the exact original line(s) this plot was parsed from, for a human reviewer to double check the parse.',
     '',
     'CRITICAL multi-plot rule: a line naming two plot numbers together (e.g. "FHC 7915 16" or "FHC 7986 87") means TWO separate plots sharing the same block/size/price/status from that line and the "Final" line below it — e.g. "7915 16" means plot 7915 AND plot 7916 (the second number is the last two digits of the next consecutive plot number, sharing the first two/three digits of the first). You MUST emit two separate elements in the listings array for such a line, each with its own plot_number, never one element with both numbers.',

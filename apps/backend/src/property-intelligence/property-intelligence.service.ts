@@ -201,6 +201,7 @@ function toListingResult(
     size_marla: e.size_marla === null ? null : Number(e.size_marla),
     price_lac: e.price_lac === null ? null : Number(e.price_lac),
     status_raw: e.status_raw,
+    contact_phone: e.contact_phone,
     is_siraat_affiliated: e.is_siraat_affiliated,
     record_type: e.record_type,
     published_at: e.published_at.toISOString(),
@@ -1168,6 +1169,7 @@ export class PropertyIntelligenceService {
     size_marla: number | null;
     price_lac: number | null;
     status_raw: string | null;
+    contact_phone: string | null;
     source_ref: string;
     expires_at: Date;
   }): Promise<PropertyListingSummary> {
@@ -1224,14 +1226,27 @@ export class PropertyIntelligenceService {
     const cityById = new Map(societies.map((s) => [s.id, s.city]));
     const wantCity = params.city?.trim().toLowerCase();
 
+    // `society_id` is a Society id, or `raw:<lowercased name>` for inventory
+    // whose Society isn't onboarded yet (see PropertyListingFacets).
+    const rawKeyOf = (e: PropertyListingEntity) => `raw:${e.society_name_raw.trim().toLowerCase()}`;
+
+    const facetCities = new Set<string>();
+    const facetSocieties = new Map<string, { key: string; name: string; count: number }>();
     const listings: PropertyListingSummary[] = [];
+
     for (const e of entities) {
       const society = resolveListingSociety(e, societies);
-      if (params.society_id && society?.id !== params.society_id) continue;
-      if (wantCity) {
-        const city = (society ? cityById.get(society.id) : e.city)?.toLowerCase();
-        if (city !== wantCity) continue;
-      }
+      const key = society ? society.id : rawKeyOf(e);
+      const city = society ? cityById.get(society.id) ?? null : e.city;
+
+      // Facets are built from EVERY active listing, before any filter.
+      if (city) facetCities.add(city);
+      const f = facetSocieties.get(key) ?? { key, name: society?.name ?? e.society_name_raw.trim(), count: 0 };
+      f.count += 1;
+      facetSocieties.set(key, f);
+
+      if (params.society_id && key !== params.society_id) continue;
+      if (wantCity && city?.toLowerCase() !== wantCity) continue;
       const price = e.price_lac === null ? null : Number(e.price_lac);
       const size = e.size_marla === null ? null : Number(e.size_marla);
       if (params.max_price_lac != null && (price === null || price > params.max_price_lac)) continue;
@@ -1239,7 +1254,15 @@ export class PropertyIntelligenceService {
       if (params.max_size_marla != null && (size === null || size > params.max_size_marla)) continue;
       listings.push(toListingResult(e, society));
     }
-    return { listings, total_count: listings.length };
+
+    return {
+      listings,
+      total_count: listings.length,
+      facets: {
+        cities: [...facetCities].sort(),
+        societies: [...facetSocieties.values()].sort((x, y) => x.name.localeCompare(y.name)),
+      },
+    };
   }
 
   // GET /v1/property-intelligence/listings/counts — Browse card badges.

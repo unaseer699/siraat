@@ -39,6 +39,8 @@ export default function AdminWhatsappListingsPage() {
   const [draftsLoading, setDraftsLoading] = useState(true);
   const [draftsError, setDraftsError] = useState<string | null>(null);
 
+  // Per-draft phone edits (draft id -> text); absent = keep the extracted number.
+  const [phoneEdits, setPhoneEdits] = useState<Record<string, string>>({});
   const [actingId, setActingId] = useState<string | null>(null);
   const [rowError, setRowError] = useState<{ id: string; message: string } | null>(null);
 
@@ -114,7 +116,10 @@ export default function AdminWhatsappListingsPage() {
     setActingId(draft.id);
     setRowError(null);
     try {
-      await publishWhatsappListingDraft(draft.id);
+      const edited = phoneEdits[draft.id];
+      // Untouched -> undefined (keep extracted); cleared -> null; else the new value.
+      const contactPhone = edited === undefined ? undefined : edited.trim() === '' ? null : edited.trim();
+      await publishWhatsappListingDraft(draft.id, contactPhone);
       setDrafts((prev) => prev.filter((d) => d.id !== draft.id));
     } catch (err) {
       setRowError({ id: draft.id, message: err instanceof Error ? err.message : 'Publish failed' });
@@ -251,7 +256,7 @@ export default function AdminWhatsappListingsPage() {
             </p>
           ) : (
             <div style={{ overflowX: 'auto', border: '1px solid var(--border)', borderRadius: 'var(--radius)' }}>
-              <table style={{ width: '100%', minWidth: '960px', borderCollapse: 'collapse', fontSize: '14px' }}>
+              <table style={{ width: '100%', minWidth: '1100px', borderCollapse: 'collapse', fontSize: '14px' }}>
                 <thead>
                   <tr style={{ background: '#f3f4f6', textAlign: 'left' }}>
                     <th style={thStyle}>Society</th>
@@ -260,6 +265,7 @@ export default function AdminWhatsappListingsPage() {
                     <th style={thStyle}>Size</th>
                     <th style={thStyle}>Price (Lac)</th>
                     <th style={thStyle}>Status</th>
+                    <th style={thStyle}>Phone</th>
                     <th style={thStyle}>Received</th>
                     <th style={thStyle}></th>
                   </tr>
@@ -273,6 +279,19 @@ export default function AdminWhatsappListingsPage() {
                       <td style={tdStyle}>{d.size_raw ?? '—'}</td>
                       <td style={tdStyle}>{d.price_lac ?? '—'}</td>
                       <td style={tdStyle}>{d.status_raw ?? '—'}</td>
+                      <td style={tdStyle}>
+                        {d.status === 'PENDING_REVIEW' ? (
+                          <input
+                            aria-label={`Contact phone for plot ${d.plot_number}`}
+                            value={phoneEdits[d.id] ?? d.contact_phone ?? ''}
+                            onChange={(e) => setPhoneEdits((prev) => ({ ...prev, [d.id]: e.target.value }))}
+                            placeholder="optional"
+                            style={{ ...inputStyle, minWidth: '140px', padding: '6px 10px' }}
+                          />
+                        ) : (
+                          d.contact_phone ?? '—'
+                        )}
+                      </td>
                       <td style={tdStyle}>{formatTimestamp(d.created_at)}</td>
                       <td style={tdStyle}>
                         {d.status === 'PENDING_REVIEW' && (

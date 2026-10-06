@@ -78,6 +78,11 @@ export class WhatsappDraftListingEntity {
   // (so a reviewer can see "7915 16" before trusting the split) and audit —
   // same "never discard what the source produced" convention as
   // WhatsappInboundMessageEntity.raw_payload.
+  // Optional dealer contact number — AI-extracted when the message carries
+  // one, editable by the admin at publish time, null otherwise.
+  @Column({ type: 'varchar', length: 32, nullable: true })
+  contact_phone: string | null;
+
   @Column({ type: 'text' })
   raw_line: string;
 

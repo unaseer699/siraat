@@ -308,15 +308,27 @@ export interface PropertyListingSummary {
   size_marla: number | null;
   price_lac: number | null;
   status_raw: string | null;
+  // Optional dealer contact number; null when the source message had none.
+  contact_phone: string | null;
   is_siraat_affiliated: boolean;
   record_type: 'FACT';
   published_at: string;
   expires_at: string;
 }
 
+// Filter options computed over ALL active listings (not the filtered subset),
+// so a dropdown never collapses to the one value currently selected.
+// Society `key` is the Society id, or `raw:<lowercased name>` for inventory
+// whose Society is not onboarded yet.
+export interface PropertyListingFacets {
+  cities: string[];
+  societies: { key: string; name: string; count: number }[];
+}
+
 export interface PropertyListingListResponse {
   listings: PropertyListingSummary[];
   total_count: number;
+  facets: PropertyListingFacets;
 }
 
 // Active-listing count per Society, for Browse card badges. Keyed by the

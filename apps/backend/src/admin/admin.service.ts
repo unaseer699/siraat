@@ -908,8 +908,8 @@ export class AdminService {
   }
 
   // POST /v1/admin/whatsapp-listing-drafts/:id/publish
-  async publishWhatsappListingDraft(id: string): Promise<WhatsappDraftListingEntity> {
-    return this.waListingParsingSvc.publishDraft(id);
+  async publishWhatsappListingDraft(id: string, contactPhone?: string | null): Promise<WhatsappDraftListingEntity> {
+    return this.waListingParsingSvc.publishDraft(id, contactPhone);
   }
 
   // POST /v1/admin/whatsapp-listing-drafts/:id/reject

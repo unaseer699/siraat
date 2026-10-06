@@ -77,6 +77,7 @@ export class WhatsappListingParsingService {
           size_marla: listing.size_marla,
           price_lac: listing.price_lac,
           status_raw: listing.status_raw,
+          contact_phone: listing.contact_phone,
           raw_line: listing.raw_line,
           raw_ai_response: outcome.raw,
           status: 'PENDING_REVIEW',
@@ -109,7 +110,9 @@ export class WhatsappListingParsingService {
   // action that promotes UNTRUSTED_DATA to a real FACT (Law 8), replacing
   // the confirm-reply loop the expense flow uses, since the founder already
   // verified the source message before forwarding it.
-  async publishDraft(id: string): Promise<WhatsappDraftListingEntity> {
+  // contactPhone: undefined = keep the draft's own number; null = publish
+  // with no number; string = the admin's corrected number.
+  async publishDraft(id: string, contactPhone?: string | null): Promise<WhatsappDraftListingEntity> {
     const draft = await this.draftRepo.findOneBy({ id });
     if (!draft) throw new NotFoundException(`WhatsApp listing draft ${id} not found`);
     if (draft.status !== 'PENDING_REVIEW') {
@@ -125,6 +128,7 @@ export class WhatsappListingParsingService {
       size_marla: draft.size_marla,
       price_lac: draft.price_lac,
       status_raw: draft.status_raw,
+      contact_phone: contactPhone === undefined ? draft.contact_phone : contactPhone,
       source_ref: draft.id,
       expires_at: resolveExpiryDate(),
     });

@@ -3,11 +3,14 @@
 import { Suspense, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
-import type { PropertyListingSummary } from '@siraat/shared-types';
-import { fetchPropertyListings, fetchPlatformStats } from '@/lib/api';
+import type { PropertyListingSummary, PropertyListingFacets } from '@siraat/shared-types';
+import { CANONICAL_CITY_OPTIONS } from '@/app/admin/constants';
+import { fetchPropertyListings } from '@/lib/api';
 import { BackLink } from '@/components/BackLink';
 import { Spinner } from '@/components/Spinner';
 import { PlotListingCard, ListingDisclaimer } from '@/components/PlotListings';
+
+const PAGE_SIZE = 30;
 
 type SortKey = 'newest' | 'price_asc' | 'price_desc';
 
@@ -28,16 +31,12 @@ function PlotsView() {
   const minSize = sp.get('min_size_marla') ?? '';
 
   const [sort, setSort] = useState<SortKey>('newest');
-  const [cities, setCities] = useState<string[]>([]);
+  const [facets, setFacets] = useState<PropertyListingFacets | null>(null);
+  const [query, setQuery] = useState('');
+  const [visible, setVisible] = useState(PAGE_SIZE);
   const [listings, setListings] = useState<PropertyListingSummary[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    fetchPlatformStats()
-      .then((s) => setCities(s.cities_covered))
-      .catch(() => {});
-  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -49,7 +48,12 @@ function PlotsView() {
       max_price_lac: maxPrice ? Number(maxPrice) : undefined,
       min_size_marla: minSize ? Number(minSize) : undefined,
     })
-      .then((r) => !cancelled && setListings(r.listings))
+      .then((r) => {
+        if (cancelled) return;
+        setListings(r.listings);
+        setFacets(r.facets);
+        setVisible(PAGE_SIZE);
+      })
       .catch((e) => !cancelled && setError(e instanceof Error ? e.message : 'Failed to load plots'))
       .finally(() => !cancelled && setLoading(false));
     return () => {
@@ -64,24 +68,39 @@ function PlotsView() {
     router.push(`/plots${params.toString() ? `?${params}` : ''}`);
   }
 
+  // Every city: the full canonical list plus any city a listing actually
+  // carries, so a visitor can pick any city, not just ones with plots today.
+  const cityOptions = useMemo(
+    () => [...new Set([...CANONICAL_CITY_OPTIONS, ...(facets?.cities ?? [])])].sort(),
+    [facets],
+  );
+
   const sorted = useMemo(() => {
-    const rows = [...(listings ?? [])];
+    const q = query.trim().toLowerCase();
+    const rows = (listings ?? []).filter(
+      (l) =>
+        !q ||
+        l.plot_number.toLowerCase().includes(q) ||
+        (l.block ?? '').toLowerCase() === q ||
+        `${l.block ?? ''}${l.plot_number}`.toLowerCase().includes(q),
+    );
     if (sort === 'price_asc') rows.sort((a, b) => (a.price_lac ?? Infinity) - (b.price_lac ?? Infinity));
     if (sort === 'price_desc') rows.sort((a, b) => (b.price_lac ?? -Infinity) - (a.price_lac ?? -Infinity));
     return rows;
   }, [listings, sort]);
 
   // Group by society so a visitor scanning one project sees its plots together.
+  const shown = sorted.slice(0, visible);
   const groups = useMemo(() => {
     const map = new Map<string, { name: string; ref: string | null; items: PropertyListingSummary[] }>();
-    for (const l of sorted) {
+    for (const l of shown) {
       const key = l.society_ref ?? `raw:${l.society_name_raw.toLowerCase()}`;
       const g = map.get(key) ?? { name: l.society_name ?? l.society_name_raw, ref: l.society_ref, items: [] };
       g.items.push(l);
       map.set(key, g);
     }
     return [...map.values()];
-  }, [sorted]);
+  }, [shown]);
 
   return (
     <main style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '48px 16px 32px' }}>
@@ -99,8 +118,14 @@ function PlotsView() {
         <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', alignItems: 'center' }}>
           <select aria-label="City" value={city} onChange={(e) => setParam('city', e.target.value)} style={controlStyle}>
             <option value="">All cities</option>
-            {cities.map((c) => (
+            {cityOptions.map((c) => (
               <option key={c} value={c}>{c}</option>
+            ))}
+          </select>
+          <select aria-label="Society" value={societyId} onChange={(e) => setParam('society_id', e.target.value)} style={controlStyle}>
+            <option value="">All societies</option>
+            {(facets?.societies ?? []).map((so) => (
+              <option key={so.key} value={so.key}>{so.name} ({so.count})</option>
             ))}
           </select>
           <select aria-label="Maximum price" value={maxPrice} onChange={(e) => setParam('max_price_lac', e.target.value)} style={controlStyle}>
@@ -122,14 +147,16 @@ function PlotsView() {
           </select>
         </div>
 
-        {societyId && (
-          <p style={{ fontSize: '13px' }}>
-            Showing one society only.{' '}
-            <button onClick={() => setParam('society_id', '')} style={{ background: 'none', border: 'none', color: '#2563eb', fontWeight: 600, cursor: 'pointer', padding: '6px 0' }}>
-              Show all →
-            </button>
-          </p>
-        )}
+        <input
+          aria-label="Search plot number"
+          value={query}
+          onChange={(e) => {
+            setQuery(e.target.value);
+            setVisible(PAGE_SIZE);
+          }}
+          placeholder="Search plot number, e.g. 7473"
+          style={{ ...controlStyle, width: '100%' }}
+        />
 
         {error && (
           <div style={{ padding: '12px 16px', background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 'var(--radius)', color: 'var(--error)', fontSize: '14px' }}>
@@ -162,6 +189,15 @@ function PlotsView() {
               </section>
             ))}
           </div>
+        )}
+
+        {sorted.length > visible && (
+          <button
+            onClick={() => setVisible((v) => v + PAGE_SIZE)}
+            style={{ alignSelf: 'center', padding: '10px 20px', border: '1px solid var(--border)', borderRadius: 'var(--radius)', background: '#fff', fontWeight: 600, cursor: 'pointer' }}
+          >
+            Show more ({sorted.length - visible} remaining)
+          </button>
         )}
 
         <ListingDisclaimer />

@@ -80,8 +80,46 @@ export function PlotListingCard({
           Listed {formatAge(listing.published_at)}
         </span>
       </div>
+
+      {listing.contact_phone && (
+        <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginTop: '2px' }}>
+          <a href={`tel:${listing.contact_phone.replace(/[^\d+]/g, '')}`} style={contactButtonStyle(ACCENT_BLUE)}>
+            Call
+          </a>
+          <a
+            href={`https://wa.me/${waDigits(listing.contact_phone)}?text=${encodeURIComponent(
+              `Hi, I saw ${title} (${societyName}) on Siraat. Is it still available?`,
+            )}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            style={contactButtonStyle(TRUST_GREEN)}
+          >
+            WhatsApp
+          </a>
+        </div>
+      )}
     </article>
   );
+}
+
+// Pakistani local numbers (03xx...) -> international digits for wa.me.
+function waDigits(phone: string): string {
+  const digits = phone.replace(/\D/g, '');
+  return digits.startsWith('0') ? `92${digits.slice(1)}` : digits;
+}
+
+function contactButtonStyle(color: string): React.CSSProperties {
+  return {
+    fontSize: '13px',
+    fontWeight: 700,
+    color: '#fff',
+    background: color,
+    borderRadius: '99px',
+    padding: '8px 14px',
+    textDecoration: 'none',
+    display: 'inline-flex',
+    alignItems: 'center',
+  };
 }
 
 function chipStyle(color: string, bg: string): React.CSSProperties {

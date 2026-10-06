@@ -442,6 +442,14 @@ const CreateListingForwarderBodySchema = z.object({
 });
 type CreateListingForwarderBody = z.infer<typeof CreateListingForwarderBodySchema>;
 
+// --- POST /v1/admin/whatsapp-listing-drafts/:id/publish ---
+// contact_phone is optional and nullable: omitted = keep the draft's own
+// (AI-extracted) number, null = publish with none, string = admin correction.
+const PublishWhatsappListingDraftBodySchema = z.object({
+  contact_phone: NullableWhatsappNumberSchema.optional(),
+});
+type PublishWhatsappListingDraftBody = z.infer<typeof PublishWhatsappListingDraftBodySchema>;
+
 // --- POST /v1/admin/whatsapp-listing-drafts/:id/reject (WHATSAPP LISTING INGESTION) ---
 // Same optional-reason shape as VoidWhatsappDraftBodySchema above.
 const RejectWhatsappListingDraftBodySchema = z.object({
@@ -1005,8 +1013,11 @@ export class AdminController {
   // WhatsappListingParsingService.publishDraft for why).
   @Post('whatsapp-listing-drafts/:id/publish')
   @HttpCode(200)
-  publishWhatsappListingDraft(@Param('id') id: string) {
-    return this.adminSvc.publishWhatsappListingDraft(id);
+  publishWhatsappListingDraft(
+    @Param('id') id: string,
+    @Body(new ZodValidationPipe(PublishWhatsappListingDraftBodySchema)) body: PublishWhatsappListingDraftBody,
+  ) {
+    return this.adminSvc.publishWhatsappListingDraft(id, body.contact_phone);
   }
 
   // POST /v1/admin/whatsapp-listing-drafts/:id/reject — never creates a listing.
