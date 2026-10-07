@@ -51,8 +51,6 @@ const TIER_C_KEYS = [
   'PLUMBING_ROUGH_IN',
   'ELECTRICAL_ROUGH_IN',
   'MARBLE_STAIRS',
-  'WINDOWS',
-  'DOORS',
   'KITCHEN_WOODWORK',
   'HARDWARE',
 ];
@@ -420,6 +418,23 @@ describe('EstimatesService with daily market rates', () => {
     expect(bricks.unit_rate).toBe(22);
     expect(r.derived_from).toEqual(expect.arrayContaining(['q-cement', 'q-bricks']));
     expect(r.derived_from).not.toContain('q-tiles');
+  });
+
+  it('sizes doors and windows from the finished house and prices them from daily rates', async () => {
+    const m2 = {
+      latestQuoteAt: async () => null,
+      currentRates: async () => [
+        { key: 'DOORS', label: 'Doors', unit: 'pc', rate: 16000, rate_date: today, carried_forward: false, age_days: 0, quote_id: 'q-doors' },
+        { key: 'ALUMINIUM_WINDOWS', label: 'Aluminium windows', unit: 'sqft', rate: 1000, rate_date: today, carried_forward: false, age_days: 0, quote_id: 'q-win' },
+      ],
+    };
+    const r: any = await build(m2).getEstimate({ ...req, area: 12, area_unit: 'MARLA' });
+    const doors = r.line_items.find((l: any) => l.item_key === 'DOORS');
+    const win = r.line_items.find((l: any) => l.item_key === 'WINDOWS');
+    expect(doors.quantity).toBe(16);
+    expect(doors.subtotal).toBe(256000);
+    expect(win.quantity).toBe(440);
+    expect(win.subtotal).toBe(440000);
   });
 
   it('does not use them for other cities', async () => {

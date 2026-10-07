@@ -48,6 +48,8 @@ const BOQ_AVAILABLE_ITEM_KEYS: ReadonlySet<BoqItemKey> = new Set([
   'CRUSH',
   'PAINT',
   'EXCAVATION',
+  'DOORS',
+  'WINDOWS',
 ] satisfies BoqItemKey[]);
 
 export function isBoqItemAvailable(key: BoqItemKey): boolean {
@@ -84,7 +86,7 @@ export const BOQ_ITEM_UNITS: Record<BoqItemKey, string> = {
   PLUMBING_ROUGH_IN: 'points',
   ELECTRICAL_ROUGH_IN: 'points',
   MARBLE_STAIRS: 'sqft',
-  WINDOWS: 'pcs',
+  WINDOWS: 'sqft',
   DOORS: 'pcs',
   KITCHEN_WOODWORK: 'RFT',
   HARDWARE: 'lot',
@@ -112,6 +114,11 @@ export const RATE_UNIT_CONVERSIONS: ReadonlyArray<{ item: BoqItemKey; from: stri
   // Spelling variants of the same unit.
   { item: 'PAINT', from: 'liter', factor: 1 },
   { item: 'PAINT', from: 'litre', factor: 1 },
+  // Doors are priced per door; windows per sq ft of window area.
+  { item: 'DOORS', from: 'pc', factor: 1 },
+  { item: 'DOORS', from: 'door', factor: 1 },
+  { item: 'DOORS', from: 'piece', factor: 1 },
+  { item: 'WINDOWS', from: 'sq ft', factor: 1 },
 ];
 
 function normalizeUnit(unit: string): string {
@@ -140,10 +147,6 @@ export const BOQ_UNAVAILABLE_ITEM_NOTES: Partial<Record<BoqItemKey, string>> = {
     'No standard points-per-area ratio found in Pakistani residential construction sources; point count depends on the floor plan.',
   MARBLE_STAIRS:
     'No standard ratio found — staircase marble area depends on the stair design, not covered area.',
-  WINDOWS:
-    'No standard count-by-size-category ratio found for Pakistani residential construction; depends on the floor plan and elevation design.',
-  DOORS:
-    'No standard count-per-area ratio found; door count depends on the floor plan (room count), not covered area.',
   KITCHEN_WOODWORK:
     'No standard per-area ratio found; kitchen size depends on the floor plan, not covered area alone.',
   HARDWARE:
@@ -176,6 +179,12 @@ export const FINISH_LEVEL_MULTIPLIER: Record<FinishLevel, number> = {
   STANDARD: 1.0,
   PREMIUM: 1.15,
 };
+
+// Doors and windows, from the founder's finished 25 x 50 house (2,700 sq ft =
+// 12 marla): 16 doors (8 x 4 ft, a few smaller for washrooms and the kitchen)
+// and 440 sq ft of aluminium windows. One house is one sample.
+const DOORS_PER_MARLA = 16 / 12;
+const WINDOW_SQFT_PER_MARLA = 440 / 12;
 
 export const SQFT_PER_MARLA = 225;
 
@@ -268,6 +277,11 @@ export function computeBoqQuantity(
       return round2(CORE_RATIO_PER_MARLA[key] * toMarla(areaSqftTotal) * tierMultiplier);
     case 'PAINT':
       return round2(computePaintLiters(areaSqftTotal, floors) * tierMultiplier);
+    case 'DOORS':
+      // A count, so whole doors; not scaled by finish level.
+      return Math.max(1, Math.round(DOORS_PER_MARLA * toMarla(areaSqftTotal)));
+    case 'WINDOWS':
+      return round2(WINDOW_SQFT_PER_MARLA * toMarla(areaSqftTotal));
     case 'EXCAVATION':
       // Deliberately NOT scaled by finish level — digging depth isn't a finish choice.
       return round2(computeExcavationCft(areaSqftTotal, floors, basement));
@@ -289,6 +303,8 @@ const ITEM_KEYWORDS: Partial<Record<BoqItemKey, string[]>> = {
   CRUSH: ['crush', 'bajri', 'gravel'],
   PAINT: ['paint', 'emulsion', 'distemper'],
   EXCAVATION: ['excavation', 'digging', 'khudai'],
+  DOORS: ['door'],
+  WINDOWS: ['window'],
 };
 
 export function matchBoqItemKey(materialName: string): BoqItemKey | null {

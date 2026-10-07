@@ -188,6 +188,10 @@ function AssumptionsBlock({ result }: { result: Extract<BoqResponse, { state: 'F
           included.
         </li>
         <li>All quantities are calculated using 1 marla = 225 sq ft.</li>
+        <li>
+          Cement, steel, brick, sand, crush, door and window quantities are scaled from a completed 25 x 50 house
+          (2,700 sq ft); one house is a single sample.
+        </li>
         <li>Rates (when shown) include their &quot;as of&quot; date.</li>
         <li>
           Excavation and Paint quantities use a geometric approximation with generic engineering/architectural

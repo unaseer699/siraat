@@ -26,7 +26,16 @@ import {
 // prices, so they feed estimates for those two cities only, and only for the
 // core materials the BOQ prices.
 const DAILY_RATE_CITIES = new Set(['islamabad', 'rawalpindi']);
-const DAILY_RATE_ITEMS: ReadonlySet<string> = new Set(['CEMENT', 'STEEL', 'BRICKS', 'SAND', 'CRUSH']);
+// Daily-rate item key -> BOQ item it prices.
+const DAILY_RATE_ITEMS: Readonly<Record<string, BoqItemKey>> = {
+  CEMENT: 'CEMENT',
+  STEEL: 'STEEL',
+  BRICKS: 'BRICKS',
+  SAND: 'SAND',
+  CRUSH: 'CRUSH',
+  DOORS: 'DOORS',
+  ALUMINIUM_WINDOWS: 'WINDOWS',
+};
 
 @Injectable()
 export class EstimatesService {
@@ -91,13 +100,13 @@ export class EstimatesService {
     try {
       const current = (await this.marketRates?.currentRates()) ?? [];
       return current
-        .filter((c) => DAILY_RATE_ITEMS.has(c.key))
+        .filter((c) => c.key in DAILY_RATE_ITEMS)
         .map(
           (c) =>
             ({
               id: c.quote_id,
-              material_name: c.label,
-              unit: BOQ_ITEM_UNITS[c.key as BoqItemKey],
+              material_name: BOQ_ITEM_LABELS[DAILY_RATE_ITEMS[c.key]],
+              unit: BOQ_ITEM_UNITS[DAILY_RATE_ITEMS[c.key]],
               price: c.rate,
               city,
               source_tier: 'FIELD_REPORTED',
