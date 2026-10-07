@@ -56,6 +56,7 @@ export function parseMarketRateMessage(text: string): ParsedMarketRate {
     if (/^date\b/i.test(line) || /^(\d{1,2}[-/.]\d{1,2}[-/.]\d{4}|\d{4}[-/.]\d{1,2}[-/.]\d{1,2})$/.test(line)) {
       const d = parseDate(line);
       if (d) rate_date = d;
+      else if (/d{1,2}\s*[-/.]\s*m{1,2}|dd|yyyy/i.test(line)) continue;
       else rejected.push({ raw: rawLine, reason: 'Could not read the date (use DD-MM-YYYY)' });
       continue;
     }
