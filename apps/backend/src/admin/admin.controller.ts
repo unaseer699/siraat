@@ -426,6 +426,8 @@ const SaveMarketRatesBodySchema = z.object({
   rates: z.record(z.string(), z.number().positive()),
 });
 type SaveMarketRatesBody = z.infer<typeof SaveMarketRatesBodySchema>;
+const SetBaselineBodySchema = z.object({ key: z.string().min(1).max(30), rate: z.number().positive() });
+type SetBaselineBody = z.infer<typeof SetBaselineBodySchema>;
 
 // --- POST /v1/admin/whatsapp/diagnose ---
 const WhatsappDiagnoseBodySchema = z.object({ to: z.string().regex(/^\d{8,15}$/).nullable().optional() });
@@ -940,6 +942,11 @@ export class AdminController {
   getMarketRates(@Query('days') days?: string) {
     const n = Math.min(Math.max(parseInt(days ?? '14', 10) || 14, 1), 90);
     return this.adminSvc.getMarketRates(n);
+  }
+
+  @Post('market-rates/baseline')
+  setMarketRateBaseline(@Body(new ZodValidationPipe(SetBaselineBodySchema)) body: SetBaselineBody) {
+    return this.adminSvc.setMarketRateBaseline(body.key, body.rate);
   }
 
   @Post('market-rates/daily')

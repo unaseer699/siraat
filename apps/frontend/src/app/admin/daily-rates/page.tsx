@@ -1,7 +1,7 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import { fetchMarketRates, saveMarketRates, type MarketRatesView } from '@/lib/api';
+import { Fragment, useEffect, useState } from 'react';
+import { fetchMarketRates, saveMarketRates, saveMarketRateBaseline, type MarketRatesView } from '@/lib/api';
 import { AdminNav } from '../AdminNav';
 import { plainButtonStyle, primaryButtonStyle } from '../buttonStyles';
 
@@ -9,6 +9,13 @@ function fmtDate(d: string): string {
   const [y, m, day] = d.split('-');
   return `${day}-${m}-${y}`;
 }
+
+const GROUPS: { key: string; label: string }[] = [
+  { key: 'STRUCTURE', label: 'Structure' },
+  { key: 'SERVICES', label: 'Services' },
+  { key: 'FINISHING', label: 'Finishing' },
+  { key: 'SITE_OTHER', label: 'Site & other' },
+];
 
 const cell = { padding: '6px 10px', borderBottom: '1px solid var(--border)', fontSize: '13px' } as const;
 
@@ -19,6 +26,7 @@ export default function AdminDailyRatesPage() {
   const [values, setValues] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [baseVals, setBaseVals] = useState<Record<string, string>>({});
 
   function load() {
     fetchMarketRates(14)
@@ -44,6 +52,21 @@ export default function AdminDailyRatesPage() {
     try {
       setView(await saveMarketRates(date, rates));
       setValues({});
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Save failed');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function saveBaseline(key: string) {
+    const n = Number((baseVals[key] ?? '').replace(/,/g, ''));
+    if (!(n > 0)) return setError('Enter a baseline number');
+    setBusy(true);
+    setError(null);
+    try {
+      setView(await saveMarketRateBaseline(key, n));
+      setBaseVals((b) => ({ ...b, [key]: '' }));
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Save failed');
     } finally {
@@ -78,7 +101,7 @@ export default function AdminDailyRatesPage() {
             {copied ? 'Copied' : 'Copy template'}
           </button>
           <p style={{ fontSize: '12px', color: 'var(--muted)', marginTop: '8px' }}>
-            Send it from your own number. Drop any line you have no new rate for. Steel can be per kg or per ton. The date defaults to today if left out.
+            Send it from your own number. Fill only the lines you have a new rate for and delete or leave blank the rest; they keep the previous day's rate. Steel can be per kg or per ton. Units: labour and tiles per sq ft of covered area, wire per roll, pipes per running ft, sanitary per set. The date defaults to today if left out.
           </p>
         </section>
 
@@ -87,45 +110,76 @@ export default function AdminDailyRatesPage() {
           <table style={{ width: '100%', borderCollapse: 'collapse' }}>
             <thead>
               <tr style={{ textAlign: 'left', fontSize: '12px', color: 'var(--muted)' }}>
-                <th style={cell}>Item</th><th style={cell}>Rate</th><th style={cell}>From</th><th style={cell}>Status</th>
+                <th style={cell}>Item</th><th style={cell}>Rate</th><th style={cell}>From</th><th style={cell}>Status</th><th style={cell}>Baseline</th>
               </tr>
             </thead>
             <tbody>
-              {view?.items.map((i) => {
-                const c = view.current.find((x) => x.key === i.key);
-                return (
-                  <tr key={i.key}>
-                    <td style={cell}>{i.label}</td>
-                    <td style={cell}>{c ? `Rs ${c.rate.toLocaleString()} /${c.unit}` : '—'}</td>
-                    <td style={cell}>{c ? fmtDate(c.rate_date) : 'no rate yet'}</td>
-                    <td style={{ ...cell, color: c?.carried_forward ? '#b45309' : undefined }}>
-                      {c ? (c.carried_forward ? `carried forward (${c.age_days} day${c.age_days === 1 ? '' : 's'} old)` : 'updated today') : ''}
-                    </td>
-                  </tr>
-                );
-              })}
+              {GROUPS.map((g) => (
+                <Fragment key={g.key}>
+                  <tr><td colSpan={5} style={{ ...cell, fontWeight: 700, background: '#fafafa' }}>{g.label}</td></tr>
+                  {view?.items.filter((i) => i.group === g.key).map((i) => {
+                    const c = view.current.find((x) => x.key === i.key);
+                    const bl = view.baselines[i.key];
+                    return (
+                      <tr key={i.key}>
+                        <td style={cell}>{i.label}</td>
+                        <td style={cell}>{c ? `Rs ${c.rate.toLocaleString()} /${c.unit}` : '—'}</td>
+                        <td style={cell}>{c ? fmtDate(c.rate_date) : 'no rate yet'}</td>
+                        <td style={{ ...cell, color: c?.carried_forward ? '#b45309' : undefined }}>
+                          {c ? (c.carried_forward ? `carried forward (${c.age_days} day${c.age_days === 1 ? '' : 's'} old)` : 'updated today') : ''}
+                        </td>
+                        <td style={cell}>
+                          {bl?.rate ? `${bl.rate.toLocaleString()} (${bl.source === 'REFERENCE' ? 'finished house' : bl.source === 'ADMIN' ? 'set by you' : `first quote ${bl.set_date ? fmtDate(bl.set_date) : ''}`})` : '—'}
+                          {i.key !== 'BOUNDARY_WALL' && bl?.source !== 'REFERENCE' && (
+                            <span style={{ marginLeft: '8px', whiteSpace: 'nowrap' }}>
+                              <input
+                                inputMode="decimal"
+                                placeholder="edit"
+                                value={baseVals[i.key] ?? ''}
+                                onChange={(e) => setBaseVals({ ...baseVals, [i.key]: e.target.value })}
+                                style={{ padding: '2px 6px', border: '1px solid var(--border)', borderRadius: '4px', width: '70px', fontSize: '12px' }}
+                              />
+                              <button style={{ ...plainButtonStyle, marginLeft: '4px' }} disabled={busy} onClick={() => saveBaseline(i.key)}>Set</button>
+                            </span>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </Fragment>
+              ))}
             </tbody>
           </table>
+          <p style={{ fontSize: '12px', color: 'var(--muted)', marginTop: '8px' }}>
+            The baseline is the rate the forecast compares today&apos;s rate against. Where the finished house has no unit rate, the first quote is used until you set the true figure.
+          </p>
         </section>
 
         <section style={{ border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '16px', background: '#fff' }}>
           <h2 style={{ fontSize: '16px', fontWeight: 700, marginBottom: '8px' }}>Enter rates here instead</h2>
-          <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', alignItems: 'flex-end' }}>
+          <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', alignItems: 'flex-end', marginBottom: '12px' }}>
             <label style={{ fontSize: '12px' }}>Date<br />
               <input type="date" value={date} max={view?.today} onChange={(e) => setDate(e.target.value)} style={{ padding: '6px 8px', border: '1px solid var(--border)', borderRadius: '4px' }} />
             </label>
-            {view?.items.map((i) => (
-              <label key={i.key} style={{ fontSize: '12px' }}>{i.label} (/{i.unit})<br />
-                <input
-                  inputMode="decimal"
-                  value={values[i.key] ?? ''}
-                  onChange={(e) => setValues({ ...values, [i.key]: e.target.value })}
-                  style={{ padding: '6px 8px', border: '1px solid var(--border)', borderRadius: '4px', width: '90px' }}
-                />
-              </label>
-            ))}
             <button style={primaryButtonStyle(busy)} disabled={busy} onClick={save}>Save rates</button>
           </div>
+          {GROUPS.map((g) => (
+            <div key={g.key} style={{ marginBottom: '8px' }}>
+              <div style={{ fontSize: '12px', fontWeight: 700, marginBottom: '4px' }}>{g.label}</div>
+              <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+                {view?.items.filter((i) => i.group === g.key).map((i) => (
+                  <label key={i.key} style={{ fontSize: '12px' }}>{i.label} (/{i.unit})<br />
+                    <input
+                      inputMode="decimal"
+                      value={values[i.key] ?? ''}
+                      onChange={(e) => setValues({ ...values, [i.key]: e.target.value })}
+                      style={{ padding: '6px 8px', border: '1px solid var(--border)', borderRadius: '4px', width: '90px' }}
+                    />
+                  </label>
+                ))}
+              </div>
+            </div>
+          ))}
         </section>
 
         <section style={{ border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '16px', background: '#fff', overflowX: 'auto' }}>
@@ -134,14 +188,14 @@ export default function AdminDailyRatesPage() {
             <thead>
               <tr style={{ textAlign: 'left', fontSize: '12px', color: 'var(--muted)' }}>
                 <th style={cell}>Date</th>
-                {view?.items.map((i) => <th key={i.key} style={cell}>{i.label}</th>)}
+                {view?.items.filter((i) => view.history.some((h) => h.rates[i.key])).map((i) => <th key={i.key} style={cell}>{i.label}</th>)}
               </tr>
             </thead>
             <tbody>
               {view?.history.map((h) => (
                 <tr key={h.date}>
                   <td style={cell}>{fmtDate(h.date)}</td>
-                  {view.items.map((i) => {
+                  {view.items.filter((i) => view.history.some((x) => x.rates[i.key])).map((i) => {
                     const r = h.rates[i.key];
                     return (
                       <td key={i.key} style={{ ...cell, color: r?.carried_forward ? 'var(--muted)' : undefined }}>

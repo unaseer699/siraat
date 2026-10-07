@@ -435,11 +435,35 @@ export function ForecastPanel({ projectId }: { projectId: string }) {
             </tbody>
           </table>
           {fc.market_rates.length > 0 && (
-            <p style={{ fontSize: '12px', margin: '4px 0' }}>
-              Market rates used:{' '}
-              {fc.market_rates.map((m) => `${m.label} Rs ${m.rate.toLocaleString()}/${m.unit} (${m.carried_forward ? `carried from ${m.rate_date}` : m.rate_date}, ${m.ratio >= 1 ? '+' : ''}${Math.round((m.ratio - 1) * 100)}% vs reference)`).join(' · ')}
-              {fc.structure_index_source === 'MARKET' ? '' : ' — not applied'}
-            </p>
+            <details style={{ fontSize: '12px', margin: '4px 0' }}>
+              <summary style={{ cursor: 'pointer' }}>Market rates used ({fc.market_rates.length} items)</summary>
+              <ul style={{ margin: '4px 0 0', paddingLeft: '18px' }}>
+                {fc.market_rates.map((m) => (
+                  <li key={m.key}>
+                    {m.label} Rs {m.rate.toLocaleString()}/{m.unit} ({m.carried_forward ? `carried from ${m.rate_date}` : m.rate_date}, {m.ratio >= 1 ? '+' : ''}{Math.round((m.ratio - 1) * 100)}% vs baseline {m.reference_rate.toLocaleString()})
+                  </li>
+                ))}
+              </ul>
+            </details>
+          )}
+          {fc.groups.some((g) => g.items.length > 0) && (
+            <details style={{ fontSize: '12px', margin: '4px 0' }}>
+              <summary style={{ cursor: 'pointer' }}>Cost by item</summary>
+              {fc.groups.filter((g) => g.items.length > 0).map((g) => (
+                <div key={g.group} style={{ margin: '6px 0' }}>
+                  <strong>{g.label}</strong>
+                  <ul style={{ margin: '2px 0 0', paddingLeft: '18px' }}>
+                    {g.items.map((i) => (
+                      <li key={i.key}>
+                        {i.label}: {pkr(i.estimated)}
+                        {i.priced_from === 'MARKET' ? ` (market ${i.ratio >= 1 ? '+' : ''}${Math.round((i.ratio - 1) * 100)}%)` : i.priced_from === 'PURCHASES' ? ' (your purchases)' : i.priced_from === 'MANUAL' ? ' (manual factor)' : ' (reference price)'}
+                      </li>
+                    ))}
+                    {g.other_not_repriced !== null && <li>Other (not repriced): {pkr(g.other_not_repriced)}</li>}
+                  </ul>
+                </div>
+              ))}
+            </details>
           )}
           {fc.rate_observations.length > 0 && (
             <p style={{ fontSize: '12px', margin: '4px 0' }}>

@@ -55,10 +55,9 @@ export default function ForecastCard({ projectId }: { projectId: string }) {
           ))}
         </tbody>
       </table>
-      {fc.market_rates.length > 0 && fc.structure_index_applied && fc.structure_index_source === 'MARKET' && (
+      {fc.market_rates.length > 0 && (
         <p style={{ fontSize: '12px', margin: '10px 0 0' }}>
-          Priced at market rates of {new Date(Math.max(...fc.market_rates.map((m) => new Date(m.rate_date).getTime()))).toLocaleDateString()}:{' '}
-          {fc.market_rates.map((m) => `${m.label} ${m.ratio >= 1 ? '+' : ''}${Math.round((m.ratio - 1) * 100)}%`).join(', ')}.
+          Priced at today&apos;s market rates for {fc.market_rates.length} items (latest update {new Date(Math.max(...fc.market_rates.map((m) => new Date(m.rate_date).getTime()))).toLocaleDateString()}).
         </p>
       )}
       {fc.rate_observations.length > 0 && fc.structure_index_applied && fc.structure_index_source !== 'MARKET' && (

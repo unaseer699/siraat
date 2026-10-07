@@ -1,0 +1,1 @@
+CREATE TABLE IF NOT EXISTS construction_intelligence.market_rate_baselines (item_key varchar(30) PRIMARY KEY, rate numeric(12,2) NOT NULL, source varchar(20) NOT NULL, set_date date NOT NULL, updated_at timestamptz NOT NULL DEFAULT now());

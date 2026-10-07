@@ -1,4 +1,4 @@
-import { findMarketRateItem, MarketRateItem } from './market-rate-catalog';
+import { findMarketRateItem, MarketRateItem, normaliseUnit, RATE_GROUP_LABELS } from './market-rate-catalog';
 
 export interface ParsedRateLine {
   item: MarketRateItem;
@@ -59,8 +59,15 @@ export function parseMarketRateMessage(text: string): ParsedMarketRate {
       else rejected.push({ raw: rawLine, reason: 'Could not read the date (use DD-MM-YYYY)' });
       continue;
     }
-    // "Cement: 1,320 /bag", "Cement 1320 per bag", "Steel - Rs 235000 per ton"
-    const m = line.match(/^([A-Za-z][A-Za-z .()/]*?)\s*[:=\-–—]?\s*(?:rs\.?|pkr)?\s*([\d][\d,]*(?:\.\d+)?)\s*(?:\/|per\s+|pr\s+)?\s*([A-Za-z]+)?\s*$/i);
+    if (Object.values(RATE_GROUP_LABELS).some((l) => l.toLowerCase() === line.toLowerCase().replace(/[:\s]+$/, ''))) continue;
+    // A template line left blank ("Tiles: ___") is skipped without complaint.
+    const colon = line.search(/[:=]/);
+    if (colon > 0 && !/\d/.test(line.slice(colon + 1))) continue;
+    // "Cement: 1,320 /bag", "Wire 7/29: 9500 /roll", "Cement 1320 per bag", "Steel - Rs 235000 per ton"
+    const RATE_TAIL = '(?:rs\\.?|pkr)?\\s*([\\d][\\d,]*(?:\\.\\d+)?)\\s*(?:\\/|per\\s+|pr\\s+)?\\s*([A-Za-z.]+(?:\\s*ft)?)?';
+    const m =
+      line.match(new RegExp('^(.+?)\\s*[:=]\\s*' + RATE_TAIL + '\\s*$', 'i')) ??
+      line.match(new RegExp('^([A-Za-z][A-Za-z .()/]*?)\\s*[\\-–—]?\\s*' + RATE_TAIL + '\\s*$', 'i'));
     if (!m) {
       rejected.push({ raw: rawLine, reason: 'Could not read this line (use "Item: rate /unit")' });
       continue;
@@ -71,13 +78,22 @@ export function parseMarketRateMessage(text: string): ParsedMarketRate {
       continue;
     }
     let rate = Number(m[2].replace(/,/g, ''));
-    const unit = (m[3] ?? '').toLowerCase();
-    if (item.key === 'STEEL' && /^(ton|tons|tonne|mt)$/.test(unit)) rate = rate / 1000;
+    const unitRaw = (m[3] ?? '').trim();
+    const unit = unitRaw ? normaliseUnit(unitRaw) : null;
+    if (unitRaw && unit === null) {
+      rejected.push({ raw: rawLine, reason: `Unit "${unitRaw}" not recognised; ${item.label} is priced per ${item.unit}` });
+      continue;
+    }
+    if (unit === 'ton' && item.unit === 'kg') rate = rate / 1000;
+    else if (unit && unit !== item.unit) {
+      rejected.push({ raw: rawLine, reason: `${item.label} is priced per ${item.unit}, not per ${unitRaw}` });
+      continue;
+    }
     if (!Number.isFinite(rate) || rate <= 0) {
       rejected.push({ raw: rawLine, reason: 'Rate is not a valid number' });
       continue;
     }
-    if (rate < item.min || rate > item.max) {
+    if (item.min !== undefined && item.max !== undefined && (rate < item.min || rate > item.max)) {
       rejected.push({
         raw: rawLine,
         reason: `${item.label} ${Math.round(rate * 100) / 100}/${item.unit} looks wrong (expected ${item.min} to ${item.max})`,

@@ -40,7 +40,13 @@ export class WhatsappMarketRateService {
         reply = this.helpText(parsed.rejected.map((r) => `• ${r.raw}: ${r.reason}`));
       } else {
         const saved: string[] = [];
+        const refused: { raw: string; reason: string }[] = [];
         for (const l of parsed.lines) {
+          const prev = await this.rates.previousRate(l.item.key, date);
+          if (prev && (l.rate < prev * 0.2 || l.rate > prev * 5)) {
+            refused.push({ raw: l.raw, reason: `${l.item.label} ${l.rate.toLocaleString()} is far from the last rate ${prev.toLocaleString()}; check for a typo` });
+            continue;
+          }
           const { previous_rate } = await this.rates.recordQuote({
             rate_date: date,
             item: l.item,
@@ -61,9 +67,13 @@ export class WhatsappMarketRateService {
           .filter((c) => c.carried_forward && !parsed.lines.some((l) => l.item.key === c.key))
           .map((c) => `• ${c.label}: ${c.rate.toLocaleString()}/${c.unit} (from ${fmtDate(c.rate_date)})`);
         const missing = MARKET_RATE_ITEMS.filter((i) => !current.some((c) => c.key === i.key)).map((i) => i.label);
-        const out: string[] = [`Rates saved for ${fmtDate(date)}:`, ...saved];
+        parsed.rejected.push(...refused);
+        const out: string[] = [`Rates saved for ${fmtDate(date)} (${saved.length}):`, ...saved];
         if (carried.length) out.push('', 'No new rate, kept from earlier:', ...carried);
-        if (missing.length) out.push('', `No rate on record yet: ${missing.join(', ')}`);
+        if (carried.length > 8) {
+          out.splice(out.indexOf('No new rate, kept from earlier:') + 1, carried.length, `• ${carried.length} items kept from earlier days (see the Daily Rates page)`);
+        }
+        if (missing.length) out.push('', `No rate on record yet: ${missing.length > 8 ? `${missing.length} items` : missing.join(', ')}`);
         if (parsed.rejected.length) out.push('', 'Not saved:', ...parsed.rejected.map((r) => `• ${r.raw}: ${r.reason}`));
         reply = out.join('\n');
       }
@@ -89,10 +99,11 @@ export class WhatsappMarketRateService {
       'Market Rates',
       'Date: DD-MM-YYYY',
       'Cement: 1300 /bag',
-      'Bricks: 21 /pc',
-      'Sand: 75 /cft',
-      'Crush: 93 /cft',
-      'Steel: 216 /kg',
+      'Tiles: 95 /sqft',
+      'Wire 7/29: 9800 /roll',
+      'Mason labour: 380 /sqft',
+      '',
+      'Only send the items that have a new rate; the rest keep yesterday\'s.',
     ].join('\n');
   }
 }

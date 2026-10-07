@@ -881,7 +881,15 @@ export class AdminService {
     return {
       today,
       template: MARKET_RATE_TEMPLATE,
-      items: MARKET_RATE_ITEMS.map((i) => ({ key: i.key, label: i.label, unit: i.unit, min: i.min, max: i.max })),
+      items: MARKET_RATE_ITEMS.map((i) => ({
+        key: i.key,
+        label: i.label,
+        group: i.group,
+        unit: i.unit,
+        min: i.min ?? null,
+        max: i.max ?? null,
+      })),
+      baselines: await this.mrates().baselines(),
       current: await this.mrates().currentRates(today),
       history: await this.mrates().history(days, today),
     };
@@ -893,11 +901,23 @@ export class AdminService {
     for (const [key, rate] of Object.entries(rates)) {
       const item = MARKET_RATE_ITEMS.find((i) => i.key === key);
       if (!item) throw new BadRequestException(`Unknown item ${key}`);
-      if (rate < item.min || rate > item.max) {
+      if (item.min !== undefined && item.max !== undefined && (rate < item.min || rate > item.max)) {
         throw new BadRequestException(`${item.label} must be between ${item.min} and ${item.max} per ${item.unit}`);
+      }
+      const prev = await this.mrates().previousRate(key, date);
+      if (prev && (rate < prev * 0.2 || rate > prev * 5)) {
+        throw new BadRequestException(`${item.label} ${rate} is far from the previous rate ${prev}; check for a typo`);
       }
       await this.mrates().recordQuote({ rate_date: date, item, rate, source: 'ADMIN' });
     }
+    return this.getMarketRates(14);
+  }
+
+  async setMarketRateBaseline(key: string, rate: number) {
+    const item = MARKET_RATE_ITEMS.find((i) => i.key === key);
+    if (!item) throw new BadRequestException(`Unknown item ${key}`);
+    if (!(rate > 0)) throw new BadRequestException('Baseline must be a positive number');
+    await this.mrates().setBaseline(item, rate);
     return this.getMarketRates(14);
   }
 

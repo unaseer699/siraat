@@ -1533,6 +1533,8 @@ export interface ProjectForecast {
     price_factor: number;
     progress_pct: number | null;
     projected_from_progress: number | null;
+    items: { key: string; label: string; unit: string; estimated: number; ratio: number; priced_from: 'MARKET' | 'PURCHASES' | 'MANUAL' | null }[];
+    other_not_repriced: number | null;
   }[];
   estimated_total: number;
   spent_total: number;
@@ -1698,7 +1700,8 @@ export async function setProjectDocumentKind(projectId: string, docId: string, k
 export interface MarketRatesView {
   today: string;
   template: string;
-  items: { key: string; label: string; unit: string; min: number; max: number }[];
+  items: { key: string; label: string; group: string; unit: string; min: number | null; max: number | null }[];
+  baselines: Record<string, { key: string; rate: number | null; source: 'REFERENCE' | 'FIRST_QUOTE' | 'ADMIN' | null; set_date: string | null }>;
   current: {
     key: string;
     label: string;
@@ -1720,4 +1723,8 @@ export async function fetchMarketRates(days = 14): Promise<MarketRatesView> {
 
 export async function saveMarketRates(date: string, rates: Record<string, number>): Promise<MarketRatesView> {
   return apiFetch('/v1/admin/market-rates/daily', { method: 'POST', body: JSON.stringify({ date, rates }) });
+}
+
+export async function saveMarketRateBaseline(key: string, rate: number): Promise<MarketRatesView> {
+  return apiFetch('/v1/admin/market-rates/baseline', { method: 'POST', body: JSON.stringify({ key, rate }) });
 }

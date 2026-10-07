@@ -9,6 +9,7 @@ import { ProjectDocumentEntity } from './entities/project-document.entity';
 import { ProjectDocumentService } from './project-document.service';
 import { LayoutExtractorService } from './layout-extractor.service';
 import { MarketRateQuoteEntity } from './entities/market-rate-quote.entity';
+import { MarketRateBaselineEntity } from './entities/market-rate-baseline.entity';
 import { MarketRateService } from './market-rate.service';
 import { ProjectLayoutEntity } from './entities/project-layout.entity';
 import { ProjectForecastService } from './project-forecast.service';
@@ -35,6 +36,7 @@ import { ConstructionProjectController } from './construction-project.controller
       ProjectLayoutEntity,
       ProjectDocumentEntity,
       MarketRateQuoteEntity,
+      MarketRateBaselineEntity,
     ]),
     TrustModule,
   ],

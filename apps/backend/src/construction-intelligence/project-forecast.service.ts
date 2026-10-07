@@ -5,6 +5,7 @@ import { sectionGroupOf, SECTION_GROUP_LABELS, SectionCategory, SectionGroup } f
 import { ProjectLayoutEntity, LayoutFloor, LayoutExtras } from './entities/project-layout.entity';
 import { ConstructionProjectService } from './construction-project.service';
 import { MarketRateService, CurrentMarketRate } from './market-rate.service';
+import { MARKET_RATE_ITEMS } from './market-rate-catalog';
 
 export type FinishLevel = 'BASIC' | 'STANDARD' | 'PREMIUM';
 export const FINISH_LEVELS: FinishLevel[] = ['BASIC', 'STANDARD', 'PREMIUM'];
@@ -49,7 +50,6 @@ export const STRUCTURE_MATERIAL_REFERENCE: RateReference[] = [
   { key: 'STEEL', label: 'Steel', unit: 'kg', units: ['KG', 'TON'], ref_rate: 216.3, weight: 1_016_575,
     match: (d) => /steel|sootar|sariya|saria/i.test(d) },
 ];
-const MATERIAL_SHARE_OF_STRUCTURE = 3_449_325 / 4_524_925;
 export const REFERENCE_DATE = '2026-05-31';
 export const STALENESS_THRESHOLD_DAYS = 90;
 
@@ -85,6 +85,17 @@ export interface ForecastGroup {
   price_factor: number;
   progress_pct: number | null;
   projected_from_progress: number | null;
+  items: ForecastItem[];
+  other_not_repriced: number | null;
+}
+
+export interface ForecastItem {
+  key: string;
+  label: string;
+  unit: string;
+  estimated: number;
+  ratio: number;
+  priced_from: 'MARKET' | 'PURCHASES' | 'MANUAL' | null;
 }
 
 export interface RateObservation {
@@ -284,45 +295,58 @@ export class ProjectForecastService {
         ratio: Math.round((actual / ref.ref_rate) * 1000) / 1000,
       });
     }
+    const clamp = (r: number) => Math.min(Math.max(r, 0.5), 2);
     const weightedIndex = (pairs: { key: string; ratio: number }[]): number | null => {
-      if (pairs.length === 0) return null;
+      const ps = pairs.filter((o) => STRUCTURE_MATERIAL_REFERENCE.some((r) => r.key === o.key));
+      if (ps.length === 0) return null;
       let w = 0;
       let wr = 0;
-      for (const o of pairs) {
+      for (const o of ps) {
         const weight = STRUCTURE_MATERIAL_REFERENCE.find((r) => r.key === o.key)!.weight;
         w += weight;
         wr += weight * o.ratio;
       }
-      return Math.min(Math.max(wr / w, 0.5), 2);
+      return clamp(wr / w);
     };
-    const purchaseIndex = weightedIndex(rate_observations);
 
     // Today's market rates (the latest quote, carried forward on days with no
     // new one) price the work still to be done, so they take priority over the
-    // project's own past purchases.
+    // project's own past purchases. Each is compared with its baseline: the
+    // reference-house rate, or for the other items the first quote / admin figure.
     let market: CurrentMarketRate[] = [];
+    let baselines: Record<string, { rate: number | null }> = {};
     try {
       market = (await this.marketRates?.currentRates()) ?? [];
+      baselines = (await this.marketRates?.baselines()) ?? {};
     } catch {
       market = [];
+      baselines = {};
     }
     const market_rates: MarketRateUsed[] = [];
+    const itemPrice = new Map<string, { ratio: number; source: 'MARKET' | 'PURCHASES' }>();
     for (const m of market) {
-      const ref = STRUCTURE_MATERIAL_REFERENCE.find((r) => r.key === m.key);
-      if (!ref) continue;
+      const base0 = baselines[m.key]?.rate ?? null;
+      if (!base0) continue;
+      const item = MARKET_RATE_ITEMS.find((i) => i.key === m.key);
+      const ratio = m.rate / base0;
       market_rates.push({
         key: m.key,
         label: m.label,
         unit: m.unit,
         rate: m.rate,
-        reference_rate: ref.ref_rate,
-        ratio: Math.round((m.rate / ref.ref_rate) * 1000) / 1000,
+        reference_rate: base0,
+        ratio: Math.round(ratio * 1000) / 1000,
         rate_date: m.rate_date,
         carried_forward: m.carried_forward,
         age_days: m.age_days,
       });
+      if (item && item.ref_cost > 0) itemPrice.set(m.key, { ratio: clamp(ratio), source: 'MARKET' });
     }
-    const marketIndex = weightedIndex(market_rates);
+    for (const o of rate_observations) {
+      if (!itemPrice.has(o.key)) itemPrice.set(o.key, { ratio: clamp(o.ratio), source: 'PURCHASES' });
+    }
+    const marketIndex = weightedIndex(market_rates.filter((m) => itemPrice.get(m.key)?.source === 'MARKET'));
+    const purchaseIndex = weightedIndex(rate_observations);
     const structureIndex: number | null = marketIndex ?? purchaseIndex;
     const structure_index_source: 'MARKET' | 'PURCHASES' | null =
       marketIndex !== null ? 'MARKET' : purchaseIndex !== null ? 'PURCHASES' : null;
@@ -342,21 +366,30 @@ export class ProjectForecastService {
 
     const order: SectionGroup[] = ['LAND', 'STRUCTURE', 'SERVICES', 'FINISHING', 'SITE_OTHER'];
     const area = layout?.total_area_sqft ?? 0;
-    // Live rates: only when the owner has not set a manual Structure factor,
-    // and only on the material share of the structure cost (labour is not
-    // repriced from material purchases).
-    const manualStructure = layout?.price_factors.STRUCTURE;
-    const indexApplied = layout !== null && structureIndex !== null && manualStructure === undefined;
-    const autoStructure = indexApplied
-      ? MATERIAL_SHARE_OF_STRUCTURE * (structureIndex as number) + (1 - MATERIAL_SHARE_OF_STRUCTURE)
-      : 1;
+    // Each group is repriced item by item: factor = 1 + sum(share x (ratio - 1))
+    // over the items that have a rate, so items without one stay at reference.
+    // A manual factor set by the owner replaces this for its group.
+    const autoFactor = (g: SectionGroup): { factor: number; repriced: number } => {
+      const refCost = REFERENCE_GROUP_COST[g];
+      if (!refCost) return { factor: 1, repriced: 0 };
+      let f = 1;
+      let n = 0;
+      for (const it of MARKET_RATE_ITEMS.filter((i) => i.group === g && i.ref_cost > 0)) {
+        const p = itemPrice.get(it.key);
+        if (!p) continue;
+        f += (it.ref_cost / refCost) * (p.ratio - 1);
+        n += 1;
+      }
+      return { factor: f, repriced: n };
+    };
+    const manual = layout?.price_factors ?? {};
+    const factorOf = (g: SectionGroup): number => manual[g] ?? autoFactor(g).factor;
+    const indexApplied = layout !== null && manual.STRUCTURE === undefined && autoFactor('STRUCTURE').repriced > 0;
     const extras: ForecastExtra[] = [];
     const extraByGroup: Partial<Record<SectionGroup, number>> = {};
     if (layout) {
       const rate = (g: SectionGroup) =>
-        ((REFERENCE_GROUP_COST[g] ?? 0) / REFERENCE_AREA_SQFT) *
-        (FINISH_MULTIPLIER[layout.finish_level][g] ?? 1) *
-        (layout.price_factors[g] ?? (g === 'STRUCTURE' ? autoStructure : 1));
+        ((REFERENCE_GROUP_COST[g] ?? 0) / REFERENCE_AREA_SQFT) * (FINISH_MULTIPLIER[layout.finish_level][g] ?? 1) * factorOf(g);
       for (const it of layout.extras.items ?? []) {
         const cf = EXTRA_COVER_FACTOR[it.kind] ?? 0.5;
         const st = Math.round(rate('STRUCTURE') * it.area_sqft * cf);
@@ -374,7 +407,10 @@ export class ProjectForecastService {
       }
       const bw = layout.extras.boundary_wall;
       if (bw && bw.length_ft > 0) {
-        const cost = Math.round(bw.length_ft * bw.rate_per_ft * (layout.price_factors.SITE_OTHER ?? 1));
+        const marketBw = market_rates.find((m) => m.key === 'BOUNDARY_WALL');
+        const useMarket = marketBw !== undefined && bw.rate_per_ft === DEFAULT_BOUNDARY_RATE_PER_FT;
+        const perFt = useMarket ? marketBw!.rate : bw.rate_per_ft;
+        const cost = Math.round(bw.length_ft * perFt * (manual.SITE_OTHER ?? 1));
         extraByGroup.SITE_OTHER = (extraByGroup.SITE_OTHER ?? 0) + cost;
         extras.push({
           kind: 'BOUNDARY_WALL',
@@ -382,31 +418,49 @@ export class ProjectForecastService {
           quantity: bw.length_ft,
           unit: 'ft',
           cost,
-          basis: `Rs ${bw.rate_per_ft.toLocaleString()} per running ft`,
+          basis: useMarket ? `Rs ${perFt.toLocaleString()} per running ft (today's market rate)` : `Rs ${perFt.toLocaleString()} per running ft`,
         });
       }
     }
     const groups: ForecastGroup[] = order.map((g) => {
       const refCost = REFERENCE_GROUP_COST[g];
-      const factor = layout?.price_factors[g] ?? (g === 'STRUCTURE' ? autoStructure : 1);
+      const factor = factorOf(g);
       const mult = layout ? (FINISH_MULTIPLIER[layout.finish_level][g] ?? 1) : 1;
+      const perSqft = refCost !== undefined ? (refCost / REFERENCE_AREA_SQFT) * area * mult : 0;
       const estimated =
-        layout && refCost !== undefined
-          ? Math.round((refCost / REFERENCE_AREA_SQFT) * area * mult * factor) + (extraByGroup[g] ?? 0)
-          : null;
+        layout && refCost !== undefined ? Math.round((refCost / REFERENCE_AREA_SQFT) * area * mult * factor) + (extraByGroup[g] ?? 0) : null;
+      const catalogue = MARKET_RATE_ITEMS.filter((i) => i.group === g && i.ref_cost > 0);
+      let detail: ForecastItem[] = [];
+      let other: number | null = null;
+      if (layout && refCost !== undefined && catalogue.length > 0) {
+        detail = catalogue.map((i) => {
+          const p = itemPrice.get(i.key);
+          const r = manual[g] !== undefined ? manual[g] : p?.ratio ?? 1;
+          return {
+            key: i.key,
+            label: i.label,
+            unit: i.unit,
+            estimated: Math.round((i.ref_cost / REFERENCE_GROUP_COST[g]!) * perSqft * r),
+            ratio: Math.round((p?.ratio ?? 1) * 1000) / 1000,
+            priced_from: manual[g] !== undefined ? 'MANUAL' : p?.source ?? null,
+          };
+        });
+        const refOther = refCost - catalogue.reduce((s2, i) => s2 + i.ref_cost, 0);
+        other = Math.round((refOther / refCost) * perSqft * (manual[g] ?? 1));
+      }
       const sp = spent[g] ?? 0;
       // Earned-value style projection: if the group is p% done and sp has been
       // spent, the final cost is about sp / p. It is blended with the area
       // estimate, trusting the projection more as progress grows.
       const pct = layout?.progress[g];
       let projected: number | null = null;
-      let base = estimated ?? 0;
+      let blended = estimated ?? 0;
       if (pct !== undefined && pct > 0 && sp > 0) {
         projected = Math.round(sp / (pct / 100));
         const w = pct >= 100 ? 1 : Math.min(pct / 100, 0.9);
-        base = estimated === null ? projected : Math.round((1 - w) * estimated + w * projected);
+        blended = estimated === null ? projected : Math.round((1 - w) * estimated + w * projected);
       }
-      const fac = Math.max(base, sp);
+      const fac = Math.max(blended, sp);
       return {
         group: g,
         label: SECTION_GROUP_LABELS[g],
@@ -417,6 +471,8 @@ export class ProjectForecastService {
         price_factor: factor,
         progress_pct: pct ?? null,
         projected_from_progress: projected,
+        items: detail,
+        other_not_repriced: other,
       };
     });
 
@@ -466,12 +522,23 @@ export class ProjectForecastService {
     if (groups.some((g) => g.projected_from_progress !== null)) {
       notes.push('Groups with a recorded percent complete are projected from what has been spent so far, blended with the area estimate.');
     }
-    if (indexApplied && structureIndex !== null) {
+    const sources = [...itemPrice.values()];
+    const nMarket = sources.filter((x) => x.source === 'MARKET').length;
+    const nPurch = sources.filter((x) => x.source === 'PURCHASES').length;
+    if (nMarket > 0) {
       notes.push(
-        structure_index_source === 'MARKET'
-          ? `Structure materials are priced at today's market rates (${market_rates.map((o) => o.label).join(', ')}): ${structureIndex >= 1 ? '+' : ''}${Math.round((structureIndex - 1) * 100)}% against the reference house.${market_rates.some((m) => m.carried_forward) ? ' Some rates are carried forward from earlier days.' : ''}`
-          : `Structure materials are repriced from your real purchases (${rate_observations.map((o) => o.label).join(', ')}): ${structureIndex >= 1 ? '+' : ''}${Math.round((structureIndex - 1) * 100)}% against the reference house.`,
+        `${nMarket} item${nMarket === 1 ? '' : 's'} priced at today's market rates (${market_rates.filter((m) => itemPrice.get(m.key)?.source === 'MARKET').map((m) => m.label).join(', ')}).${market_rates.some((m) => m.carried_forward) ? ' Some rates are carried forward from earlier days.' : ''}`,
       );
+      const firstQuote = MARKET_RATE_ITEMS.filter((i) => i.ref_rate === null && baselines[i.key]?.rate && market_rates.some((m) => m.key === i.key)).map((i) => i.label);
+      if (firstQuote.length > 0) {
+        notes.push(`Items without a reference-house rate (${firstQuote.join(', ')}) are compared with their first quote, so they only show price movement from that date.`);
+      }
+    }
+    if (nPurch > 0) {
+      notes.push(`${nPurch} structure item${nPurch === 1 ? '' : 's'} repriced from this project's real purchases.`);
+    }
+    if (nMarket + nPurch > 0) {
+      notes.push('Items with no rate stay at the reference house price; the "other" line in each group is never repriced.');
     }
     if (extras.length > 0) {
       notes.push('Shades, balconies and the boundary wall are priced from assumed rates (editable); confirm them with a quote.');
@@ -498,7 +565,7 @@ export class ProjectForecastService {
       confidence_score: Math.min(
         (confirmed ? 0.55 : 0.25) +
           (groups.some((g) => g.projected_from_progress !== null) ? 0.1 : 0) +
-          (structure_index_source === 'MARKET' && !base.is_stale ? 0.1 : 0),
+          (market_rates.length > 0 && !base.is_stale ? 0.1 : 0),
         1,
       ),
       notes,

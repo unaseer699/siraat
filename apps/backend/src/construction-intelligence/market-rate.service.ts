@@ -1,7 +1,8 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Optional } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { LessThanOrEqual, Repository } from 'typeorm';
 import { MarketRateQuoteEntity } from './entities/market-rate-quote.entity';
+import { MarketRateBaselineEntity } from './entities/market-rate-baseline.entity';
 import { MARKET_RATE_ITEMS, MarketRateItem } from './market-rate-catalog';
 
 export interface CurrentMarketRate {
@@ -14,6 +15,13 @@ export interface CurrentMarketRate {
   age_days: number;
   // FACT id of the quote this value comes from (derived_from for a carried one).
   quote_id: string;
+}
+
+export interface RateBaseline {
+  key: string;
+  rate: number | null;
+  source: 'REFERENCE' | 'FIRST_QUOTE' | 'ADMIN' | null;
+  set_date: string | null;
 }
 
 export interface DailyRateRow {
@@ -40,7 +48,38 @@ export class MarketRateService {
   constructor(
     @InjectRepository(MarketRateQuoteEntity)
     private readonly repo: Repository<MarketRateQuoteEntity>,
+    @Optional()
+    @InjectRepository(MarketRateBaselineEntity)
+    private readonly baseRepo?: Repository<MarketRateBaselineEntity>,
   ) {}
+
+  // Baseline per item: the reference-house rate where known, otherwise the
+  // stored first-quote / admin figure.
+  async baselines(): Promise<Record<string, RateBaseline>> {
+    const rows = (await this.baseRepo?.find()) ?? [];
+    const out: Record<string, RateBaseline> = {};
+    for (const item of MARKET_RATE_ITEMS) {
+      const row = rows.find((r) => r.item_key === item.key);
+      if (row) out[item.key] = { key: item.key, rate: Number(row.rate), source: row.source, set_date: row.set_date };
+      else if (item.ref_rate !== null) out[item.key] = { key: item.key, rate: item.ref_rate, source: 'REFERENCE', set_date: null };
+      else out[item.key] = { key: item.key, rate: null, source: null, set_date: null };
+    }
+    return out;
+  }
+
+  async setBaseline(item: MarketRateItem, rate: number, setDate: string = todayInKarachi()): Promise<void> {
+    if (!this.baseRepo) return;
+    await this.baseRepo.save(this.baseRepo.create({ item_key: item.key, rate, source: 'ADMIN', set_date: setDate }));
+  }
+
+  // The latest ACTIVE quote strictly before `date`, used to reject typos.
+  async previousRate(itemKey: string, date: string): Promise<number | null> {
+    const q = await this.repo.findOne({
+      where: { item_key: itemKey, status: 'ACTIVE', rate_date: LessThanOrEqual(addDays(date, -1)) },
+      order: { rate_date: 'DESC', created_at: 'DESC' },
+    });
+    return q ? Number(q.rate) : null;
+  }
 
   // Records one quote. A second quote for the same item and date supersedes
   // the first (the old row becomes CORRECTED); returns the previous rate so a
@@ -75,6 +114,11 @@ export class MarketRateService {
         }),
       );
     });
+    if (input.item.ref_rate === null && this.baseRepo && !(await this.baseRepo.findOneBy({ item_key: input.item.key }))) {
+      await this.baseRepo.save(
+        this.baseRepo.create({ item_key: input.item.key, rate: input.rate, source: 'FIRST_QUOTE', set_date: input.rate_date }),
+      );
+    }
     const prev = prior ?? before;
     return { quote, previous_rate: prev ? Number(prev.rate) : null };
   }
