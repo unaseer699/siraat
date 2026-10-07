@@ -91,6 +91,7 @@ import { TrustModule } from '../trust/trust.module';
     WhatsappProjectResolverService,
   ],
   exports: [
+    WhatsappOutboundClient,
     WhatsappService,
     WhatsappParsingService,
     WhatsappBusinessLinkService,

@@ -414,6 +414,10 @@ const LayoutBodySchema = z.object({
 });
 type LayoutBody = z.infer<typeof LayoutBodySchema>;
 
+// --- POST /v1/admin/whatsapp/diagnose ---
+const WhatsappDiagnoseBodySchema = z.object({ to: z.string().regex(/^\d{8,15}$/).nullable().optional() });
+type WhatsappDiagnoseBody = z.infer<typeof WhatsappDiagnoseBodySchema>;
+
 // --- Project documents ---
 const DocUploadUrlBodySchema = z.object({ filename: z.string().min(1).max(200), content_type: z.string().min(1) });
 type DocUploadUrlBody = z.infer<typeof DocUploadUrlBodySchema>;
@@ -915,6 +919,12 @@ export class AdminController {
     @Body(new ZodValidationPipe(MoveExpensesBodySchema)) body: MoveExpensesBody,
   ) {
     return this.adminSvc.moveProjectExpenses(projectId, body.expense_ids, body.category, body.kind ?? null);
+  }
+
+  @Post('whatsapp/diagnose')
+  @HttpCode(200)
+  diagnoseWhatsapp(@Body(new ZodValidationPipe(WhatsappDiagnoseBodySchema)) body: WhatsappDiagnoseBody) {
+    return this.adminSvc.diagnoseWhatsapp(body.to ?? null);
   }
 
   @Get('projects/:projectId/documents')

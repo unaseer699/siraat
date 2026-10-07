@@ -1625,3 +1625,14 @@ export async function extractLayoutFromDocument(projectId: string, docId: string
 export async function fetchOwnerForecast(projectId: string): Promise<ProjectForecast | { state: 'NOT_COVERED' }> {
   return apiFetch(`/v1/construction-intelligence/projects/${projectId}/forecast`);
 }
+
+export interface WhatsappDiagnosis {
+  configured: { token_set: boolean; phone_number_id_set: boolean; phone_number_id_tail: string | null };
+  phone_number_check: { ok: boolean; status: number | null; body: string };
+  send: { attempted: boolean; ok: boolean; status: number | null; body: string };
+  hint: string;
+}
+
+export async function diagnoseWhatsapp(to: string | null): Promise<WhatsappDiagnosis> {
+  return apiFetch('/v1/admin/whatsapp/diagnose', { method: 'POST', body: JSON.stringify({ to }) });
+}

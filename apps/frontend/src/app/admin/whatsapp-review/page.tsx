@@ -12,6 +12,7 @@ import {
   type WhatsappDraftStatus,
 } from '@/lib/api';
 import { AdminNav } from '../AdminNav';
+import WhatsappDiagnosePanel from './WhatsappDiagnosePanel';
 import { plainButtonStyle, dangerButtonStyle } from '../buttonStyles';
 
 // WEEK 1 TECH DEBT — TASK A. Frontend for the WHATSAPP INTEGRATION Phase 4
@@ -130,6 +131,8 @@ export default function AdminWhatsappReviewPage() {
             Unmapped senders and stuck draft expenses from the WhatsApp integration.
           </p>
         </div>
+
+        <WhatsappDiagnosePanel />
 
         {/* ─── Unmapped Senders ─────────────────────────────────────── */}
         <section style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>

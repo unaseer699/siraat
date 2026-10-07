@@ -195,6 +195,7 @@ export interface UpdateHousePlanInput {
 export type CreateWhatsappMappingInput = WhatsappCreateMappingInput;
 
 import { ProjectForecastService, FinishLevel } from '../construction-intelligence/project-forecast.service';
+import { WhatsappOutboundClient } from '../whatsapp/whatsapp-outbound.client';
 import { ProjectDocumentService } from '../construction-intelligence/project-document.service';
 import { LayoutExtractorService } from '../construction-intelligence/layout-extractor.service';
 import type { ProjectDocumentKind } from '../construction-intelligence/entities/project-document.entity';
@@ -219,6 +220,7 @@ export class AdminService {
     @Optional() private readonly forecastSvc?: ProjectForecastService,
     @Optional() private readonly docSvc?: ProjectDocumentService,
     @Optional() private readonly extractorSvc?: LayoutExtractorService,
+    @Optional() private readonly waOutbound?: WhatsappOutboundClient,
   ) {}
 
   // CLEANUP — was AdminService's own CandidateSocietyEntity repository
@@ -859,6 +861,11 @@ export class AdminService {
     await this.requireProject(projectId);
     const job = this.extractorSvc.status(docId);
     return { status: job.status, result: job.result ?? null, error: job.error ?? null };
+  }
+
+  async diagnoseWhatsapp(to: string | null) {
+    if (!this.waOutbound) throw new BadRequestException('WhatsApp client unavailable');
+    return this.waOutbound.diagnose(to);
   }
 
   async getProjectForecast(projectId: string) {

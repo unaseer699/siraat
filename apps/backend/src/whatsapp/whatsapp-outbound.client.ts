@@ -135,4 +135,72 @@ export class WhatsappOutboundClient {
       clearTimeout(timeout);
     }
   }
+
+  // Admin diagnostic: reports what is configured, asks Meta whether the token
+  // and phone-number id are valid, and (optionally) sends a real test message,
+  // returning Meta's raw answer so the cause of reply failures is visible
+  // without reading server logs. Never throws; never returns the token.
+  async diagnose(to: string | null): Promise<{
+    configured: { token_set: boolean; phone_number_id_set: boolean; phone_number_id_tail: string | null };
+    phone_number_check: { ok: boolean; status: number | null; body: string };
+    send: { attempted: boolean; ok: boolean; status: number | null; body: string };
+    hint: string;
+  }> {
+    const accessToken = process.env.WHATSAPP_ACCESS_TOKEN;
+    const phoneNumberId = process.env.WHATSAPP_PHONE_NUMBER_ID;
+    const configured = {
+      token_set: Boolean(accessToken),
+      phone_number_id_set: Boolean(phoneNumberId),
+      phone_number_id_tail: phoneNumberId ? phoneNumberId.slice(-4) : null,
+    };
+    const empty = { ok: false, status: null as number | null, body: '' };
+    if (!accessToken || !phoneNumberId) {
+      return {
+        configured,
+        phone_number_check: { ...empty, body: 'skipped' },
+        send: { attempted: false, ...empty, body: 'skipped' },
+        hint: 'WHATSAPP_ACCESS_TOKEN or WHATSAPP_PHONE_NUMBER_ID is missing on the server.',
+      };
+    }
+    const call = async (url: string, init?: RequestInit) => {
+      try {
+        const r = await fetch(url, { ...init, signal: AbortSignal.timeout(15_000) });
+        return { ok: r.ok, status: r.status, body: (await r.text().catch(() => '')).slice(0, 1500) };
+      } catch (e) {
+        return { ok: false, status: null as number | null, body: e instanceof Error ? e.message : String(e) };
+      }
+    };
+    const phone_number_check = await call(
+      `https://graph.facebook.com/${GRAPH_API_VERSION}/${phoneNumberId}?fields=display_phone_number,verified_name,quality_rating`,
+      { headers: { authorization: `Bearer ${accessToken}` } },
+    );
+    let send = { attempted: false, ok: false, status: null as number | null, body: 'not requested' };
+    if (to) {
+      const r = await call(`https://graph.facebook.com/${GRAPH_API_VERSION}/${phoneNumberId}/messages`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', authorization: `Bearer ${accessToken}` },
+        body: JSON.stringify({
+          messaging_product: 'whatsapp',
+          to,
+          type: 'text',
+          text: { body: 'Siraat test message: replies are working.' },
+        }),
+      });
+      send = { attempted: true, ...r };
+    }
+    let hint = 'Everything checked out.';
+    const text = `${phone_number_check.body} ${send.body}`;
+    if (phone_number_check.status === 401 || /"code":\s*190/.test(text)) {
+      hint = 'The access token is invalid or expired. Create a permanent System User token in Meta Business settings and update WHATSAPP_ACCESS_TOKEN.';
+    } else if (/"code":\s*131030/.test(text)) {
+      hint = 'The recipient is not on the allowed list of the test number. Add it under API Setup > To in the Meta app.';
+    } else if (/"code":\s*131047|re-engagement/i.test(text)) {
+      hint = 'More than 24 hours since the user last messaged. Free-form text is blocked; send a message from that phone first.';
+    } else if (phone_number_check.status === 400 || phone_number_check.status === 404 || /"code":\s*100/.test(text)) {
+      hint = 'The phone number ID looks wrong. Copy the Phone number ID (not the phone number) from the Meta app.';
+    } else if (!phone_number_check.ok || (send.attempted && !send.ok)) {
+      hint = 'Meta rejected the request. Read the response above for the exact reason.';
+    }
+    return { configured, phone_number_check, send, hint };
+  }
 }
