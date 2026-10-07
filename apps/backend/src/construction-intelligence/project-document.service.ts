@@ -79,6 +79,11 @@ export class ProjectDocumentService {
     if (!res.affected) throw new NotFoundException('Document not found');
   }
 
+  async setKind(projectId: string, docId: string, kind: ProjectDocumentKind): Promise<void> {
+    const res = await this.repo.update({ id: docId, project_ref: projectId }, { kind });
+    if (!res.affected) throw new NotFoundException('Document not found');
+  }
+
   async remove(projectId: string, docId: string): Promise<void> {
     const row = await this.repo.findOneBy({ id: docId, project_ref: projectId });
     if (!row) throw new NotFoundException('Document not found');

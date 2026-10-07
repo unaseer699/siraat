@@ -9,6 +9,7 @@ import {
   listAdminProjectDocuments,
   uploadProjectDocument,
   setProjectDocumentVisibility,
+  setProjectDocumentKind,
   deleteProjectDocument,
   extractLayoutFromDocument,
   readStructuralSummary,
@@ -192,6 +193,16 @@ export function ForecastPanel({ projectId }: { projectId: string }) {
     return { rows, total: rows.reduce((a, r) => a + r.cft, 0) };
   }
 
+  async function onKind(d: ProjectDocument, kind: ProjectDocumentKind) {
+    setDocBusy(d.id);
+    try {
+      await setProjectDocumentKind(projectId, d.id, kind);
+      reloadDocs();
+    } finally {
+      setDocBusy(null);
+    }
+  }
+
   async function onToggle(d: ProjectDocument) {
     setDocBusy(d.id);
     try {
@@ -261,10 +272,13 @@ export function ForecastPanel({ projectId }: { projectId: string }) {
           <div key={d.id} style={{ display: 'flex', gap: '8px', alignItems: 'center', fontSize: '13px', padding: '4px 0', borderTop: '1px solid var(--border)', flexWrap: 'wrap' }}>
             <span style={{ flex: 1, minWidth: '160px' }}>
               {d.download_url ? <a href={d.download_url} target="_blank" rel="noreferrer">{d.title}</a> : d.title}
-              <span style={{ color: 'var(--muted)' }}> · {DOC_KINDS.find((k) => k.value === d.kind)?.label} · {(d.size_bytes / 1048576).toFixed(1)} MB</span>
+              <span style={{ color: 'var(--muted)' }}> · {(d.size_bytes / 1048576).toFixed(1)} MB · </span>
+              <select style={input} value={d.kind} disabled={docBusy === d.id} onChange={(e) => onKind(d, e.target.value as ProjectDocumentKind)}>
+                {DOC_KINDS.map((k) => <option key={k.value} value={k.value}>{k.label}</option>)}
+              </select>
             </span>
             <button type="button" style={{ ...input, cursor: 'pointer' }} disabled={docBusy === d.id} onClick={() => onToggle(d)}>
-              {d.visible_to_owner ? 'Visible to owner' : 'Hidden from owner'}
+              {d.visible_to_owner ? '✓ Owner can see (click to hide)' : '✗ Hidden from owner (click to show)'}
             </button>
             {d.kind === 'ARCHITECTURAL' && d.content_type === 'application/pdf' && (
               <button type="button" style={{ ...input, cursor: 'pointer' }} disabled={docBusy === d.id} onClick={() => onRead(d)}>

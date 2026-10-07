@@ -437,6 +437,8 @@ const DocFinalizeBodySchema = z.object({
 type DocFinalizeBody = z.infer<typeof DocFinalizeBodySchema>;
 const DocVisibilityBodySchema = z.object({ visible_to_owner: z.boolean() });
 type DocVisibilityBody = z.infer<typeof DocVisibilityBodySchema>;
+const DocKindBodySchema = z.object({ kind: z.enum(['ARCHITECTURAL', 'STRUCTURAL', 'ELECTRICAL', 'PLUMBING', 'SOIL', 'OTHER']) });
+type DocKindBody = z.infer<typeof DocKindBodySchema>;
 
 // --- POST /v1/admin/projects/:projectId/import-expenses ---
 const ImportExpensesBodySchema = z.object({
@@ -964,6 +966,16 @@ export class AdminController {
     @Body(new ZodValidationPipe(DocVisibilityBodySchema)) body: DocVisibilityBody,
   ) {
     return this.adminSvc.setProjectDocumentVisibility(projectId, docId, body.visible_to_owner);
+  }
+
+  @Post('projects/:projectId/documents/:docId/kind')
+  @HttpCode(200)
+  setProjectDocumentKind(
+    @Param('projectId') projectId: string,
+    @Param('docId') docId: string,
+    @Body(new ZodValidationPipe(DocKindBodySchema)) body: DocKindBody,
+  ) {
+    return this.adminSvc.setProjectDocumentKind(projectId, docId, body.kind);
   }
 
   @Post('projects/:projectId/documents/:docId/extract-layout')

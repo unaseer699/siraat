@@ -1673,3 +1673,10 @@ export async function readStructuralSummary(projectId: string, docId: string): P
   }
   throw new Error('Reading the drawing took too long. Please try again.');
 }
+
+export async function setProjectDocumentKind(projectId: string, docId: string, kind: ProjectDocumentKind) {
+  return apiFetch(`/v1/admin/projects/${projectId}/documents/${docId}/kind`, {
+    method: 'POST',
+    body: JSON.stringify({ kind }),
+  });
+}

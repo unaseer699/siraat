@@ -844,6 +844,11 @@ export class AdminService {
     return { ok: true };
   }
 
+  async setProjectDocumentKind(projectId: string, docId: string, kind: ProjectDocumentKind) {
+    await this.docs().setKind(projectId, docId, kind);
+    return { ok: true };
+  }
+
   async deleteProjectDocument(projectId: string, docId: string) {
     await this.docs().remove(projectId, docId);
     return { ok: true };
