@@ -414,6 +414,12 @@ const LayoutBodySchema = z.object({
 });
 type LayoutBody = z.infer<typeof LayoutBodySchema>;
 
+// --- POST /v1/admin/projects/:projectId/layout/progress ---
+const ProgressBodySchema = z.object({
+  progress: z.record(z.enum(['STRUCTURE', 'SERVICES', 'FINISHING', 'SITE_OTHER']), z.number().min(0).max(100)),
+});
+type ProgressBody = z.infer<typeof ProgressBodySchema>;
+
 // --- POST /v1/admin/whatsapp/diagnose ---
 const WhatsappDiagnoseBodySchema = z.object({ to: z.string().regex(/^\d{8,15}$/).nullable().optional() });
 type WhatsappDiagnoseBody = z.infer<typeof WhatsappDiagnoseBodySchema>;
@@ -988,6 +994,15 @@ export class AdminController {
     @Body(new ZodValidationPipe(LayoutBodySchema)) body: LayoutBody,
   ) {
     return this.adminSvc.saveProjectLayout(projectId, body);
+  }
+
+  @Post('projects/:projectId/layout/progress')
+  @HttpCode(200)
+  saveProjectProgress(
+    @Param('projectId') projectId: string,
+    @Body(new ZodValidationPipe(ProgressBodySchema)) body: ProgressBody,
+  ) {
+    return this.adminSvc.saveProjectProgress(projectId, body.progress);
   }
 
   @Post('projects/:projectId/layout/confirm')

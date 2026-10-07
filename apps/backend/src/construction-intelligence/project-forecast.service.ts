@@ -66,6 +66,7 @@ export interface LayoutResult {
   floors: LayoutFloor[];
   total_area_sqft: number;
   extras: LayoutExtras;
+  progress: Record<string, number>;
   finish_level: FinishLevel;
   price_factors: Record<string, number>;
   status: 'UNTRUSTED_DATA' | 'CONFIRMED';
@@ -81,6 +82,8 @@ export interface ForecastGroup {
   forecast_at_completion: number;
   remaining: number;
   price_factor: number;
+  progress_pct: number | null;
+  projected_from_progress: number | null;
 }
 
 export interface RateObservation {
@@ -131,6 +134,7 @@ function toLayoutResult(e: ProjectLayoutEntity): LayoutResult {
     floors: e.floors,
     total_area_sqft: e.floors.reduce((s, f) => s + Number(f.area_sqft), 0),
     extras: e.extras ?? {},
+    progress: e.progress ?? {},
     finish_level: e.finish_level as FinishLevel,
     price_factors: e.price_factors ?? {},
     status: e.status as 'UNTRUSTED_DATA' | 'CONFIRMED',
@@ -195,6 +199,22 @@ export class ProjectForecastService {
     );
     const saved = await this.layoutRepo.findOneByOrFail({ project_ref: projectId });
     return toLayoutResult(saved);
+  }
+
+  // Progress changes only the per-group percent complete; the confirmed
+  // layout stays confirmed.
+  async saveProgress(projectId: string, progress: Record<string, number>): Promise<void> {
+    const existing = await this.layoutRepo.findOneBy({ project_ref: projectId });
+    if (!existing) throw new BadRequestException('Save the layout before recording progress');
+    const clean: Record<string, number> = {};
+    for (const [k, v] of Object.entries(progress)) {
+      const n = Number(v);
+      if (Number.isFinite(n) && n >= 0 && n <= 100) clean[k] = n;
+    }
+    await this.layoutRepo.query(
+      `UPDATE construction_intelligence.project_layouts SET progress = $2::jsonb, updated_at = now() WHERE project_ref = $1`,
+      [projectId, JSON.stringify(clean)],
+    );
   }
 
   async confirmLayout(projectId: string): Promise<LayoutResult> {
@@ -326,7 +346,18 @@ export class ProjectForecastService {
           ? Math.round((refCost / REFERENCE_AREA_SQFT) * area * mult * factor) + (extraByGroup[g] ?? 0)
           : null;
       const sp = spent[g] ?? 0;
-      const fac = Math.max(estimated ?? 0, sp);
+      // Earned-value style projection: if the group is p% done and sp has been
+      // spent, the final cost is about sp / p. It is blended with the area
+      // estimate, trusting the projection more as progress grows.
+      const pct = layout?.progress[g];
+      let projected: number | null = null;
+      let base = estimated ?? 0;
+      if (pct !== undefined && pct > 0 && sp > 0) {
+        projected = Math.round(sp / (pct / 100));
+        const w = pct >= 100 ? 1 : Math.min(pct / 100, 0.9);
+        base = estimated === null ? projected : Math.round((1 - w) * estimated + w * projected);
+      }
+      const fac = Math.max(base, sp);
       return {
         group: g,
         label: SECTION_GROUP_LABELS[g],
@@ -335,6 +366,8 @@ export class ProjectForecastService {
         forecast_at_completion: fac,
         remaining: Math.max(fac - sp, 0),
         price_factor: factor,
+        progress_pct: pct ?? null,
+        projected_from_progress: projected,
       };
     });
 
@@ -379,6 +412,9 @@ export class ProjectForecastService {
         notes.push(`${f.name}: ${f.area_sqft} sq ft is above the allowable ${a} sq ft.`);
       }
     }
+    if (groups.some((g) => g.projected_from_progress !== null)) {
+      notes.push('Groups with a recorded percent complete are projected from what has been spent so far, blended with the area estimate.');
+    }
     if (indexApplied && structureIndex !== null) {
       notes.push(
         `Structure materials are repriced from your real purchases (${rate_observations.map((o) => o.label).join(', ')}): ${structureIndex >= 1 ? '+' : ''}${Math.round((structureIndex - 1) * 100)}% against the reference house.`,
@@ -404,7 +440,7 @@ export class ProjectForecastService {
       spent_total: spentTotal,
       forecast_total: forecastTotal,
       per_sqft: area > 0 ? Math.round(forecastTotal / area) : null,
-      confidence_score: confirmed ? 0.55 : 0.25,
+      confidence_score: Math.min((confirmed ? 0.55 : 0.25) + (groups.some((g) => g.projected_from_progress !== null) ? 0.1 : 0), 1),
       notes,
     };
   }

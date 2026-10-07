@@ -33,6 +33,11 @@ export class ProjectLayoutEntity {
   @Column({ type: 'jsonb', nullable: true })
   extras: LayoutExtras | null;
 
+  // Percent complete per group (0-100), set by the admin as work proceeds.
+  // Progress updates do not reset the layout's confirmation.
+  @Column({ type: 'jsonb', nullable: true })
+  progress: Record<string, number> | null;
+
   @Column({ type: 'varchar', length: 10, default: 'STANDARD' })
   finish_level: string;
 

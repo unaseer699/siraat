@@ -1473,6 +1473,7 @@ export interface ProjectLayout {
   floors: { name: string; area_sqft: number; drawing_area_sqft?: number | null; allowed_area_sqft?: number | null }[];
   total_area_sqft: number;
   extras: LayoutExtras;
+  progress: Partial<Record<ForecastGroupKey, number>>;
   finish_level: FinishLevel;
   price_factors: Partial<Record<ForecastGroupKey, number>>;
   status: 'UNTRUSTED_DATA' | 'CONFIRMED';
@@ -1516,6 +1517,8 @@ export interface ProjectForecast {
     forecast_at_completion: number;
     remaining: number;
     price_factor: number;
+    progress_pct: number | null;
+    projected_from_progress: number | null;
   }[];
   estimated_total: number;
   spent_total: number;
@@ -1635,4 +1638,14 @@ export interface WhatsappDiagnosis {
 
 export async function diagnoseWhatsapp(to: string | null): Promise<WhatsappDiagnosis> {
   return apiFetch('/v1/admin/whatsapp/diagnose', { method: 'POST', body: JSON.stringify({ to }) });
+}
+
+export async function saveProjectProgress(
+  projectId: string,
+  progress: Partial<Record<ForecastGroupKey, number>>,
+): Promise<ProjectForecast> {
+  return apiFetch(`/v1/admin/projects/${projectId}/layout/progress`, {
+    method: 'POST',
+    body: JSON.stringify({ progress }),
+  });
 }

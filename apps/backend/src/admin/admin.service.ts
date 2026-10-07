@@ -884,6 +884,12 @@ export class AdminService {
     return this.forecast().forecast(projectId);
   }
 
+  async saveProjectProgress(projectId: string, progress: Record<string, number>) {
+    await this.requireProject(projectId);
+    await this.forecast().saveProgress(projectId, progress);
+    return this.forecast().forecast(projectId);
+  }
+
   async confirmProjectLayout(projectId: string) {
     const project = await this.cpSvc.findProjectById(projectId);
     if (!project) throw new NotFoundException(`Project ${projectId} not found`);

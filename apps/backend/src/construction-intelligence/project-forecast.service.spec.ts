@@ -85,4 +85,17 @@ describe('ProjectForecastService', () => {
     ]).forecast('P1');
     expect(manual.structure_index_applied).toBe(false);
   });
+  it('projects a group from percent complete and spend', async () => {
+    const base = await make(layout()).forecast('P1');
+    const est = base.groups.find((g) => g.group === 'FINISHING')!.estimated!;
+    const spent = est * 0.3;
+    const r = await make(layout({ progress: { FINISHING: 20 } }), [{ category: 'PAINTER', subtotal: spent, expenses: [] }]).forecast('P1');
+    const g = r.groups.find((x) => x.group === 'FINISHING')!;
+    expect(g.progress_pct).toBe(20);
+    expect(g.projected_from_progress).toBe(Math.round(spent / 0.2));
+    expect(g.forecast_at_completion).toBeGreaterThan(est);
+    expect(r.confidence_score).toBeGreaterThan(base.confidence_score);
+    const done = await make(layout({ progress: { FINISHING: 100 } }), [{ category: 'PAINTER', subtotal: spent, expenses: [] }]).forecast('P1');
+    expect(done.groups.find((x) => x.group === 'FINISHING')!.forecast_at_completion).toBeGreaterThan(spent * 0.9);
+  });
 });

@@ -41,13 +41,14 @@ export default function ForecastCard({ projectId }: { projectId: string }) {
       <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
         <thead>
           <tr style={{ color: 'var(--muted)', fontSize: '12px', textAlign: 'left' }}>
-            <th style={{ padding: '4px 0' }}>Group</th><th>Spent</th><th>Forecast</th>
+            <th style={{ padding: '4px 0' }}>Group</th><th>Done</th><th>Spent</th><th>Forecast</th>
           </tr>
         </thead>
         <tbody>
           {rows.map((g) => (
             <tr key={g.group} style={{ borderTop: '1px solid var(--border)' }}>
               <td style={{ padding: '6px 0' }}>{g.label}</td>
+              <td>{g.progress_pct !== null ? `${Math.round(g.progress_pct)}%` : '—'}</td>
               <td>{pkr(g.spent)}</td>
               <td>{pkr(g.forecast_at_completion)}</td>
             </tr>

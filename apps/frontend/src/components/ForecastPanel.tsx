@@ -5,6 +5,7 @@ import {
   fetchProjectForecast,
   saveProjectLayout,
   confirmProjectLayout,
+  saveProjectProgress,
   listAdminProjectDocuments,
   uploadProjectDocument,
   setProjectDocumentVisibility,
@@ -67,6 +68,7 @@ export function ForecastPanel({ projectId }: { projectId: string }) {
   const [docVisible, setDocVisible] = useState(true);
   const [docBusy, setDocBusy] = useState<string | null>(null);
   const [readMsg, setReadMsg] = useState<string | null>(null);
+  const [progress, setProgress] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
@@ -77,6 +79,7 @@ export function ForecastPanel({ projectId }: { projectId: string }) {
       setFinish(f.layout.finish_level);
       setFactors(Object.fromEntries(Object.entries(f.layout.price_factors).map(([k, v]) => [k, String(v)])));
       setNote(f.layout.source_note ?? '');
+      setProgress(Object.fromEntries(Object.entries(f.layout.progress ?? {}).map(([k, v]) => [k, String(v)])));
       const bw = f.layout.extras?.boundary_wall;
       setBoundaryLen(bw ? String(bw.length_ft) : '');
       setBoundaryRate(bw ? String(bw.rate_per_ft) : DEFAULT_BOUNDARY_RATE);
@@ -181,6 +184,18 @@ export function ForecastPanel({ projectId }: { projectId: string }) {
     } finally {
       setDocBusy(null);
     }
+  }
+
+  function saveProgress() {
+    const p: Partial<Record<ForecastGroupKey, number>> = {};
+    for (const g of FACTOR_GROUPS) {
+      const raw = progress[g.key];
+      if (raw === undefined || raw === '') continue;
+      const v = Number(raw);
+      if (!(v >= 0 && v <= 100)) return setErr(`${g.label}: percent complete must be between 0 and 100`);
+      p[g.key] = v;
+    }
+    run(() => saveProjectProgress(projectId, p));
   }
 
   function save() {
@@ -348,6 +363,20 @@ export function ForecastPanel({ projectId }: { projectId: string }) {
               Included extras: {fc.extras.map((e) => `${e.name} (${e.quantity.toLocaleString()} ${e.unit}) ${pkr(e.cost)}`).join(' · ')}
             </p>
           )}
+          <div style={{ border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '10px', margin: '10px 0' }}>
+            <strong style={{ fontSize: '13px' }}>Percent complete (drives the forecast)</strong>
+            <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', margin: '8px 0', alignItems: 'flex-end' }}>
+              {FACTOR_GROUPS.map((g) => (
+                <label key={g.key} style={{ fontSize: '12px' }}>{g.label} %<br />
+                  <input style={{ ...input, width: '70px' }} inputMode="decimal" placeholder="0" value={progress[g.key] ?? ''} onChange={(e) => setProgress({ ...progress, [g.key]: e.target.value })} />
+                </label>
+              ))}
+              <button type="button" style={btn} disabled={busy} onClick={saveProgress}>Save progress</button>
+            </div>
+            <p style={{ fontSize: '11px', color: 'var(--muted)', margin: 0 }}>
+              Final cost of a group is projected as spent ÷ percent complete, blended with the area estimate. Saving progress does not reset the confirmation.
+            </p>
+          </div>
           {fc.notes.map((n) => (
             <p key={n} style={{ fontSize: '12px', color: 'var(--muted)', margin: '2px 0' }}>{n}</p>
           ))}
