@@ -149,7 +149,7 @@ Doors: ___`);
 
 describe('lump-sum items', () => {
   it('reads gate, stair railing and the parapet line', () => {
-    const r = parseMarketRateMessage('Market Rates\nGate: 90000\nStair Railing: 60,000 lumpsum\nWindows Iron Grill: 80000\nBoundary wall/parapet/roof boundary: 100 /sqft\nFront design plaster: 30000');
+    const r = parseMarketRateMessage('Market Rates\nGate: 90000\nStair Railing: 60,000 lumpsum\nWindows Iron Grill: 80000\nBoundary wall/parapet/roof boundary: 100 /rft\nFront design plaster: 30000');
     expect(r.rejected).toEqual([]);
     expect(Object.fromEntries(r.lines.map((l) => [l.item.key, l.rate]))).toEqual({ GATE: 90000, STAIR_RAILING: 60000, WINDOW_GRILLS: 80000, PARAPET_LABOUR: 100, FRONT_DESIGN: 30000 });
   });
