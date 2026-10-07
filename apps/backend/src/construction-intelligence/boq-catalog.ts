@@ -150,18 +150,22 @@ export const BOQ_UNAVAILABLE_ITEM_NOTES: Partial<Record<BoqItemKey, string>> = {
     'No standard quantity or percentage-allowance convention found in Pakistani residential construction sources.',
 };
 
-// Step 0 Tier A — reused unchanged from the original grey-structure estimate
-// (material-catalog.ts's GREY_STRUCTURE_RATIO_PER_MARLA, now retired):
-// commonly cited by Pakistani construction cost estimators (e.g. Zameen.com
-// and Graana.com "grey structure cost per marla" guides) for a standard
-// single-story RCC residential structure — a publicly stated industry
-// planning ratio, not a single named published standard.
+// Calibrated to the founder's finished 25 x 50 house (2,700 sq ft covered
+// across all floors = 12 marla, May 2026), from the quantities actually
+// bought: cement 660 bags, steel about 4,720 kg (summed from the purchase
+// descriptions), bricks 47,500 (design bricks excluded), sand 4,550 cft
+// (structure, plaster, chips and tiles) and crush 2,400 cft. These replace
+// the generic single-storey "cost per marla" guide ratios (cement 95, steel
+// 750, bricks 4,500, sand 100, crush 100 per marla), which were 70 to 90%
+// too high for cement and steel and 50 to 75% too low for sand and crush
+// against this house. One house is one sample: re-check against the next
+// completed project before treating these as industry-wide.
 const CORE_RATIO_PER_MARLA: Record<'CEMENT' | 'STEEL' | 'BRICKS' | 'SAND' | 'CRUSH', number> = {
-  CEMENT: 95,
-  STEEL: 750,
-  BRICKS: 4500,
-  SAND: 100,
-  CRUSH: 100,
+  CEMENT: 55,
+  STEEL: 393,
+  BRICKS: 3958,
+  SAND: 379,
+  CRUSH: 200,
 };
 
 // Layered on top of the cited ratio above — a Siraat product judgment (PREMIUM

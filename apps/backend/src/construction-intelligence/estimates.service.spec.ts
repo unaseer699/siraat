@@ -236,8 +236,8 @@ describe('EstimatesService (Material + Works BOQ Estimator v1)', () => {
     const result = await service.getEstimate({ ...req, area: 10, area_unit: 'MARLA', finish_level: 'PREMIUM' });
     if (result.state !== 'DEGRADED_SUCCESS') throw new Error('expected DEGRADED_SUCCESS');
     const cementLine = result.line_items.find((li) => li.item_key === 'CEMENT');
-    // 95 bags/marla * 10 marla * 1.15 (PREMIUM)
-    expect(cementLine?.quantity).toBe(1092.5);
+    // 55 bags/marla * 10 marla * 1.15 (PREMIUM)
+    expect(cementLine?.quantity).toBe(632.5);
   });
 
   it('1 marla = 225 sqft conversion is applied consistently regardless of input unit', async () => {
@@ -336,7 +336,7 @@ describe('EstimatesService (Material + Works BOQ Estimator v1)', () => {
   describe('rate unit conversion', () => {
     const tenMarla: BoqRequest = { ...req, area: 10, area_unit: 'MARLA' };
 
-    it('prices a per-ton steel rate against a kg quantity: 7,500 kg x 250,000/1000 kg = PKR 18.75 Lakh', async () => {
+    it('prices a per-ton steel rate against a kg quantity: 3,930 kg x 250,000/1000 kg = PKR 9.825 Lakh', async () => {
       const rates = [rate({ id: 'r-steel-ton', material_name: 'Steel', unit: '1 ton', price: 250000 })];
       listRawRatesForCityMock.mockResolvedValue(rates);
       const result = await service.getEstimate(tenMarla);
@@ -344,10 +344,10 @@ describe('EstimatesService (Material + Works BOQ Estimator v1)', () => {
       if (result.state === 'NOT_COVERED') throw new Error('expected FULL or DEGRADED_SUCCESS');
       const steel = result.line_items.find((li) => li.item_key === 'STEEL');
       expect(steel?.unit).toBe('kg');
-      expect(steel?.quantity).toBe(7500);
+      expect(steel?.quantity).toBe(3930);
       expect(steel?.unit_rate).toBe(250); // per kg
-      expect(steel?.subtotal).toBe(1_875_000); // PKR 18.75 Lakh, not 187.5 Crore
-      expect(steel?.subtotal).not.toBe(7500 * 250000);
+      expect(steel?.subtotal).toBe(982_500); // PKR 9.825 Lakh, not 98 Crore
+      expect(steel?.subtotal).not.toBe(3930 * 250000);
     });
 
     it('computes the line total from the unrounded per-unit price, not the rounded display rate', async () => {
@@ -358,9 +358,9 @@ describe('EstimatesService (Material + Works BOQ Estimator v1)', () => {
 
       if (result.state === 'NOT_COVERED') throw new Error('expected FULL or DEGRADED_SUCCESS');
       const bricks = result.line_items.find((li) => li.item_key === 'BRICKS');
-      expect(bricks?.quantity).toBe(45000);
+      expect(bricks?.quantity).toBe(39580);
       expect(bricks?.unit_rate).toBe(14.33);
-      expect(bricks?.subtotal).toBe(644_985); // 45,000 x 14,333 / 1000, not 45,000 x 14.33 = 644,850
+      expect(bricks?.subtotal).toBe(567_300.14); // 39,580 x 14,333 / 1000, not 39,580 x 14.33
     });
 
     it('treats a rate with an unlisted unit as unavailable, and logs the skipped rate', async () => {
@@ -387,7 +387,7 @@ describe('EstimatesService (Material + Works BOQ Estimator v1)', () => {
       if (result.state === 'NOT_COVERED') throw new Error('expected FULL or DEGRADED_SUCCESS');
       const steel = result.line_items.find((li) => li.item_key === 'STEEL');
       expect(steel?.unit_rate).toBe(280);
-      expect(steel?.subtotal).toBe(7500 * 280);
+      expect(steel?.subtotal).toBe(3930 * 280);
     });
   });
 });
