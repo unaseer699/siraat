@@ -56,7 +56,12 @@ export class MarketRateService {
   // Baseline per item: the reference-house rate where known, otherwise the
   // stored first-quote / admin figure.
   async baselines(): Promise<Record<string, RateBaseline>> {
-    const rows = (await this.baseRepo?.find()) ?? [];
+    let rows: MarketRateBaselineEntity[] = [];
+    try {
+      rows = (await this.baseRepo?.find()) ?? [];
+    } catch {
+      rows = [];
+    }
     const out: Record<string, RateBaseline> = {};
     for (const item of MARKET_RATE_ITEMS) {
       const row = rows.find((r) => r.item_key === item.key);
@@ -114,10 +119,16 @@ export class MarketRateService {
         }),
       );
     });
-    if (input.item.ref_rate === null && this.baseRepo && !(await this.baseRepo.findOneBy({ item_key: input.item.key }))) {
-      await this.baseRepo.save(
-        this.baseRepo.create({ item_key: input.item.key, rate: input.rate, source: 'FIRST_QUOTE', set_date: input.rate_date }),
-      );
+    if (input.item.ref_rate === null && this.baseRepo) {
+      try {
+        if (!(await this.baseRepo.findOneBy({ item_key: input.item.key }))) {
+          await this.baseRepo.save(
+            this.baseRepo.create({ item_key: input.item.key, rate: input.rate, source: 'FIRST_QUOTE', set_date: input.rate_date }),
+          );
+        }
+      } catch {
+        // The quote itself is saved; the baseline is recorded on the next quote once the table exists.
+      }
     }
     const prev = prior ?? before;
     return { quote, previous_rate: prev ? Number(prev.rate) : null };
