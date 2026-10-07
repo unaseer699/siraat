@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, Optional } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import type { BoqRequest, BoqResponse, BoqLineItem, BoqItemKey } from '@siraat/shared-types';
@@ -6,6 +6,7 @@ import { ConstructionIntelligenceService } from './construction-intelligence.ser
 import { ConstructionEstimateEntity } from './entities/construction-estimate.entity';
 import { MaterialRateEntity } from './entities/material-rate.entity';
 import { computeMaterialRateIsStale } from './staleness';
+import { MarketRateService } from './market-rate.service';
 import {
   BOQ_ITEM_KEYS,
   BOQ_ITEM_LABELS,
@@ -21,6 +22,12 @@ import {
   toSqft,
 } from './boq-catalog';
 
+// Siraat's own daily market rates (WhatsApp / admin) are Islamabad-Rawalpindi
+// prices, so they feed estimates for those two cities only, and only for the
+// core materials the BOQ prices.
+const DAILY_RATE_CITIES = new Set(['islamabad', 'rawalpindi']);
+const DAILY_RATE_ITEMS: ReadonlySet<string> = new Set(['CEMENT', 'STEEL', 'BRICKS', 'SAND', 'CRUSH']);
+
 @Injectable()
 export class EstimatesService {
   private readonly logger = new Logger(EstimatesService.name);
@@ -29,6 +36,7 @@ export class EstimatesService {
     private readonly ciSvc: ConstructionIntelligenceService,
     @InjectRepository(ConstructionEstimateEntity)
     private readonly estimateRepo: Repository<ConstructionEstimateEntity>,
+    @Optional() private readonly marketRates?: MarketRateService,
   ) {}
 
   async getEstimate(req: BoqRequest): Promise<BoqResponse> {
@@ -52,7 +60,17 @@ export class EstimatesService {
       .andWhere('e.is_stale = false')
       .orderBy('e.computed_at', 'DESC')
       .getOne();
-    if (existing && existing.computed_at > cutoff) {
+    const useDaily = DAILY_RATE_CITIES.has(req.city.trim().toLowerCase()) && this.marketRates !== undefined;
+    let newerRates = false;
+    if (existing && useDaily) {
+      try {
+        const latest = await this.marketRates!.latestQuoteAt();
+        newerRates = latest !== null && latest > existing.computed_at;
+      } catch {
+        newerRates = false;
+      }
+    }
+    if (existing && existing.computed_at > cutoff && !newerRates) {
       return this.toResponse(existing);
     }
 
@@ -61,7 +79,40 @@ export class EstimatesService {
     // "nothing to compute" condition here; rates are looked up per line item
     // below, independently of whether any exist at all for this city.
     const rates = await this.ciSvc.listRawRatesForCity(req.city);
+    if (useDaily) rates.push(...(await this.dailyMarketRatesAsRates(req.city)));
     return this.computeAndSave(req, areaSqft, rates);
+  }
+
+  // Today's daily market rates (carried forward when a day has no new quote)
+  // presented as first-party FIELD_REPORTED rates, so the normal staleness
+  // rule still applies to a rate that has not been refreshed for too long.
+  // Their id is the market-rate quote FACT, which becomes a derived_from entry.
+  private async dailyMarketRatesAsRates(city: string): Promise<MaterialRateEntity[]> {
+    try {
+      const current = (await this.marketRates?.currentRates()) ?? [];
+      return current
+        .filter((c) => DAILY_RATE_ITEMS.has(c.key))
+        .map(
+          (c) =>
+            ({
+              id: c.quote_id,
+              material_name: c.label,
+              unit: BOQ_ITEM_UNITS[c.key as BoqItemKey],
+              price: c.rate,
+              city,
+              source_tier: 'FIELD_REPORTED',
+              source_name: 'Siraat daily market rates',
+              source_contact: null,
+              supplier_id: null,
+              recorded_date: c.rate_date,
+              record_type: 'FACT',
+              is_stale: false,
+            }) as unknown as MaterialRateEntity,
+        );
+    } catch (err) {
+      this.logger.warn(`Daily market rates unavailable for estimate: ${err instanceof Error ? err.message : String(err)}`);
+      return [];
+    }
   }
 
   private async computeAndSave(

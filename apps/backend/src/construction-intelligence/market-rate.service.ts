@@ -77,6 +77,12 @@ export class MarketRateService {
     await this.baseRepo.save(this.baseRepo.create({ item_key: item.key, rate, source: 'ADMIN', set_date: setDate }));
   }
 
+  // When the newest quote was saved, so cached estimates older than it can be recomputed.
+  async latestQuoteAt(): Promise<Date | null> {
+    const q = await this.repo.findOne({ where: { status: 'ACTIVE' }, order: { created_at: 'DESC' } });
+    return q ? q.created_at : null;
+  }
+
   // The latest ACTIVE quote strictly before `date`, used to reject typos.
   async previousRate(itemKey: string, date: string): Promise<number | null> {
     const q = await this.repo.findOne({

@@ -391,3 +391,39 @@ describe('EstimatesService (Material + Works BOQ Estimator v1)', () => {
     });
   });
 });
+
+describe('EstimatesService with daily market rates', () => {
+  const build = (market: any) => {
+    const qb: any = { where: () => qb, andWhere: () => qb, orderBy: () => qb, getOne: async () => null };
+    return new EstimatesService(
+      { listRawRatesForCity: async () => [] } as any,
+      { create: (d: any) => d, save: async (e: any) => ({ id: 'est-1', computed_at: new Date(), ...e }), createQueryBuilder: () => qb } as any,
+      market,
+    );
+  };
+  const today = new Date().toISOString().slice(0, 10);
+  const market = {
+    latestQuoteAt: async () => null,
+    currentRates: async () => [
+      { key: 'CEMENT', label: 'Cement', unit: 'bag', rate: 1490, rate_date: today, carried_forward: false, age_days: 0, quote_id: 'q-cement' },
+      { key: 'BRICKS', label: 'Bricks', unit: 'pc', rate: 22, rate_date: today, carried_forward: false, age_days: 0, quote_id: 'q-bricks' },
+      { key: 'TILES', label: 'Tiles', unit: 'sqft', rate: 95, rate_date: today, carried_forward: false, age_days: 0, quote_id: 'q-tiles' },
+    ],
+  };
+  const req: BoqRequest = { city: 'Islamabad', area: 5, area_unit: 'MARLA', floors: 1, basement: false, finish_level: 'STANDARD' };
+
+  it('prices cement and bricks from the daily rates for Islamabad', async () => {
+    const r: any = await build(market).getEstimate(req);
+    const cement = r.line_items.find((l: any) => l.item_key === 'CEMENT');
+    const bricks = r.line_items.find((l: any) => l.item_key === 'BRICKS');
+    expect(cement.unit_rate).toBe(1490);
+    expect(bricks.unit_rate).toBe(22);
+    expect(r.derived_from).toEqual(expect.arrayContaining(['q-cement', 'q-bricks']));
+    expect(r.derived_from).not.toContain('q-tiles');
+  });
+
+  it('does not use them for other cities', async () => {
+    const r: any = await build(market).getEstimate({ ...req, city: 'Lahore' });
+    expect(r.line_items.find((l: any) => l.item_key === 'CEMENT').unit_rate).toBeNull();
+  });
+});
