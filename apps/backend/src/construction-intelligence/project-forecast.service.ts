@@ -1,9 +1,10 @@
-import { Injectable, BadRequestException } from '@nestjs/common';
+import { Injectable, BadRequestException, Optional } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { sectionGroupOf, SECTION_GROUP_LABELS, SectionCategory, SectionGroup } from '@siraat/shared-types';
 import { ProjectLayoutEntity, LayoutFloor, LayoutExtras } from './entities/project-layout.entity';
 import { ConstructionProjectService } from './construction-project.service';
+import { MarketRateService, CurrentMarketRate } from './market-rate.service';
 
 export type FinishLevel = 'BASIC' | 'STANDARD' | 'PREMIUM';
 export const FINISH_LEVELS: FinishLevel[] = ['BASIC', 'STANDARD', 'PREMIUM'];
@@ -96,6 +97,20 @@ export interface RateObservation {
   ratio: number;
 }
 
+export interface MarketRateUsed {
+  key: string;
+  label: string;
+  unit: string;
+  rate: number;
+  reference_rate: number;
+  ratio: number;
+  rate_date: string;
+  carried_forward: boolean;
+  age_days: number;
+}
+
+export const MARKET_STALENESS_DAYS = 7;
+
 export interface ForecastExtra {
   kind: string;
   name: string;
@@ -110,6 +125,8 @@ export interface ForecastResult {
   rate_observations: RateObservation[];
   structure_material_index: number | null;
   structure_index_applied: boolean;
+  structure_index_source: 'MARKET' | 'PURCHASES' | null;
+  market_rates: MarketRateUsed[];
   state: 'FULL' | 'DEGRADED_SUCCESS' | 'NOT_COVERED';
   record_type: 'GENERATED';
   derived_from: string[];
@@ -149,6 +166,7 @@ export class ProjectForecastService {
     @InjectRepository(ProjectLayoutEntity)
     private readonly layoutRepo: Repository<ProjectLayoutEntity>,
     private readonly cpSvc: ConstructionProjectService,
+    @Optional() private readonly marketRates?: MarketRateService,
   ) {}
 
   async getLayout(projectId: string): Promise<LayoutResult | null> {
@@ -266,17 +284,48 @@ export class ProjectForecastService {
         ratio: Math.round((actual / ref.ref_rate) * 1000) / 1000,
       });
     }
-    let structureIndex: number | null = null;
-    if (rate_observations.length > 0) {
+    const weightedIndex = (pairs: { key: string; ratio: number }[]): number | null => {
+      if (pairs.length === 0) return null;
       let w = 0;
       let wr = 0;
-      for (const o of rate_observations) {
+      for (const o of pairs) {
         const weight = STRUCTURE_MATERIAL_REFERENCE.find((r) => r.key === o.key)!.weight;
         w += weight;
         wr += weight * o.ratio;
       }
-      structureIndex = Math.min(Math.max(wr / w, 0.5), 2);
+      return Math.min(Math.max(wr / w, 0.5), 2);
+    };
+    const purchaseIndex = weightedIndex(rate_observations);
+
+    // Today's market rates (the latest quote, carried forward on days with no
+    // new one) price the work still to be done, so they take priority over the
+    // project's own past purchases.
+    let market: CurrentMarketRate[] = [];
+    try {
+      market = (await this.marketRates?.currentRates()) ?? [];
+    } catch {
+      market = [];
     }
+    const market_rates: MarketRateUsed[] = [];
+    for (const m of market) {
+      const ref = STRUCTURE_MATERIAL_REFERENCE.find((r) => r.key === m.key);
+      if (!ref) continue;
+      market_rates.push({
+        key: m.key,
+        label: m.label,
+        unit: m.unit,
+        rate: m.rate,
+        reference_rate: ref.ref_rate,
+        ratio: Math.round((m.rate / ref.ref_rate) * 1000) / 1000,
+        rate_date: m.rate_date,
+        carried_forward: m.carried_forward,
+        age_days: m.age_days,
+      });
+    }
+    const marketIndex = weightedIndex(market_rates);
+    const structureIndex: number | null = marketIndex ?? purchaseIndex;
+    const structure_index_source: 'MARKET' | 'PURCHASES' | null =
+      marketIndex !== null ? 'MARKET' : purchaseIndex !== null ? 'PURCHASES' : null;
 
     const ageDays = (now.getTime() - new Date(REFERENCE_DATE).getTime()) / 86_400_000;
     const base = {
@@ -286,8 +335,8 @@ export class ProjectForecastService {
         date: REFERENCE_DATE,
         source: 'A completed 25 x 50 house, Islamabad (actual costs paid)',
       },
-      is_stale: ageDays > STALENESS_THRESHOLD_DAYS,
-      staleness_threshold_days: STALENESS_THRESHOLD_DAYS,
+      is_stale: market_rates.length > 0 ? market_rates.some((m) => m.age_days > MARKET_STALENESS_DAYS) : ageDays > STALENESS_THRESHOLD_DAYS,
+      staleness_threshold_days: market_rates.length > 0 ? MARKET_STALENESS_DAYS : STALENESS_THRESHOLD_DAYS,
       affiliation_disclosure: null,
     };
 
@@ -383,6 +432,8 @@ export class ProjectForecastService {
         rate_observations,
         structure_material_index: structureIndex,
         structure_index_applied: false,
+        structure_index_source,
+        market_rates,
         derived_from: [],
         layout: null,
         groups,
@@ -417,14 +468,16 @@ export class ProjectForecastService {
     }
     if (indexApplied && structureIndex !== null) {
       notes.push(
-        `Structure materials are repriced from your real purchases (${rate_observations.map((o) => o.label).join(', ')}): ${structureIndex >= 1 ? '+' : ''}${Math.round((structureIndex - 1) * 100)}% against the reference house.`,
+        structure_index_source === 'MARKET'
+          ? `Structure materials are priced at today's market rates (${market_rates.map((o) => o.label).join(', ')}): ${structureIndex >= 1 ? '+' : ''}${Math.round((structureIndex - 1) * 100)}% against the reference house.${market_rates.some((m) => m.carried_forward) ? ' Some rates are carried forward from earlier days.' : ''}`
+          : `Structure materials are repriced from your real purchases (${rate_observations.map((o) => o.label).join(', ')}): ${structureIndex >= 1 ? '+' : ''}${Math.round((structureIndex - 1) * 100)}% against the reference house.`,
       );
     }
     if (extras.length > 0) {
       notes.push('Shades, balconies and the boundary wall are priced from assumed rates (editable); confirm them with a quote.');
     }
     if (!confirmed) notes.push('Floor areas are not confirmed yet, so this forecast is provisional.');
-    if (base.is_stale) notes.push('Reference prices are older than the freshness threshold.');
+    if (base.is_stale) notes.push(market_rates.length > 0 ? 'Some market rates are more than 7 days old; send fresh rates.' : 'Reference prices are older than the freshness threshold.');
 
     return {
       ...base,
@@ -433,6 +486,8 @@ export class ProjectForecastService {
       rate_observations,
       structure_material_index: structureIndex,
       structure_index_applied: indexApplied,
+      structure_index_source,
+      market_rates,
       derived_from: [layout.id],
       layout,
       groups,
@@ -440,7 +495,12 @@ export class ProjectForecastService {
       spent_total: spentTotal,
       forecast_total: forecastTotal,
       per_sqft: area > 0 ? Math.round(forecastTotal / area) : null,
-      confidence_score: Math.min((confirmed ? 0.55 : 0.25) + (groups.some((g) => g.projected_from_progress !== null) ? 0.1 : 0), 1),
+      confidence_score: Math.min(
+        (confirmed ? 0.55 : 0.25) +
+          (groups.some((g) => g.projected_from_progress !== null) ? 0.1 : 0) +
+          (structure_index_source === 'MARKET' && !base.is_stale ? 0.1 : 0),
+        1,
+      ),
       notes,
     };
   }

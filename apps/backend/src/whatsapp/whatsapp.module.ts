@@ -9,6 +9,7 @@ import { WhatsappDraftListingEntity } from './entities/whatsapp-draft-listing.en
 import { WhatsappService } from './whatsapp.service';
 import { WhatsappParsingService } from './whatsapp-parsing.service';
 import { WhatsappAiClient } from './whatsapp-ai.client';
+import { WhatsappMarketRateService } from './whatsapp-market-rate.service';
 import { WhatsappOutboundClient } from './whatsapp-outbound.client';
 import { WhatsappConfirmationService } from './whatsapp-confirmation.service';
 import { WhatsappBusinessLinkService } from './whatsapp-business-link.service';
@@ -89,6 +90,7 @@ import { TrustModule } from '../trust/trust.module';
     WhatsappGroundReportService,
     WhatsappExpenseBatchService,
     WhatsappProjectResolverService,
+    WhatsappMarketRateService,
   ],
   exports: [
     WhatsappOutboundClient,

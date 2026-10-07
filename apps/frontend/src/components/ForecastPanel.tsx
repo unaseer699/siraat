@@ -434,6 +434,13 @@ export function ForecastPanel({ projectId }: { projectId: string }) {
               </tr>
             </tbody>
           </table>
+          {fc.market_rates.length > 0 && (
+            <p style={{ fontSize: '12px', margin: '4px 0' }}>
+              Market rates used:{' '}
+              {fc.market_rates.map((m) => `${m.label} Rs ${m.rate.toLocaleString()}/${m.unit} (${m.carried_forward ? `carried from ${m.rate_date}` : m.rate_date}, ${m.ratio >= 1 ? '+' : ''}${Math.round((m.ratio - 1) * 100)}% vs reference)`).join(' · ')}
+              {fc.structure_index_source === 'MARKET' ? '' : ' — not applied'}
+            </p>
+          )}
           {fc.rate_observations.length > 0 && (
             <p style={{ fontSize: '12px', margin: '4px 0' }}>
               Live rates from your purchases:{' '}

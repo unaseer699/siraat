@@ -5,6 +5,7 @@ import { AdminLogoutButton } from './AdminLogoutButton';
 type AdminSection =
   | 'candidates'
   | 'material-rates'
+  | 'daily-rates'
   | 'contractors'
   | 'suppliers'
   | 'house-plans'
@@ -16,6 +17,8 @@ type AdminSection =
 const SECTIONS: { key: AdminSection; href: string; label: string }[] = [
   { key: 'candidates', href: '/admin/candidates', label: 'Candidate Societies' },
   { key: 'material-rates', href: '/admin/material-rates', label: 'Material Rates' },
+  // Daily market rates (WhatsApp template or manual entry) that price the forecast.
+  { key: 'daily-rates', href: '/admin/daily-rates', label: 'Daily Rates' },
   // CONTRACTOR DIRECTORY Chunk 2b — no standalone list page yet, so the tab
   // opens straight into the onboarding form (same as Material Rates doubling
   // as both list and create).

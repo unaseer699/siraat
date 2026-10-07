@@ -1500,8 +1500,22 @@ export interface RateObservation {
   ratio: number;
 }
 
+export interface MarketRateUsed {
+  key: string;
+  label: string;
+  unit: string;
+  rate: number;
+  reference_rate: number;
+  ratio: number;
+  rate_date: string;
+  carried_forward: boolean;
+  age_days: number;
+}
+
 export interface ProjectForecast {
   extras: ForecastExtra[];
+  market_rates: MarketRateUsed[];
+  structure_index_source: 'MARKET' | 'PURCHASES' | null;
   rate_observations: RateObservation[];
   structure_material_index: number | null;
   structure_index_applied: boolean;
@@ -1679,4 +1693,31 @@ export async function setProjectDocumentKind(projectId: string, docId: string, k
     method: 'POST',
     body: JSON.stringify({ kind }),
   });
+}
+
+export interface MarketRatesView {
+  today: string;
+  template: string;
+  items: { key: string; label: string; unit: string; min: number; max: number }[];
+  current: {
+    key: string;
+    label: string;
+    unit: string;
+    rate: number;
+    rate_date: string;
+    carried_forward: boolean;
+    age_days: number;
+  }[];
+  history: {
+    date: string;
+    rates: Record<string, { rate: number; carried_forward: boolean } | null>;
+  }[];
+}
+
+export async function fetchMarketRates(days = 14): Promise<MarketRatesView> {
+  return apiFetch(`/v1/admin/market-rates/daily?days=${days}`);
+}
+
+export async function saveMarketRates(date: string, rates: Record<string, number>): Promise<MarketRatesView> {
+  return apiFetch('/v1/admin/market-rates/daily', { method: 'POST', body: JSON.stringify({ date, rates }) });
 }

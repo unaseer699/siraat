@@ -1,3 +1,5 @@
+import { WhatsappMarketRateService } from './whatsapp-market-rate.service';
+import { isMarketRateMessage } from '../construction-intelligence/market-rate-parser';
 import {
   ConflictException,
   Injectable,
@@ -170,6 +172,8 @@ export class WhatsappService {
     @Optional()
     private readonly listingAlertSvc?: WhatsappListingAlertService,
     @Optional()
+    private readonly marketRateSvc?: WhatsappMarketRateService,
+    @Optional()
     private readonly groundReportSvc?: WhatsappGroundReportService,
     @Optional() private readonly expenseBatchSvc?: WhatsappExpenseBatchService,
     @Optional() private readonly projectResolver?: WhatsappProjectResolverService,
@@ -230,6 +234,36 @@ export class WhatsappService {
       if (stopped > 0) {
         this.logger.log(`Listing alerts stopped for ${maskPhone(msg.from)} (${stopped})`);
         return { stored: false, duplicate: false };
+      }
+    }
+
+    // DAILY MARKET RATES — a "Market Rates" message from a known number (a
+    // listing forwarder or a project-mapped sender) is stored as rate quotes
+    // and never enters the expense, listing or unmapped queues.
+    if (this.marketRateSvc && isMarketRateMessage(msg.text)) {
+      const known =
+        ((await this.listingForwarderSvc?.isForwarder(msg.from)) ?? false) ||
+        (await this.mappingRepo.count({ where: { wa_id: msg.from } })) > 0;
+      if (known) {
+        try {
+          const saved = await this.inboundRepo.save(
+            this.inboundRepo.create({
+              wa_message_id: msg.id,
+              wa_id: msg.from,
+              message_type: msg.type,
+              message_text: msg.text,
+              wa_timestamp: msg.timestamp,
+              raw_payload: msg.rawPayload,
+              project_ref: null,
+              status: 'PARSED',
+            }),
+          );
+          void this.marketRateSvc.handle(saved);
+          return { stored: true, duplicate: false, message: saved };
+        } catch (err) {
+          if (isUniqueViolation(err)) return { stored: false, duplicate: true };
+          throw err;
+        }
       }
     }
 

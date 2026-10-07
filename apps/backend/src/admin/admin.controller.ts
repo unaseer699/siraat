@@ -420,6 +420,13 @@ const ProgressBodySchema = z.object({
 });
 type ProgressBody = z.infer<typeof ProgressBodySchema>;
 
+// --- Market rates ---
+const SaveMarketRatesBodySchema = z.object({
+  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  rates: z.record(z.string(), z.number().positive()),
+});
+type SaveMarketRatesBody = z.infer<typeof SaveMarketRatesBodySchema>;
+
 // --- POST /v1/admin/whatsapp/diagnose ---
 const WhatsappDiagnoseBodySchema = z.object({ to: z.string().regex(/^\d{8,15}$/).nullable().optional() });
 type WhatsappDiagnoseBody = z.infer<typeof WhatsappDiagnoseBodySchema>;
@@ -927,6 +934,18 @@ export class AdminController {
     @Body(new ZodValidationPipe(MoveExpensesBodySchema)) body: MoveExpensesBody,
   ) {
     return this.adminSvc.moveProjectExpenses(projectId, body.expense_ids, body.category, body.kind ?? null);
+  }
+
+  @Get('market-rates/daily')
+  getMarketRates(@Query('days') days?: string) {
+    const n = Math.min(Math.max(parseInt(days ?? '14', 10) || 14, 1), 90);
+    return this.adminSvc.getMarketRates(n);
+  }
+
+  @Post('market-rates/daily')
+  @HttpCode(200)
+  saveMarketRates(@Body(new ZodValidationPipe(SaveMarketRatesBodySchema)) body: SaveMarketRatesBody) {
+    return this.adminSvc.saveMarketRates(body.date, body.rates);
   }
 
   @Post('whatsapp/diagnose')

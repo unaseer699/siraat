@@ -8,6 +8,8 @@ import { TrustModule } from '../trust/trust.module';
 import { ProjectDocumentEntity } from './entities/project-document.entity';
 import { ProjectDocumentService } from './project-document.service';
 import { LayoutExtractorService } from './layout-extractor.service';
+import { MarketRateQuoteEntity } from './entities/market-rate-quote.entity';
+import { MarketRateService } from './market-rate.service';
 import { ProjectLayoutEntity } from './entities/project-layout.entity';
 import { ProjectForecastService } from './project-forecast.service';
 import { ExpenseCategoryRuleEntity } from './entities/expense-category-rule.entity';
@@ -32,11 +34,12 @@ import { ConstructionProjectController } from './construction-project.controller
       ExpenseCategoryRuleEntity,
       ProjectLayoutEntity,
       ProjectDocumentEntity,
+      MarketRateQuoteEntity,
     ]),
     TrustModule,
   ],
   controllers: [EstimatesController, ConstructionProjectController],
-  providers: [ConstructionIntelligenceService, ConstructionProjectService, EstimatesService, ProjectForecastService, ProjectDocumentService, LayoutExtractorService],
-  exports: [ConstructionIntelligenceService, ConstructionProjectService, ProjectForecastService, ProjectDocumentService, LayoutExtractorService],
+  providers: [ConstructionIntelligenceService, ConstructionProjectService, EstimatesService, ProjectForecastService, ProjectDocumentService, LayoutExtractorService, MarketRateService],
+  exports: [ConstructionIntelligenceService, ConstructionProjectService, ProjectForecastService, ProjectDocumentService, LayoutExtractorService, MarketRateService],
 })
 export class ConstructionIntelligenceModule {}

@@ -55,7 +55,13 @@ export default function ForecastCard({ projectId }: { projectId: string }) {
           ))}
         </tbody>
       </table>
-      {fc.rate_observations.length > 0 && fc.structure_index_applied && (
+      {fc.market_rates.length > 0 && fc.structure_index_applied && fc.structure_index_source === 'MARKET' && (
+        <p style={{ fontSize: '12px', margin: '10px 0 0' }}>
+          Priced at market rates of {new Date(Math.max(...fc.market_rates.map((m) => new Date(m.rate_date).getTime()))).toLocaleDateString()}:{' '}
+          {fc.market_rates.map((m) => `${m.label} ${m.ratio >= 1 ? '+' : ''}${Math.round((m.ratio - 1) * 100)}%`).join(', ')}.
+        </p>
+      )}
+      {fc.rate_observations.length > 0 && fc.structure_index_applied && fc.structure_index_source !== 'MARKET' && (
         <p style={{ fontSize: '12px', margin: '10px 0 0' }}>
           Adjusted for the prices actually paid:{' '}
           {fc.rate_observations.map((o) => `${o.label} ${o.ratio >= 1 ? '+' : ''}${Math.round((o.ratio - 1) * 100)}%`).join(', ')}.

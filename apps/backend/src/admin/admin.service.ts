@@ -196,6 +196,8 @@ export type CreateWhatsappMappingInput = WhatsappCreateMappingInput;
 
 import { ProjectForecastService, FinishLevel } from '../construction-intelligence/project-forecast.service';
 import { WhatsappOutboundClient } from '../whatsapp/whatsapp-outbound.client';
+import { MarketRateService, todayInKarachi } from '../construction-intelligence/market-rate.service';
+import { MARKET_RATE_ITEMS, MARKET_RATE_TEMPLATE } from '../construction-intelligence/market-rate-catalog';
 import { ProjectDocumentService } from '../construction-intelligence/project-document.service';
 import { LayoutExtractorService } from '../construction-intelligence/layout-extractor.service';
 import type { ProjectDocumentKind } from '../construction-intelligence/entities/project-document.entity';
@@ -221,6 +223,7 @@ export class AdminService {
     @Optional() private readonly docSvc?: ProjectDocumentService,
     @Optional() private readonly extractorSvc?: LayoutExtractorService,
     @Optional() private readonly waOutbound?: WhatsappOutboundClient,
+    @Optional() private readonly marketRateSvc?: MarketRateService,
   ) {}
 
   // CLEANUP — was AdminService's own CandidateSocietyEntity repository
@@ -866,6 +869,36 @@ export class AdminService {
     await this.requireProject(projectId);
     const job = this.extractorSvc.status(docId);
     return { status: job.status, result: job.result ?? null, error: job.error ?? null };
+  }
+
+  private mrates(): MarketRateService {
+    if (!this.marketRateSvc) throw new BadRequestException('Market rate service unavailable');
+    return this.marketRateSvc;
+  }
+
+  async getMarketRates(days: number) {
+    const today = todayInKarachi();
+    return {
+      today,
+      template: MARKET_RATE_TEMPLATE,
+      items: MARKET_RATE_ITEMS.map((i) => ({ key: i.key, label: i.label, unit: i.unit, min: i.min, max: i.max })),
+      current: await this.mrates().currentRates(today),
+      history: await this.mrates().history(days, today),
+    };
+  }
+
+  async saveMarketRates(date: string, rates: Record<string, number>) {
+    const today = todayInKarachi();
+    if (date > today) throw new BadRequestException('The date cannot be in the future');
+    for (const [key, rate] of Object.entries(rates)) {
+      const item = MARKET_RATE_ITEMS.find((i) => i.key === key);
+      if (!item) throw new BadRequestException(`Unknown item ${key}`);
+      if (rate < item.min || rate > item.max) {
+        throw new BadRequestException(`${item.label} must be between ${item.min} and ${item.max} per ${item.unit}`);
+      }
+      await this.mrates().recordQuote({ rate_date: date, item, rate, source: 'ADMIN' });
+    }
+    return this.getMarketRates(14);
   }
 
   async diagnoseWhatsapp(to: string | null) {
