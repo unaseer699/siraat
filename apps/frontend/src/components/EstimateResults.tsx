@@ -1,9 +1,11 @@
 'use client';
 
+import { Fragment } from 'react';
 import Link from 'next/link';
 import type { BoqResponse, BoqLineItem } from '@siraat/shared-types';
 import { ConfidenceGauge } from './ConfidenceGauge';
 import { SourceTierBadge } from './SourceTierBadge';
+import { PHASE_BY_KEY, PHASE_STYLES, BOQ_ITEM_PHASE } from '../lib/buildPhases';
 import { TRUST_GREEN, WARNING_AMBER, DANGER_RED, RADIUS } from '../styles/tokens';
 
 function ordinal(n: number): string {
@@ -84,6 +86,11 @@ function ApproximationCaveat({ text }: { text: string }) {
 }
 
 function BoqTable({ lineItems, basement }: { lineItems: BoqLineItem[]; basement: boolean }) {
+  // Lines grouped under the build step they belong to, in site order.
+  const sections = PHASE_STYLES.map((p) => ({
+    phaseKey: p.key,
+    items: lineItems.filter((li) => (BOQ_ITEM_PHASE[li.item_key] ?? 'GREY') === p.key),
+  })).filter((x) => x.items.length > 0);
   return (
     <div style={{ overflowX: 'auto', borderRadius: RADIUS.md, border: '1px solid #e5e7eb' }}>
       <table style={{ borderCollapse: 'collapse', width: '100%', minWidth: '760px' }}>
@@ -98,7 +105,16 @@ function BoqTable({ lineItems, basement }: { lineItems: BoqLineItem[]; basement:
           </tr>
         </thead>
         <tbody>
-          {lineItems.map((item) => (
+          {sections.map(({ phaseKey, items }) => {
+            const st = PHASE_BY_KEY[phaseKey];
+            return (
+              <Fragment key={phaseKey}>
+                <tr>
+                  <td colSpan={6} style={{ padding: '10px 14px', fontWeight: 800, fontSize: '13px', color: st.ink, background: st.tint, borderLeft: `6px solid ${st.color}`, borderBottom: `1px solid ${st.color}55` }}>
+                    Step {st.step} · {st.title}
+                  </td>
+                </tr>
+                {items.map((item) => (
             <tr key={item.item_key}>
               <td style={{ ...cellStyle, fontWeight: 600 }}>
                 {item.item_name}
@@ -159,34 +175,89 @@ function BoqTable({ lineItems, basement }: { lineItems: BoqLineItem[]; basement:
                 </div>
               </td>
             </tr>
-          ))}
+                ))}
+              </Fragment>
+            );
+          })}
         </tbody>
       </table>
     </div>
   );
 }
 
-function WholeHouseCard({ w }: { w: NonNullable<Extract<BoqResponse, { state: 'FULL' }>['whole_house']> }) {
+type WholeHouse = NonNullable<Extract<BoqResponse, { state: 'FULL' }>['whole_house']>;
+
+function RoadmapCard({ w }: { w: WholeHouse }) {
+  const scaled = w.phases.filter((p) => p.basis === 'SCALED' && p.amount !== null);
+  const pct = (amount: number) => (w.total > 0 ? Math.round((amount / w.total) * 100) : 0);
   return (
-    <div style={{ background: '#fff', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '24px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
-      <p style={{ fontSize: '13px', color: 'var(--muted)', fontWeight: 600 }}>Whole-house estimate (labour included)</p>
-      <p style={{ fontSize: '32px', fontWeight: 800 }}>{formatPKR(w.total)}</p>
-      <p style={{ fontSize: '13px', color: 'var(--muted)' }}>
-        About PKR {w.per_sqft.toLocaleString()} per sq ft · {Math.round(w.area_sqft).toLocaleString()} sq ft covered · confidence{' '}
-        {Math.round(w.confidence_score * 100)}%{w.is_stale ? ' · prices are not current' : ''}
-      </p>
-      <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap', fontSize: '13px' }}>
-        {w.groups.map((g) => (
-          <span key={g.group}>
-            <strong>{g.label}:</strong> {formatPKR(g.amount)}
-          </span>
-        ))}
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+      <div style={{ background: '#fff', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '24px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+        <p style={{ fontSize: '13px', color: 'var(--muted)', fontWeight: 600 }}>Whole-house estimate (labour included)</p>
+        <p style={{ fontSize: '32px', fontWeight: 800 }}>{formatPKR(w.total)}</p>
+        <p style={{ fontSize: '13px', color: 'var(--muted)' }}>
+          About PKR {w.per_sqft.toLocaleString()} per sq ft · {Math.round(w.area_sqft).toLocaleString()} sq ft covered ·
+          confidence {Math.round(w.confidence_score * 100)}%{w.is_stale ? ' · prices are not current' : ''}
+        </p>
+        <p style={{ fontSize: '13px' }}>
+          Plus before building starts (approvals, soil testing, excavation, reference amounts):{' '}
+          <strong>{formatPKR(w.before_building_total)}</strong>. The plot price is not included.
+        </p>
+        {/* Share of the building cost by step, in build order. */}
+        <div style={{ display: 'flex', height: '14px', borderRadius: '99px', overflow: 'hidden', background: '#e5e7eb' }} aria-hidden="true">
+          {scaled.map((p) => (
+            <div key={p.key} title={`${p.title}: ${formatPKR(p.amount ?? 0)}`} style={{ width: `${(Math.max(p.amount ?? 0, 0) / Math.max(w.total, 1)) * 100}%`, background: PHASE_BY_KEY[p.key]?.color ?? '#9ca3af' }} />
+          ))}
+        </div>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px 14px', fontSize: '12px' }}>
+          {scaled.map((p) => (
+            <span key={p.key} style={{ display: 'inline-flex', alignItems: 'center', gap: '5px' }}>
+              <span style={{ width: '10px', height: '10px', borderRadius: '3px', background: PHASE_BY_KEY[p.key]?.color }} />
+              {p.title}
+            </span>
+          ))}
+        </div>
+        <ul style={{ margin: 0, paddingLeft: '18px', fontSize: '12px', color: 'var(--muted)' }}>
+          {w.notes.map((n) => (
+            <li key={n}>{n}</li>
+          ))}
+        </ul>
       </div>
-      <ul style={{ margin: 0, paddingLeft: '18px', fontSize: '12px', color: 'var(--muted)' }}>
-        {w.notes.map((n) => (
-          <li key={n}>{n}</li>
-        ))}
-      </ul>
+
+      <p style={{ fontSize: '15px', fontWeight: 800, margin: '4px 0 0' }}>Your build, step by step</p>
+      <ol style={{ listStyle: 'none', margin: 0, padding: 0, display: 'flex', flexDirection: 'column', gap: '10px' }}>
+        {w.phases.map((p) => {
+          const st = PHASE_BY_KEY[p.key] ?? PHASE_STYLES[0];
+          return (
+            <li key={p.key} style={{ display: 'flex', gap: '12px', background: st.tint, border: `1px solid ${st.color}33`, borderLeft: `6px solid ${st.color}`, borderRadius: 'var(--radius)', padding: '14px 16px' }}>
+              <span style={{ flexShrink: 0, width: '30px', height: '30px', borderRadius: '50%', background: st.color, color: '#fff', fontWeight: 800, fontSize: '14px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                {p.step}
+              </span>
+              <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', gap: '10px', flexWrap: 'wrap', alignItems: 'baseline' }}>
+                  <span style={{ fontWeight: 800, fontSize: '15px', color: st.ink }}>{p.title}</span>
+                  <span style={{ fontWeight: 800, fontSize: '15px', color: st.ink }}>
+                    {p.amount === null ? 'Not estimated' : formatPKR(p.amount)}
+                    {p.basis === 'SCALED' && p.amount !== null && (
+                      <span style={{ fontWeight: 600, fontSize: '12px', marginLeft: '8px' }}>{pct(p.amount)}% of building cost</span>
+                    )}
+                    {p.basis === 'REFERENCE' && <span style={{ fontWeight: 600, fontSize: '12px', marginLeft: '8px' }}>reference</span>}
+                  </span>
+                </div>
+                <span style={{ fontSize: '13px', color: '#374151' }}>{p.summary}</span>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+                  {p.includes.map((x) => (
+                    <span key={x} style={{ fontSize: '11px', fontWeight: 600, color: st.ink, background: '#fff', border: `1px solid ${st.color}55`, borderRadius: '99px', padding: '2px 8px' }}>
+                      {x}
+                    </span>
+                  ))}
+                </div>
+                {p.note && <span style={{ fontSize: '12px', color: '#6b7280' }}>{p.note}</span>}
+              </div>
+            </li>
+          );
+        })}
+      </ol>
     </div>
   );
 }
@@ -350,7 +421,7 @@ export function EstimateResults({ result }: Props) {
             </div>
           )}
 
-          {result.whole_house && <WholeHouseCard w={result.whole_house} />}
+          {result.whole_house && <RoadmapCard w={result.whole_house} />}
 
           <p style={{ fontSize: '13px', fontWeight: 700, margin: '4px 0 -8px' }}>
             Materials &amp; selected works (BOQ): cement, steel, bricks, sand, crush, doors, windows, rough-in. Labour,

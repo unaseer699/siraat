@@ -139,7 +139,26 @@ export type BoqLineItem = z.infer<typeof BoqLineItemSchema>;
 // services, finishing and site work, labour included). Additive to the BOQ
 // above, which only prices materials and a few works. GENERATED: derived_from
 // lists the market-rate quote FACTs used (empty when none applied).
+// One step of the build, in the order it happens on site.
+export const BuildPhaseSchema = z.object({
+  key: z.string(),
+  step: z.number(),
+  title: z.string(),
+  stage: z.enum(['BEFORE', 'STRUCTURE', 'SERVICES', 'FINISHING', 'HANDOVER']),
+  // null when the step is not estimated (e.g. the plot price).
+  amount: z.number().nullable(),
+  basis: z.enum(['SCALED', 'REFERENCE', 'NOT_ESTIMATED']),
+  summary: z.string(),
+  includes: z.array(z.string()),
+  note: z.string().nullable(),
+});
+export type BuildPhase = z.infer<typeof BuildPhaseSchema>;
+
 export const WholeHouseEstimateSchema = z.object({
+  phases: z.array(BuildPhaseSchema),
+  // Approvals, soil testing, boring and excavation: reference amounts paid on
+  // the completed house, not scaled by area. Not part of `total`.
+  before_building_total: z.number(),
   record_type: z.literal('GENERATED'),
   derived_from: z.array(z.string()),
   total: z.number(),

@@ -476,6 +476,18 @@ describe('whole-house estimate', () => {
     expect(r.whole_house.affiliation_disclosure).toBeNull();
   });
 
+  it('lists the build in order and the phases add up', async () => {
+    const r: any = await build(undefined).getEstimate(req);
+    const ph = r.whole_house.phases;
+    expect(ph.map((p: any) => p.key)).toEqual(['PLOT', 'MAP', 'SOIL', 'EXCAVATION', 'GREY', 'ROUGH_IN', 'CEILING', 'TILES', 'WOOD', 'STEEL', 'WINDOWS', 'PAINT', 'HANDOVER']);
+    expect(ph.map((p: any) => p.step)).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13]);
+    expect(ph.find((p: any) => p.key === 'PLOT').amount).toBeNull();
+    const scaled = ph.filter((p: any) => p.basis === 'SCALED').reduce((s: number, p: any) => s + p.amount, 0);
+    expect(scaled).toBe(r.whole_house.total);
+    expect(r.whole_house.before_building_total).toBe(404_500);
+    expect(ph.find((p: any) => p.key === 'GREY').amount).toBe(4_524_925);
+  });
+
   it('scales with area and finish level, and moves with market rates', async () => {
     const half: any = await build(undefined).getEstimate({ ...req, area: 1350 });
     expect(half.whole_house.total).toBe(5_088_258);
