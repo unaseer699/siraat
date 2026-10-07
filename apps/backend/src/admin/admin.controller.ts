@@ -972,6 +972,17 @@ export class AdminController {
     return this.adminSvc.startProjectLayoutRead(projectId, docId);
   }
 
+  @Post('projects/:projectId/documents/:docId/extract-structure')
+  @HttpCode(200)
+  startProjectStructuralRead(@Param('projectId') projectId: string, @Param('docId') docId: string) {
+    return this.adminSvc.startProjectStructuralRead(projectId, docId);
+  }
+
+  @Get('projects/:projectId/documents/:docId/extract-structure')
+  getProjectStructuralRead(@Param('projectId') projectId: string, @Param('docId') docId: string) {
+    return this.adminSvc.getProjectStructuralRead(projectId, docId);
+  }
+
   @Get('projects/:projectId/documents/:docId/extract-layout')
   getProjectLayoutRead(@Param('projectId') projectId: string, @Param('docId') docId: string) {
     return this.adminSvc.getProjectLayoutRead(projectId, docId);

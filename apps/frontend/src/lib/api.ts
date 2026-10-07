@@ -1649,3 +1649,27 @@ export async function saveProjectProgress(
     body: JSON.stringify({ progress }),
   });
 }
+
+export interface StructuralSummary {
+  columns: { mark: string; size: string | null; count: number | null }[];
+  footings: { mark: string; size: string | null; note: string | null }[];
+  slabs: { floor: string; thickness_in: number | null }[];
+  concrete: { element: string; strength_psi: number | null }[];
+  steel_grade: string | null;
+  notes: string | null;
+}
+
+export async function readStructuralSummary(projectId: string, docId: string): Promise<StructuralSummary> {
+  await apiFetch(`/v1/admin/projects/${projectId}/documents/${docId}/extract-structure`, { method: 'POST', body: '{}' });
+  const deadline = Date.now() + 5 * 60_000;
+  while (Date.now() < deadline) {
+    await new Promise((r) => setTimeout(r, 4000));
+    const s = await apiFetch<{ status: string; result: StructuralSummary | null; error: string | null }>(
+      `/v1/admin/projects/${projectId}/documents/${docId}/extract-structure`,
+    );
+    if (s.status === 'DONE' && s.result) return s.result;
+    if (s.status === 'FAILED') throw new Error(s.error ?? 'The drawing could not be read');
+    if (s.status === 'NONE') throw new Error('The read was interrupted (server restarted). Please try again.');
+  }
+  throw new Error('Reading the drawing took too long. Please try again.');
+}

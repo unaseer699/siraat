@@ -868,6 +868,19 @@ export class AdminService {
     return this.waOutbound.diagnose(to);
   }
 
+  async startProjectStructuralRead(projectId: string, docId: string) {
+    if (!this.extractorSvc) throw new BadRequestException('Layout reader unavailable');
+    await this.requireProject(projectId);
+    return { status: this.extractorSvc.startStructural(projectId, docId).status };
+  }
+
+  async getProjectStructuralRead(projectId: string, docId: string) {
+    if (!this.extractorSvc) throw new BadRequestException('Layout reader unavailable');
+    await this.requireProject(projectId);
+    const job = this.extractorSvc.structuralStatus(docId);
+    return { status: job.status, result: job.result ?? null, error: job.error ?? null };
+  }
+
   async getProjectForecast(projectId: string) {
     const project = await this.cpSvc.findProjectById(projectId);
     if (!project) throw new NotFoundException(`Project ${projectId} not found`);

@@ -11,6 +11,8 @@ import {
   setProjectDocumentVisibility,
   deleteProjectDocument,
   extractLayoutFromDocument,
+  readStructuralSummary,
+  type StructuralSummary,
   type ProjectDocument,
   type ProjectDocumentKind,
   type LayoutExtraKind,
@@ -68,6 +70,7 @@ export function ForecastPanel({ projectId }: { projectId: string }) {
   const [docVisible, setDocVisible] = useState(true);
   const [docBusy, setDocBusy] = useState<string | null>(null);
   const [readMsg, setReadMsg] = useState<string | null>(null);
+  const [structural, setStructural] = useState<StructuralSummary | null>(null);
   const [progress, setProgress] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
@@ -165,6 +168,30 @@ export function ForecastPanel({ projectId }: { projectId: string }) {
     }
   }
 
+  async function onReadStructural(d: ProjectDocument) {
+    setDocBusy(d.id);
+    setErr(null);
+    try {
+      setStructural(await readStructuralSummary(projectId, d.id));
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : 'Could not read the drawing');
+    } finally {
+      setDocBusy(null);
+    }
+  }
+
+  // Slab concrete (cft) = floor area x thickness, matching floors by name.
+  function slabConcrete(sm: StructuralSummary): { rows: { floor: string; cft: number }[]; total: number } {
+    const key = (n: string) => (/mumty|roof|terrace/i.test(n) ? 'M' : /ground|gf|basement/i.test(n) ? 'G' : /first|1st|ff/i.test(n) ? 'F' : /second|2nd/i.test(n) ? 'S' : n.toLowerCase());
+    const rows: { floor: string; cft: number }[] = [];
+    for (const sl of sm.slabs) {
+      if (!sl.thickness_in) continue;
+      const fl = floors.find((f) => key(f.name) === key(sl.floor) && Number(f.area) > 0);
+      if (fl) rows.push({ floor: sl.floor, cft: Math.round((Number(fl.area) * sl.thickness_in) / 12) });
+    }
+    return { rows, total: rows.reduce((a, r) => a + r.cft, 0) };
+  }
+
   async function onToggle(d: ProjectDocument) {
     setDocBusy(d.id);
     try {
@@ -244,9 +271,39 @@ export function ForecastPanel({ projectId }: { projectId: string }) {
                 {docBusy === d.id ? 'Reading… (up to 2 min)' : 'Read areas from drawing'}
               </button>
             )}
+            {d.kind === 'STRUCTURAL' && d.content_type === 'application/pdf' && (
+              <button type="button" style={{ ...input, cursor: 'pointer' }} disabled={docBusy === d.id} onClick={() => onReadStructural(d)}>
+                {docBusy === d.id ? 'Reading… (up to 2 min)' : 'Read structural summary'}
+              </button>
+            )}
             <button type="button" style={{ ...input, cursor: 'pointer', color: 'var(--error)' }} disabled={docBusy === d.id} onClick={() => onDelete(d)}>Delete</button>
           </div>
         ))}
+        {structural && (() => {
+          const sc = slabConcrete(structural);
+          const totalCols = structural.columns.reduce((a, c) => a + (c.count ?? 0), 0);
+          return (
+            <div style={{ fontSize: '12px', marginTop: '10px', borderTop: '1px solid var(--border)', paddingTop: '8px' }}>
+              <strong>Structural summary (read by AI, check against the drawings)</strong>
+              <p style={{ margin: '4px 0' }}>
+                Columns: {structural.columns.map((c) => `${c.mark}${c.size ? ` ${c.size}` : ''} × ${c.count ?? '?'}`).join(' · ') || '—'}
+                {totalCols > 0 ? ` (total ${totalCols})` : ''}
+              </p>
+              <p style={{ margin: '4px 0' }}>Footings: {structural.footings.map((f) => `${f.mark}${f.size ? ` ${f.size}` : ''}`).join(' · ') || '—'}</p>
+              <p style={{ margin: '4px 0' }}>Slabs: {structural.slabs.map((x) => `${x.floor} ${x.thickness_in ?? '?'}"`).join(' · ') || '—'}</p>
+              <p style={{ margin: '4px 0' }}>
+                Concrete: {structural.concrete.map((x) => `${x.element} ${x.strength_psi ?? '?'} psi`).join(' · ') || '—'}
+                {structural.steel_grade ? ` · Steel: ${structural.steel_grade}` : ''}
+              </p>
+              {sc.total > 0 && (
+                <p style={{ margin: '4px 0' }}>
+                  Slab concrete about {sc.total.toLocaleString()} cft ({sc.rows.map((r) => `${r.floor} ${r.cft.toLocaleString()}`).join(', ')}). The reference house was built with about 660 bags of cement in total, for comparison.
+                </p>
+              )}
+              {structural.notes && <p style={{ margin: '4px 0', color: '#b45309' }}>Reader note: {structural.notes}</p>}
+            </div>
+          );
+        })()}
         {readMsg && <p style={{ fontSize: '12px', color: '#b45309', margin: '8px 0 0' }}>{readMsg}</p>}
       </div>
 
