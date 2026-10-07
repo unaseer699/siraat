@@ -124,11 +124,11 @@ function normalizeStructural(raw: unknown): StructuralSummary | null {
     .filter((x): x is { floor: string; thickness_in: number | null } => x.floor !== null)
     .slice(0, 10);
   const concrete = list(r.concrete)
-    .map((x) => ({ element: str(x.element, 60), strength_psi: posNum(x.strength_psi) }))
+    .map((x) => ({ element: str(x.element, 160), strength_psi: posNum(x.strength_psi) }))
     .filter((x): x is { element: string; strength_psi: number | null } => x.element !== null)
     .slice(0, 12);
   if (!columns.length && !footings.length && !slabs.length && !concrete.length) return null;
-  return { columns, footings, slabs, concrete, steel_grade: str(r.steel_grade, 60), notes: str(r.notes, 1000) };
+  return { columns, footings, slabs, concrete, steel_grade: str(r.steel_grade, 160), notes: str(r.notes, 1000) };
 }
 
 const STRUCTURAL_PROMPT = `You read structural drawings for a house in Pakistan and summarise what is written on them.

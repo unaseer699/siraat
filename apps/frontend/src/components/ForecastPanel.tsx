@@ -71,6 +71,7 @@ export function ForecastPanel({ projectId }: { projectId: string }) {
   const [docVisible, setDocVisible] = useState(true);
   const [docBusy, setDocBusy] = useState<string | null>(null);
   const [readMsg, setReadMsg] = useState<string | null>(null);
+  const [slabIn, setSlabIn] = useState('');
   const [structural, setStructural] = useState<StructuralSummary | null>(null);
   const [progress, setProgress] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState(false);
@@ -181,16 +182,23 @@ export function ForecastPanel({ projectId }: { projectId: string }) {
     }
   }
 
-  // Slab concrete (cft) = floor area x thickness, matching floors by name.
-  function slabConcrete(sm: StructuralSummary): { rows: { floor: string; cft: number }[]; total: number } {
+  // Slab concrete (cft) = floor area x thickness. Uses the thickness read from
+  // the drawings per floor when present, otherwise the thickness entered by hand.
+  function slabConcrete(sm: StructuralSummary): { rows: { floor: string; cft: number }[]; total: number; manual: boolean } {
     const key = (n: string) => (/mumty|roof|terrace/i.test(n) ? 'M' : /ground|gf|basement/i.test(n) ? 'G' : /first|1st|ff/i.test(n) ? 'F' : /second|2nd/i.test(n) ? 'S' : n.toLowerCase());
     const rows: { floor: string; cft: number }[] = [];
-    for (const sl of sm.slabs) {
-      if (!sl.thickness_in) continue;
-      const fl = floors.find((f) => key(f.name) === key(sl.floor) && Number(f.area) > 0);
-      if (fl) rows.push({ floor: sl.floor, cft: Math.round((Number(fl.area) * sl.thickness_in) / 12) });
+    const manualIn = Number(slabIn);
+    let manual = false;
+    for (const f of floors) {
+      const area = Number(f.area);
+      if (!(area > 0)) continue;
+      const read = sm.slabs.find((x) => x.thickness_in && key(x.floor) === key(f.name));
+      const t = read?.thickness_in ?? (manualIn > 0 ? manualIn : 0);
+      if (!t) continue;
+      if (!read?.thickness_in) manual = true;
+      rows.push({ floor: f.name, cft: Math.round((area * t) / 12) });
     }
-    return { rows, total: rows.reduce((a, r) => a + r.cft, 0) };
+    return { rows, total: rows.reduce((a, r) => a + r.cft, 0), manual };
   }
 
   async function onKind(d: ProjectDocument, kind: ProjectDocumentKind) {
@@ -309,9 +317,13 @@ export function ForecastPanel({ projectId }: { projectId: string }) {
                 Concrete: {structural.concrete.map((x) => `${x.element} ${x.strength_psi ?? '?'} psi`).join(' · ') || '—'}
                 {structural.steel_grade ? ` · Steel: ${structural.steel_grade}` : ''}
               </p>
+              <p style={{ margin: '4px 0' }}>
+                Slab thickness not on the drawings? Enter it (inches):{' '}
+                <input style={{ ...input, width: '60px' }} inputMode="decimal" placeholder="5" value={slabIn} onChange={(e) => setSlabIn(e.target.value)} />
+              </p>
               {sc.total > 0 && (
                 <p style={{ margin: '4px 0' }}>
-                  Slab concrete about {sc.total.toLocaleString()} cft ({sc.rows.map((r) => `${r.floor} ${r.cft.toLocaleString()}`).join(', ')}). The reference house was built with about 660 bags of cement in total, for comparison.
+                  Slab concrete about {sc.total.toLocaleString()} cft ({sc.rows.map((r) => `${r.floor} ${r.cft.toLocaleString()}`).join(', ')}){sc.manual ? ', using the thickness you entered' : ''}. The reference house was built with about 660 bags of cement in total, for comparison.
                 </p>
               )}
               {structural.notes && <p style={{ margin: '4px 0', color: '#b45309' }}>Reader note: {structural.notes}</p>}
