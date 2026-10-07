@@ -3,7 +3,7 @@
 // the weight the forecast uses to reprice its group. `ref_rate` is the unit
 // rate paid there where known; items without one take their first quote as the
 // baseline (editable on the Daily Rates page).
-export type RateUnit = 'bag' | 'pc' | 'cft' | 'kg' | 'sqft' | 'rft' | 'roll' | 'set';
+export type RateUnit = 'bag' | 'pc' | 'cft' | 'kg' | 'sqft' | 'rft' | 'roll' | 'set' | 'lot';
 export type RateGroup = 'STRUCTURE' | 'SERVICES' | 'FINISHING' | 'SITE_OTHER';
 
 export interface MarketRateItem {
@@ -26,7 +26,9 @@ export const MARKET_RATE_ITEMS: MarketRateItem[] = [
   { key: 'SAND', label: 'Sand', group: 'STRUCTURE', unit: 'cft', aliases: ['sand', 'ravi sand', 'chenab sand', 'reti', 'raiti'], ref_cost: 337_000, ref_rate: 74.1, min: 20, max: 300 },
   { key: 'CRUSH', label: 'Crush', group: 'STRUCTURE', unit: 'cft', aliases: ['crush', 'crushed', 'bajri', 'crush stone'], ref_cost: 223_500, ref_rate: 93.1, min: 30, max: 400 },
   { key: 'STEEL', label: 'Steel', group: 'STRUCTURE', unit: 'kg', aliases: ['steel', 'sariya', 'saria', 'sia', 'rebar', 'sootar', 'grade 60 steel', 'grade 40 steel'], ref_cost: 1_016_575, ref_rate: 216.3, min: 100, max: 600 },
-  { key: 'MASON_LABOUR', label: 'Mason labour', group: 'STRUCTURE', unit: 'sqft', aliases: ['mason labour', 'mason labor', 'mistri labour', 'mason', 'structure labour', 'labour structure', 'labour mason'], ref_cost: 1_049_600, ref_rate: null },
+  { key: 'MASON_LABOUR', label: 'Mason labour', group: 'STRUCTURE', unit: 'sqft', aliases: ['mason labour', 'mason labor', 'mistri labour', 'mason', 'structure labour', 'labour structure', 'labour mason'], ref_cost: 971_300, ref_rate: null },
+  { key: 'PARAPET_LABOUR', label: 'Boundary / parapet labour', group: 'STRUCTURE', unit: 'sqft', aliases: ['parapet', 'parapet labour', 'boundary parapet', 'boundary wall parapet roof boundary', 'roof boundary', 'boundary parapet roof boundary', 'parapet roof boundary'], ref_cost: 48_300, ref_rate: null },
+  { key: 'FRONT_DESIGN', label: 'Front design plaster', group: 'STRUCTURE', unit: 'lot', aliases: ['front design', 'front design plaster', 'front elevation design', 'plaster design', 'front design elevation'], ref_cost: 30_000, ref_rate: 30_000 },
   // SERVICES
   { key: 'ELECTRIC_LABOUR', label: 'Electrician labour', group: 'SERVICES', unit: 'sqft', aliases: ['electric labour', 'electrician labour', 'electrical labour', 'wiring labour', 'electric labor', 'labour wiring', 'labour electric'], ref_cost: 80_000, ref_rate: null },
   { key: 'WIRE_7_29', label: 'Wire 7/29', group: 'SERVICES', unit: 'roll', aliases: ['wire 7 29', 'wire 7/29', 'wiring 7 29', 'cable 7 29', 'wire 7 29 roll'], ref_cost: 97_972, ref_rate: null },
@@ -44,7 +46,10 @@ export const MARKET_RATE_ITEMS: MarketRateItem[] = [
   { key: 'DOORS', label: 'Doors', group: 'FINISHING', unit: 'pc', aliases: ['door', 'doors'], ref_cost: 245_000, ref_rate: null },
   { key: 'CARPENTER_LABOUR', label: 'Carpenter labour', group: 'FINISHING', unit: 'sqft', aliases: ['carpenter labour', 'carpenter labor', 'wood labour', 'labour carpenter'], ref_cost: 130_000, ref_rate: null },
   { key: 'ALUMINIUM_WINDOWS', label: 'Aluminium windows', group: 'FINISHING', unit: 'sqft', aliases: ['aluminium windows', 'aluminum windows', 'aluminium', 'aluminum', 'windows', 'window'], ref_cost: 462_000, ref_rate: null },
-  { key: 'STEEL_WORK', label: 'Steel work (grills, railing)', group: 'FINISHING', unit: 'kg', aliases: ['steel work', 'iron work', 'grill', 'grills', 'railing', 'welding'], ref_cost: 404_402, ref_rate: null },
+  { key: 'GATE', label: 'Gate', group: 'FINISHING', unit: 'lot', aliases: ['gate', 'main gate', 'iron gate', 'steel gate'], ref_cost: 97_250, ref_rate: 97_250 },
+  { key: 'STAIR_RAILING', label: 'Stair railing', group: 'FINISHING', unit: 'lot', aliases: ['stair railing', 'stair grill', 'stairs railing', 'stair rail', 'stairs grill'], ref_cost: 60_000, ref_rate: 60_000 },
+  { key: 'WINDOW_GRILLS', label: 'Window iron grills (5 windows)', group: 'FINISHING', unit: 'lot', aliases: ['window grills', 'window grill', 'windows iron grill', 'iron grill', 'grill windows', '5 windows iron grill', 'window iron grills', 'window iron grills 5 windows'], ref_cost: 90_000, ref_rate: 90_000 },
+  { key: 'STEEL_WORK', label: 'Steel work, other (chokhats, back grill)', group: 'FINISHING', unit: 'kg', aliases: ['steel work', 'iron work', 'welding', 'chokhat', 'chokhats', 'steel work other'], ref_cost: 157_152, ref_rate: null },
   { key: 'PAINT_LABOUR', label: 'Paint labour', group: 'FINISHING', unit: 'sqft', aliases: ['paint labour', 'painter labour', 'paint labor', 'labour paint', 'labour painter'], ref_cost: 150_000, ref_rate: null },
   { key: 'PAINT_MATERIAL', label: 'Paint material', group: 'FINISHING', unit: 'sqft', aliases: ['paint material', 'paint', 'paints', 'emulsion', 'paint materials'], ref_cost: 138_000, ref_rate: null },
   // SITE
@@ -68,6 +73,7 @@ export const UNIT_WORDS: Record<string, RateUnit | 'ton'> = {
   rft: 'rft', rf: 'rft', ft: 'rft', runningft: 'rft', runningfoot: 'rft', rfeet: 'rft',
   roll: 'roll', rolls: 'roll',
   set: 'set', sets: 'set',
+  lot: 'lot', lumpsum: 'lot', lump: 'lot', ls: 'lot', lumpsump: 'lot',
 };
 
 export function normaliseUnit(raw: string): RateUnit | 'ton' | null {
@@ -85,7 +91,7 @@ export function findMarketRateItem(name: string): MarketRateItem | null {
   );
 }
 
-const TEMPLATE_UNIT: Record<RateUnit, string> = { bag: 'bag', pc: 'pc', cft: 'cft', kg: 'kg', sqft: 'sqft', rft: 'rft', roll: 'roll', set: 'set' };
+const TEMPLATE_UNIT: Record<RateUnit, string> = { bag: 'bag', pc: 'pc', cft: 'cft', kg: 'kg', sqft: 'sqft', rft: 'rft', roll: 'roll', set: 'set', lot: 'lumpsum' };
 
 export function buildTemplate(): string {
   const lines = ['Market Rates', 'Date: DD-MM-YYYY'];
