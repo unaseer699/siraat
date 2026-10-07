@@ -50,6 +50,8 @@ const BOQ_AVAILABLE_ITEM_KEYS: ReadonlySet<BoqItemKey> = new Set([
   'EXCAVATION',
   'DOORS',
   'WINDOWS',
+  'ELECTRICAL_ROUGH_IN',
+  'PLUMBING_ROUGH_IN',
 ] satisfies BoqItemKey[]);
 
 export function isBoqItemAvailable(key: BoqItemKey): boolean {
@@ -83,8 +85,8 @@ export const BOQ_ITEM_UNITS: Record<BoqItemKey, string> = {
   PAINT: 'Ltr',
   EXCAVATION: 'cft',
   BORING: 'ft (depth)',
-  PLUMBING_ROUGH_IN: 'points',
-  ELECTRICAL_ROUGH_IN: 'points',
+  PLUMBING_ROUGH_IN: 'sqft',
+  ELECTRICAL_ROUGH_IN: 'sqft',
   MARBLE_STAIRS: 'sqft',
   WINDOWS: 'sqft',
   DOORS: 'pcs',
@@ -141,10 +143,6 @@ export function rateUnitFactor(key: BoqItemKey, rateUnit: string): number | null
 export const BOQ_UNAVAILABLE_ITEM_NOTES: Partial<Record<BoqItemKey, string>> = {
   BORING:
     "Depth is driven by the site's water table, not house size — priced per foot of depth on site. No standard planning-stage quantity ratio exists.",
-  PLUMBING_ROUGH_IN:
-    'No standard points-per-area ratio found in Pakistani residential construction sources; fixture-point count depends on the floor plan.',
-  ELECTRICAL_ROUGH_IN:
-    'No standard points-per-area ratio found in Pakistani residential construction sources; point count depends on the floor plan.',
   MARBLE_STAIRS:
     'No standard ratio found — staircase marble area depends on the stair design, not covered area.',
   KITCHEN_WOODWORK:
@@ -282,6 +280,10 @@ export function computeBoqQuantity(
       return Math.max(1, Math.round(DOORS_PER_MARLA * toMarla(areaSqftTotal)));
     case 'WINDOWS':
       return round2(WINDOW_SQFT_PER_MARLA * toMarla(areaSqftTotal));
+    case 'ELECTRICAL_ROUGH_IN':
+    case 'PLUMBING_ROUGH_IN':
+      // Stopgap: priced per sq ft of covered area until point counts exist.
+      return round2(areaSqftTotal);
     case 'EXCAVATION':
       // Deliberately NOT scaled by finish level — digging depth isn't a finish choice.
       return round2(computeExcavationCft(areaSqftTotal, floors, basement));
@@ -303,6 +305,8 @@ const ITEM_KEYWORDS: Partial<Record<BoqItemKey, string[]>> = {
   CRUSH: ['crush', 'bajri', 'gravel'],
   PAINT: ['paint', 'emulsion', 'distemper'],
   EXCAVATION: ['excavation', 'digging', 'khudai'],
+  PLUMBING_ROUGH_IN: ['plumbing (rough', 'plumbing rough'],
+  ELECTRICAL_ROUGH_IN: ['electrical (rough', 'electrical rough'],
   DOORS: ['door'],
   WINDOWS: ['window'],
 };

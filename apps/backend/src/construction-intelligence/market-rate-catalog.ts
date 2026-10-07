@@ -36,6 +36,9 @@ export const MARKET_RATE_ITEMS: MarketRateItem[] = [
   { key: 'PLUMBING_LABOUR', label: 'Plumber labour', group: 'SERVICES', unit: 'sqft', aliases: ['plumbing labour', 'plumber labour', 'plumbing labor', 'labour plumbing', 'labour plumber'], ref_cost: 110_000, ref_rate: null },
   { key: 'PLUMBING_PIPES', label: 'Plumbing pipes & fittings', group: 'SERVICES', unit: 'rft', aliases: ['plumbing pipes', 'pipes', 'pipe', 'plumbing material', 'plumbing pipes fittings', 'pipes fittings'], ref_cost: 216_000, ref_rate: null },
   { key: 'SANITARY', label: 'Sanitary ware', group: 'SERVICES', unit: 'set', aliases: ['sanitary', 'sanitary ware', 'sanitary set', 'bathroom fittings', 'commode set'], ref_cost: 589_500, ref_rate: null },
+  // Priced per sq ft of covered area for the public BOQ estimate only (ref_cost 0: the forecast already prices these works through the items above).
+  { key: 'ELECTRICAL_ROUGH_IN', label: 'Electrical rough-in', group: 'SERVICES', unit: 'sqft', aliases: ['electrical rough in', 'electric rough in', 'electrical roughin', 'electrical rough'], ref_cost: 0, ref_rate: 166.89 },
+  { key: 'PLUMBING_ROUGH_IN', label: 'Plumbing rough-in', group: 'SERVICES', unit: 'sqft', aliases: ['plumbing rough in', 'plumbing roughin', 'plumbing rough'], ref_cost: 0, ref_rate: 143.42 },
   { key: 'FALSE_CEILING', label: 'False ceiling', group: 'SERVICES', unit: 'sqft', aliases: ['false ceiling', 'ceiling', 'gypsum ceiling'], ref_cost: 245_000, ref_rate: null },
   // FINISHING
   { key: 'TILES', label: 'Tiles', group: 'FINISHING', unit: 'sqft', aliases: ['tiles', 'tile', 'floor tiles', 'tiles material'], ref_cost: 694_750, ref_rate: null },

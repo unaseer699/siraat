@@ -48,8 +48,6 @@ function fullMajorCoverageRates(): MaterialRateEntity[] {
 
 const TIER_C_KEYS = [
   'BORING',
-  'PLUMBING_ROUGH_IN',
-  'ELECTRICAL_ROUGH_IN',
   'MARBLE_STAIRS',
   'KITCHEN_WOODWORK',
   'HARDWARE',
@@ -435,6 +433,22 @@ describe('EstimatesService with daily market rates', () => {
     expect(doors.subtotal).toBe(256000);
     expect(win.quantity).toBe(440);
     expect(win.subtotal).toBe(440000);
+  });
+
+  it('prices electrical and plumbing rough-in per sq ft of covered area', async () => {
+    const m3 = {
+      latestQuoteAt: async () => null,
+      currentRates: async () => [
+        { key: 'ELECTRICAL_ROUGH_IN', label: 'Electrical rough-in', unit: 'sqft', rate: 170, rate_date: today, carried_forward: false, age_days: 0, quote_id: 'q-el' },
+        { key: 'PLUMBING_ROUGH_IN', label: 'Plumbing rough-in', unit: 'sqft', rate: 145, rate_date: today, carried_forward: false, age_days: 0, quote_id: 'q-pl' },
+      ],
+    };
+    const r: any = await build(m3).getEstimate({ ...req, area: 12, area_unit: 'MARLA' });
+    const el = r.line_items.find((l: any) => l.item_key === 'ELECTRICAL_ROUGH_IN');
+    const pl = r.line_items.find((l: any) => l.item_key === 'PLUMBING_ROUGH_IN');
+    expect(el.quantity).toBe(2700);
+    expect(el.subtotal).toBe(459000);
+    expect(pl.subtotal).toBe(391500);
   });
 
   it('does not use them for other cities', async () => {
