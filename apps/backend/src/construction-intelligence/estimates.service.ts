@@ -7,6 +7,7 @@ import { ConstructionEstimateEntity } from './entities/construction-estimate.ent
 import { MaterialRateEntity } from './entities/material-rate.entity';
 import { computeMaterialRateIsStale } from './staleness';
 import { MarketRateService } from './market-rate.service';
+import { computeWholeHouse } from './whole-house-estimate';
 import {
   BOQ_ITEM_KEYS,
   BOQ_ITEM_LABELS,
@@ -51,6 +52,32 @@ export class EstimatesService {
   ) {}
 
   async getEstimate(req: BoqRequest): Promise<BoqResponse> {
+    const base = await this.getBoqEstimate(req);
+    return this.attachWholeHouse(base, req);
+  }
+
+  // Added after the (cacheable) BOQ so it always reflects today's rates.
+  private async attachWholeHouse(resp: BoqResponse, req: BoqRequest): Promise<BoqResponse> {
+    if (resp.state === 'NOT_COVERED') return resp;
+    const regional = DAILY_RATE_CITIES.has(req.city.trim().toLowerCase());
+    let market: Awaited<ReturnType<MarketRateService['currentRates']>> = [];
+    let baselines: Record<string, { rate: number | null }> = {};
+    if (regional && this.marketRates) {
+      try {
+        market = await this.marketRates.currentRates();
+        baselines = await this.marketRates.baselines();
+      } catch {
+        market = [];
+      }
+    }
+    const whole_house = computeWholeHouse({ areaSqft: resp.area_sqft, finishLevel: resp.finish_level, market, baselines });
+    if (!regional) {
+      whole_house.notes.push(`Priced at Islamabad reference prices; ${req.city} prices may differ.`);
+    }
+    return { ...resp, whole_house };
+  }
+
+  private async getBoqEstimate(req: BoqRequest): Promise<BoqResponse> {
     const areaSqft = round2(toSqft(req.area, req.area_unit));
 
     // Reuse a cached estimate within the staleness window — same pattern as

@@ -135,6 +135,27 @@ export type BoqLineItem = z.infer<typeof BoqLineItemSchema>;
 // estimate had (that one required at least one rate row to exist before
 // returning anything). The type stays three-state so a future capability
 // that DOES have a real "not covered" condition doesn't need a breaking change.
+// Whole-house cost, scaled from a completed reference house (structure,
+// services, finishing and site work, labour included). Additive to the BOQ
+// above, which only prices materials and a few works. GENERATED: derived_from
+// lists the market-rate quote FACTs used (empty when none applied).
+export const WholeHouseEstimateSchema = z.object({
+  record_type: z.literal('GENERATED'),
+  derived_from: z.array(z.string()),
+  total: z.number(),
+  per_sqft: z.number(),
+  area_sqft: z.number(),
+  groups: z.array(z.object({ group: z.string(), label: z.string(), amount: z.number() })),
+  basis: z.string(),
+  priced_items: z.number(),
+  confidence_score: z.number().min(0).max(1),
+  is_stale: z.boolean(),
+  staleness_threshold_days: z.number(),
+  affiliation_disclosure: z.string().nullable(),
+  notes: z.array(z.string()),
+});
+export type WholeHouseEstimate = z.infer<typeof WholeHouseEstimateSchema>;
+
 export const BoqResponseSchema = z.discriminatedUnion('state', [
   z.object({
     state: z.literal('FULL'),
@@ -157,6 +178,7 @@ export const BoqResponseSchema = z.discriminatedUnion('state', [
     derived_from: z.array(z.string()),
     record_type: RecordTypeSchema,
     computed_at: z.string().datetime(),
+    whole_house: WholeHouseEstimateSchema.nullable().optional(),
   }),
   z.object({
     state: z.literal('DEGRADED_SUCCESS'),
@@ -182,6 +204,7 @@ export const BoqResponseSchema = z.discriminatedUnion('state', [
     derived_from: z.array(z.string()),
     record_type: RecordTypeSchema,
     computed_at: z.string().datetime(),
+    whole_house: WholeHouseEstimateSchema.nullable().optional(),
   }),
   z.object({
     state: z.literal('NOT_COVERED'),

@@ -46,6 +46,9 @@ export function EstimateForm({ onSubmit, loading }: EstimateFormProps) {
 
   const [area, setArea] = useState('');
   const [areaUnit, setAreaUnit] = useState<BoqAreaUnit>('MARLA');
+  // PLOT: the plot size, with every floor assumed to cover about the whole plot.
+  // COVERED: the total built area across all floors, entered directly.
+  const [areaMode, setAreaMode] = useState<'PLOT' | 'COVERED'>('PLOT');
   const [floors, setFloors] = useState<BoqFloors>(1);
   const [basement, setBasement] = useState(false);
   const [finishLevel, setFinishLevel] = useState<FinishLevel>('STANDARD');
@@ -70,6 +73,8 @@ export function EstimateForm({ onSubmit, loading }: EstimateFormProps) {
   const city = citySelect === OTHER ? cityManual.trim() : citySelect;
   const areaNumber = Number(area);
 
+  const enteredSqft = areaNumber * (areaUnit === 'MARLA' ? 225 : 1);
+  const coveredSqft = areaMode === 'PLOT' ? enteredSqft * floors : enteredSqft;
   const canSubmit = city.length > 0 && area.length > 0 && areaNumber > 0;
 
   function handleSubmit(e: React.FormEvent) {
@@ -77,8 +82,8 @@ export function EstimateForm({ onSubmit, loading }: EstimateFormProps) {
     if (!canSubmit) return;
     onSubmit({
       city,
-      area: areaNumber,
-      area_unit: areaUnit,
+      area: areaMode === 'PLOT' ? Math.round(coveredSqft * 100) / 100 : areaNumber,
+      area_unit: areaMode === 'PLOT' ? 'SQFT' : areaUnit,
       floors,
       basement,
       finish_level: finishLevel,
@@ -127,7 +132,17 @@ export function EstimateForm({ onSubmit, loading }: EstimateFormProps) {
       </label>
 
       <label style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-        <span style={labelTextStyle}>Total covered area (sum of all floors)</span>
+        <span style={labelTextStyle}>{areaMode === 'PLOT' ? 'Plot size' : 'Total covered area (sum of all floors)'}</span>
+        <div style={{ display: 'flex', gap: '16px', fontSize: '13px' }}>
+          <label style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+            <input type="radio" name="areaMode" checked={areaMode === 'PLOT'} onChange={() => setAreaMode('PLOT')} />
+            Plot size
+          </label>
+          <label style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+            <input type="radio" name="areaMode" checked={areaMode === 'COVERED'} onChange={() => setAreaMode('COVERED')} />
+            Total covered area
+          </label>
+        </div>
         <div style={{ display: 'flex', gap: '8px' }}>
           <input
             type="number"
@@ -149,6 +164,13 @@ export function EstimateForm({ onSubmit, loading }: EstimateFormProps) {
             <option value="MARLA">Marla</option>
           </select>
         </div>
+        {coveredSqft > 0 && (
+          <span style={{ fontSize: '12px', color: 'var(--muted)' }}>
+            {areaMode === 'PLOT'
+              ? `Covered area used: ${Math.round(coveredSqft).toLocaleString()} sq ft (plot × ${floors} floor${floors > 1 ? 's' : ''}; each floor assumed to cover the plot). Switch to "Total covered area" to enter the exact built area.`
+              : `Covered area used: ${Math.round(coveredSqft).toLocaleString()} sq ft across all floors.`}
+          </span>
+        )}
       </label>
 
       <label style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>

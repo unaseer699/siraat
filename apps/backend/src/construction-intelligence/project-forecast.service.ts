@@ -61,6 +61,23 @@ export const FINISH_MULTIPLIER: Record<FinishLevel, Partial<Record<SectionGroup,
   PREMIUM: { STRUCTURE: 1.05, SERVICES: 1.2, FINISHING: 1.5, SITE_OTHER: 1 },
 };
 
+// Price factor for one cost group from per-item price ratios (today's rate /
+// baseline): 1 + sum(share x (ratio - 1)) over the items that have a ratio, so
+// items without one stay at the reference price.
+export function groupPriceFactor(g: SectionGroup, ratios: ReadonlyMap<string, number>): { factor: number; repriced: number } {
+  const refCost = REFERENCE_GROUP_COST[g];
+  if (!refCost) return { factor: 1, repriced: 0 };
+  let f = 1;
+  let n = 0;
+  for (const it of MARKET_RATE_ITEMS.filter((i) => i.group === g && i.ref_cost > 0)) {
+    const r = ratios.get(it.key);
+    if (r === undefined) continue;
+    f += (it.ref_cost / refCost) * (r - 1);
+    n += 1;
+  }
+  return { factor: f, repriced: n };
+}
+
 export interface LayoutResult {
   id: string;
   project_ref: string;
@@ -369,19 +386,8 @@ export class ProjectForecastService {
     // Each group is repriced item by item: factor = 1 + sum(share x (ratio - 1))
     // over the items that have a rate, so items without one stay at reference.
     // A manual factor set by the owner replaces this for its group.
-    const autoFactor = (g: SectionGroup): { factor: number; repriced: number } => {
-      const refCost = REFERENCE_GROUP_COST[g];
-      if (!refCost) return { factor: 1, repriced: 0 };
-      let f = 1;
-      let n = 0;
-      for (const it of MARKET_RATE_ITEMS.filter((i) => i.group === g && i.ref_cost > 0)) {
-        const p = itemPrice.get(it.key);
-        if (!p) continue;
-        f += (it.ref_cost / refCost) * (p.ratio - 1);
-        n += 1;
-      }
-      return { factor: f, repriced: n };
-    };
+    const ratioMap = new Map([...itemPrice].map(([k, v]) => [k, v.ratio] as const));
+    const autoFactor = (g: SectionGroup) => groupPriceFactor(g, ratioMap);
     const manual = layout?.price_factors ?? {};
     const factorOf = (g: SectionGroup): number => manual[g] ?? autoFactor(g).factor;
     const indexApplied = layout !== null && manual.STRUCTURE === undefined && autoFactor('STRUCTURE').repriced > 0;

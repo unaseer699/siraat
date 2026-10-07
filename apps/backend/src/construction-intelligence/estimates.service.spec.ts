@@ -456,3 +456,37 @@ describe('EstimatesService with daily market rates', () => {
     expect(r.line_items.find((l: any) => l.item_key === 'CEMENT').unit_rate).toBeNull();
   });
 });
+
+describe('whole-house estimate', () => {
+  const build = (market: any) => {
+    const qb: any = { where: () => qb, andWhere: () => qb, orderBy: () => qb, getOne: async () => null };
+    return new EstimatesService(
+      { listRawRatesForCity: async () => [] } as any,
+      { create: (d: any) => d, save: async (e: any) => ({ id: 'est-1', computed_at: new Date(), ...e }), createQueryBuilder: () => qb } as any,
+      market,
+    );
+  };
+  const req: BoqRequest = { city: 'Islamabad', area: 2700, area_unit: 'SQFT', floors: 2, basement: false, finish_level: 'STANDARD' };
+
+  it('matches the reference house at its own area with no rate change', async () => {
+    const r: any = await build({ latestQuoteAt: async () => null, currentRates: async () => [], baselines: async () => ({}) }).getEstimate(req);
+    expect(r.whole_house.total).toBe(10_176_514);
+    expect(r.whole_house.per_sqft).toBe(3769);
+    expect(r.whole_house.record_type).toBe('GENERATED');
+    expect(r.whole_house.affiliation_disclosure).toBeNull();
+  });
+
+  it('scales with area and finish level, and moves with market rates', async () => {
+    const half: any = await build(undefined).getEstimate({ ...req, area: 1350 });
+    expect(half.whole_house.total).toBe(5_088_258);
+    const prem: any = await build(undefined).getEstimate({ ...req, finish_level: 'PREMIUM' });
+    expect(prem.whole_house.total).toBeGreaterThan(10_176_514);
+    const dear: any = await build({
+      latestQuoteAt: async () => null,
+      currentRates: async () => [{ key: 'CEMENT', label: 'Cement', unit: 'bag', rate: 1299 * 1.2, rate_date: new Date().toISOString().slice(0, 10), carried_forward: false, age_days: 0, quote_id: 'q1' }],
+      baselines: async () => ({ CEMENT: { rate: 1299 } }),
+    }).getEstimate(req);
+    expect(dear.whole_house.total).toBeGreaterThan(10_176_514);
+    expect(dear.whole_house.derived_from).toEqual(['q1']);
+  });
+});

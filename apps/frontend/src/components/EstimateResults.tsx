@@ -166,6 +166,31 @@ function BoqTable({ lineItems, basement }: { lineItems: BoqLineItem[]; basement:
   );
 }
 
+function WholeHouseCard({ w }: { w: NonNullable<Extract<BoqResponse, { state: 'FULL' }>['whole_house']> }) {
+  return (
+    <div style={{ background: '#fff', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '24px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+      <p style={{ fontSize: '13px', color: 'var(--muted)', fontWeight: 600 }}>Whole-house estimate (labour included)</p>
+      <p style={{ fontSize: '32px', fontWeight: 800 }}>{formatPKR(w.total)}</p>
+      <p style={{ fontSize: '13px', color: 'var(--muted)' }}>
+        About PKR {w.per_sqft.toLocaleString()} per sq ft · {Math.round(w.area_sqft).toLocaleString()} sq ft covered · confidence{' '}
+        {Math.round(w.confidence_score * 100)}%{w.is_stale ? ' · prices are not current' : ''}
+      </p>
+      <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap', fontSize: '13px' }}>
+        {w.groups.map((g) => (
+          <span key={g.group}>
+            <strong>{g.label}:</strong> {formatPKR(g.amount)}
+          </span>
+        ))}
+      </div>
+      <ul style={{ margin: 0, paddingLeft: '18px', fontSize: '12px', color: 'var(--muted)' }}>
+        {w.notes.map((n) => (
+          <li key={n}>{n}</li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
 function AssumptionsBlock({ result }: { result: Extract<BoqResponse, { state: 'FULL' | 'DEGRADED_SUCCESS' }> }) {
   return (
     <div
@@ -282,7 +307,7 @@ export function EstimateResults({ result }: Props) {
           >
             <div style={{ flex: 1, minWidth: '200px' }}>
               <p style={{ fontSize: '13px', color: 'var(--muted)', fontWeight: 600 }}>
-                {result.state === 'FULL' ? 'Total estimate' : 'Partial total – some rates missing'}
+                {result.state === 'FULL' ? 'Materials & selected works total' : 'Materials & selected works – some rates missing'}
               </p>
               {result.state === 'FULL' ? (
                 <p style={{ fontSize: '32px', fontWeight: 800, marginTop: '4px' }}>
@@ -325,6 +350,12 @@ export function EstimateResults({ result }: Props) {
             </div>
           )}
 
+          {result.whole_house && <WholeHouseCard w={result.whole_house} />}
+
+          <p style={{ fontSize: '13px', fontWeight: 700, margin: '4px 0 -8px' }}>
+            Materials &amp; selected works (BOQ): cement, steel, bricks, sand, crush, doors, windows, rough-in. Labour,
+            tiles, wood, paint, sanitary ware and site work are in the whole-house estimate above.
+          </p>
           <BoqTable lineItems={result.line_items} basement={result.basement} />
 
           <AssumptionsBlock result={result} />
