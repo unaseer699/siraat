@@ -30,6 +30,11 @@ import {
 // prices, so they feed estimates for those two cities only, and only for the
 // core materials the BOQ prices.
 const DAILY_RATE_CITIES = new Set(['islamabad', 'rawalpindi']);
+// Islamabad and Rawalpindi are one market (same rates, same cached estimate).
+function marketCities(city: string): string[] {
+  const c = city.trim().toLowerCase();
+  return DAILY_RATE_CITIES.has(c) ? [...DAILY_RATE_CITIES] : [c];
+}
 // Daily-rate item key -> BOQ item it prices.
 const DAILY_RATE_ITEMS: Readonly<Record<string, BoqItemKey>> = {
   CEMENT: 'CEMENT',
@@ -104,7 +109,7 @@ export class EstimatesService {
     cutoff.setDate(cutoff.getDate() - ESTIMATE_STALENESS_THRESHOLD_DAYS);
     const existing = await this.estimateRepo
       .createQueryBuilder('e')
-      .where('LOWER(e.city) = LOWER(:city)', { city: req.city })
+      .where('LOWER(e.city) IN (:...cities)', { cities: marketCities(req.city) })
       .andWhere('e.area_sqft = :areaSqft', { areaSqft })
       .andWhere('e.floors = :floors', { floors: req.floors })
       .andWhere('e.basement = :basement', { basement: req.basement })
@@ -123,7 +128,8 @@ export class EstimatesService {
       }
     }
     if (existing && existing.computed_at > cutoff && !newerRates) {
-      return this.toResponse(existing);
+      // A cached Islamabad estimate also serves Rawalpindi; show the city asked for.
+      return { ...this.toResponse(existing), city: req.city } as BoqResponse;
     }
 
     // Quantities never depend on rate coverage (pure geometry/ratio math), so

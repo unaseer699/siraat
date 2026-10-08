@@ -1,9 +1,7 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import type { BoqRequest, BoqAreaUnit, BoqFloors, FinishLevel } from '@siraat/shared-types';
-import { fetchPlatformStats } from '@/lib/api';
-import { CANONICAL_CITY_OPTIONS } from '@/app/admin/constants';
 
 interface EstimateFormProps {
   onSubmit: (req: BoqRequest) => void;
@@ -18,9 +16,9 @@ const FINISH_LEVELS: { value: FinishLevel; label: string }[] = [
 
 const FLOOR_OPTIONS: BoqFloors[] = [1, 2, 3];
 
-// Sentinel select value for "enter it manually" — distinct from any real city
-// name, so it can't collide with a fetched/listed option.
-const OTHER = 'OTHER';
+// Siraat prices Islamabad and Rawalpindi only, as one market. More cities will
+// be added as their data comes in.
+const SUPPORTED_CITIES = ['Islamabad', 'Rawalpindi'] as const;
 
 const fieldStyle = {
   padding: '12px 16px',
@@ -36,13 +34,7 @@ const selectStyle = { ...fieldStyle, background: '#fff', cursor: 'pointer' };
 const labelTextStyle = { fontSize: '13px', fontWeight: 600, color: 'var(--muted)' };
 
 export function EstimateForm({ onSubmit, loading }: EstimateFormProps) {
-  // PRE-DATA-POPULATION REVIEW finding #10 — seed with the canonical list so
-  // this select isn't effectively empty (just the disabled placeholder +
-  // "Other") before any Society has been onboarded; fetchPlatformStats()
-  // below adds in any real city not already covered.
-  const [cities, setCities] = useState<string[]>(CANONICAL_CITY_OPTIONS);
-  const [citySelect, setCitySelect] = useState('');
-  const [cityManual, setCityManual] = useState('');
+  const [citySelect, setCitySelect] = useState<string>(SUPPORTED_CITIES[0]);
 
   const [area, setArea] = useState('');
   const [areaUnit, setAreaUnit] = useState<BoqAreaUnit>('MARLA');
@@ -53,24 +45,7 @@ export function EstimateForm({ onSubmit, loading }: EstimateFormProps) {
   const [basement, setBasement] = useState(false);
   const [finishLevel, setFinishLevel] = useState<FinishLevel>('STANDARD');
 
-  useEffect(() => {
-    let cancelled = false;
-    fetchPlatformStats()
-      .then((stats) => {
-        if (!cancelled) {
-          setCities((prev) => Array.from(new Set([...prev, ...stats.cities_covered])).sort());
-        }
-      })
-      .catch(() => {
-        // City list is a nice-to-have — the "Other (type manually)" option
-        // still covers city entry if this fails or returns nothing.
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  const city = citySelect === OTHER ? cityManual.trim() : citySelect;
+  const city = citySelect;
   const areaNumber = Number(area);
 
   const enteredSqft = areaNumber * (areaUnit === 'MARLA' ? 225 : 1);
@@ -113,26 +88,13 @@ export function EstimateForm({ onSubmit, loading }: EstimateFormProps) {
           aria-label="City"
           style={selectStyle}
         >
-          <option value="" disabled>
-            Select a city…
-          </option>
-          {cities.map((c) => (
+          {SUPPORTED_CITIES.map((c) => (
             <option key={c} value={c}>
               {c}
             </option>
           ))}
-          <option value={OTHER}>Other (type manually)</option>
         </select>
-        {citySelect === OTHER && (
-          <input
-            type="text"
-            value={cityManual}
-            onChange={(e) => setCityManual(e.target.value)}
-            placeholder="Enter city name"
-            aria-label="City (manual entry)"
-            style={{ ...fieldStyle, marginTop: '4px' }}
-          />
-        )}
+        <span style={{ fontSize: '12px', color: 'var(--muted)' }}>Islamabad and Rawalpindi share one market, so prices are the same for both.</span>
       </label>
 
       <label style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>

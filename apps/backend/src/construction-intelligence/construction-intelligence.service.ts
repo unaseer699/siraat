@@ -164,10 +164,14 @@ export class ConstructionIntelligenceService {
   // Raw entities (not the mapped/rounded MaterialRateResult) for the estimate
   // calculator — it needs recorded_date and source_tier to recompute freshness
   // at request time rather than trust each row's write-time is_stale snapshot.
+  // Islamabad and Rawalpindi are one market: a rate entered for either city
+  // prices an estimate for both.
   async listRawRatesForCity(city: string): Promise<MaterialRateEntity[]> {
+    const c = city.trim().toLowerCase();
+    const cities = c === 'islamabad' || c === 'rawalpindi' ? ['islamabad', 'rawalpindi'] : [c];
     return this.rateRepo
       .createQueryBuilder('r')
-      .where('LOWER(r.city) = LOWER(:city)', { city })
+      .where('LOWER(r.city) IN (:...cities)', { cities })
       .getMany();
   }
 
