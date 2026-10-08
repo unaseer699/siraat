@@ -51,12 +51,13 @@ function chipStyle(color: string, bg: string): React.CSSProperties {
 
 function contactButtonStyle(color: string): React.CSSProperties {
   return {
-    fontSize: '13px',
+    fontSize: '15px',
     fontWeight: 700,
     color: '#fff',
     background: color,
     borderRadius: '99px',
-    padding: '8px 14px',
+    padding: '11px 22px',
+    minHeight: '44px',
     textDecoration: 'none',
     display: 'inline-flex',
     alignItems: 'center',
@@ -65,24 +66,37 @@ function contactButtonStyle(color: string): React.CSSProperties {
 
 function OfferRow({ offer, title, societyName, showPrice, showConfirmed }: { offer: PropertyListingSummary; title: string; societyName: string; showPrice: boolean; showConfirmed: boolean }) {
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap', padding: '8px 0', borderTop: '1px solid var(--border)' }}>
-      {showPrice && <span style={{ fontWeight: 700, fontSize: '14px', minWidth: '110px' }}>{formatLac(offer.price_lac)}</span>}
-      <span style={{ fontSize: '12px', color: 'var(--muted)' }}>
-        {/* No dealer names are captured, so the contact number itself is the
-            label (linking to that dealer's profile); no number -> no label. */}
-        {offer.dealer_key && offer.contact_phone && (
-          <>
-            <Link href={`/dealers/${offer.dealer_key}`} style={{ color: ACCENT_BLUE, fontWeight: 600 }}>
-              {offer.contact_phone}
+    <div
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: '10px 14px',
+        flexWrap: 'wrap',
+        padding: '12px 0 4px',
+        borderTop: '1px solid var(--border)',
+      }}
+    >
+      {showPrice && <span style={{ fontWeight: 800, fontSize: '15px', minWidth: '110px' }}>{formatLac(offer.price_lac)}</span>}
+      {offer.contact_phone ? (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', minWidth: 0 }}>
+          <span style={{ fontSize: '11px', fontWeight: 700, color: 'var(--muted)', letterSpacing: '0.04em' }}>DEALER CONTACT</span>
+          {/* No dealer names are captured, so the number itself is the label and
+              links to that dealer's profile when there is one. */}
+          {offer.dealer_key ? (
+            <Link href={`/dealers/${offer.dealer_key}`} style={{ color: '#111827', fontWeight: 800, fontSize: '20px', letterSpacing: '0.01em', textDecoration: 'none' }}>
+              📞 {offer.contact_phone}
             </Link>
-            {showConfirmed ? ' · ' : null}
-          </>
-        )}
-        {/* With a single dealer the card already says when it was confirmed. */}
-        {showConfirmed && <>confirmed {formatAge(offer.last_confirmed_at)}</>}
-      </span>
+          ) : (
+            <span style={{ color: '#111827', fontWeight: 800, fontSize: '20px', letterSpacing: '0.01em' }}>📞 {offer.contact_phone}</span>
+          )}
+          {/* With a single dealer the card already says when it was confirmed. */}
+          {showConfirmed && <span style={{ fontSize: '12px', color: 'var(--muted)' }}>confirmed {formatAge(offer.last_confirmed_at)}</span>}
+        </div>
+      ) : (
+        showConfirmed && <span style={{ fontSize: '12px', color: 'var(--muted)' }}>confirmed {formatAge(offer.last_confirmed_at)}</span>
+      )}
       {offer.contact_phone && (
-        <span style={{ display: 'inline-flex', gap: '8px', marginLeft: 'auto' }}>
+        <span style={{ display: 'inline-flex', gap: '10px', marginLeft: 'auto', flexWrap: 'wrap' }}>
           <a href={`tel:${offer.contact_phone.replace(/[^\d+]/g, '')}`} style={contactButtonStyle(ACCENT_BLUE)}>
             Call
           </a>
