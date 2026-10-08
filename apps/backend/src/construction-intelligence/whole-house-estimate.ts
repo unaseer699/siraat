@@ -85,7 +85,7 @@ const PHASES: PhaseDef[] = [
     summary: 'Check every room, door, window and tap, get defects fixed, then clean and complete.',
     includes: ['Snag list and inspection', 'Deep cleaning', 'Completion fee', 'Maintenance handover'] },
   { key: 'CONTINGENCY', title: 'Contingency allowance', stage: 'HANDOVER', group: null, ref_cost: null,
-    summary: 'A buffer for price changes and extras, as a percentage of everything above.',
+    summary: 'A buffer for price changes and extras, as a percentage of the building cost. It is included in the whole-house figure at the top.',
     includes: ['Price changes', 'Extra work', 'Design changes'],
     note: 'Choose the percentage below. Most builders plan 5 to 10%.' },
 ];

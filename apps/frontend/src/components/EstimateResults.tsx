@@ -199,19 +199,25 @@ function RoadmapCard({ w }: { w: WholeHouse }) {
     return Number.isFinite(n) && n > 0 ? n : 0;
   };
   const yourQuotes = w.phases.filter((p) => p.basis === 'NOT_ESTIMATED' && p.key !== 'CONTINGENCY').reduce((sum, p) => sum + quoteOf(p.key), 0);
-  const plotQuote = quoteOf('PLOT');
-  const allowanceBase = w.total + w.before_building_total + (yourQuotes - plotQuote);
-  const allowance = Math.round((allowanceBase * allowancePct) / 100);
-  const allIn = w.total + w.before_building_total + yourQuotes + allowance;
+    // Contingency is a percentage of the building cost, and is part of the
+  // whole-house figure shown at the top.
+  const allowance = Math.round((w.total * allowancePct) / 100);
+  const houseTotal = w.total + allowance;
+  const allIn = houseTotal + w.before_building_total + yourQuotes;
   const scaled = w.phases.filter((p) => p.basis === 'SCALED' && p.amount !== null);
   const pct = (amount: number) => (w.total > 0 ? Math.round((amount / w.total) * 100) : 0);
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
       <div style={{ background: '#fff', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '24px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
-        <p style={{ fontSize: '13px', color: 'var(--muted)', fontWeight: 600 }}>Whole-house estimate (labour included)</p>
-        <p style={{ fontSize: '32px', fontWeight: 800 }}>{formatPKR(w.total)}</p>
+        <p style={{ fontSize: '13px', color: 'var(--muted)', fontWeight: 600 }}>
+          Whole-house estimate (labour included, with {allowancePct}% contingency)
+        </p>
+        <p style={{ fontSize: '32px', fontWeight: 800 }}>{formatPKR(houseTotal)}</p>
         <p style={{ fontSize: '13px', color: 'var(--muted)' }}>
-          About PKR {w.per_sqft.toLocaleString()} per sq ft · {Math.round(w.area_sqft).toLocaleString()} sq ft covered ·
+          Building cost {formatPKR(w.total)} + contingency {formatPKR(allowance)}
+        </p>
+        <p style={{ fontSize: '13px', color: 'var(--muted)' }}>
+          About PKR {Math.round(houseTotal / Math.max(w.area_sqft, 1)).toLocaleString()} per sq ft · {Math.round(w.area_sqft).toLocaleString()} sq ft covered ·
           confidence {Math.round(w.confidence_score * 100)}%{w.is_stale ? ' · prices are not current' : ''}
         </p>
         <p style={{ fontSize: '13px' }}>
@@ -219,10 +225,10 @@ function RoadmapCard({ w }: { w: WholeHouse }) {
           <strong>{formatPKR(w.before_building_total)}</strong>. The plot price is not included.
         </p>
         <div style={{ background: '#f9fafb', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '12px 14px', fontSize: '13px' }}>
-          <strong>All-in estimate with your quotes and {allowancePct}% contingency: {formatPKR(allIn)}</strong>
+          <strong>All-in estimate with approvals and your own quotes: {formatPKR(allIn)}</strong>
           <div style={{ color: 'var(--muted)', marginTop: '4px' }}>
-            Building {formatPKR(w.total)} + approvals, soil and excavation {formatPKR(w.before_building_total)}
-            {yourQuotes > 0 ? ` + your quotes ${formatPKR(yourQuotes)}` : ''} + contingency {formatPKR(allowance)}. Enter your own quotes in the steps marked &quot;Not estimated&quot; below.
+            Whole house {formatPKR(houseTotal)} + approvals, soil and excavation {formatPKR(w.before_building_total)}
+            {yourQuotes > 0 ? ` + your quotes ${formatPKR(yourQuotes)}` : ''}. Enter your own quotes in the steps marked &quot;Not estimated&quot; below.
           </div>
         </div>
         {/* Share of the building cost by step, in build order. */}
