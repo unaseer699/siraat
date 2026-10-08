@@ -47,6 +47,8 @@ export const MARKET_RATE_ITEMS: MarketRateItem[] = [
   { key: 'MARBLE', label: 'Marble / granite', group: 'FINISHING', unit: 'sqft', aliases: ['marble', 'granite', 'marble granite'], ref_cost: 192_000, ref_rate: null },
   { key: 'WOOD', label: 'Wood', group: 'FINISHING', unit: 'cft', aliases: ['wood', 'timber', 'kikar', 'deodar', 'lakri'], ref_cost: 546_200, ref_rate: null },
   { key: 'DOORS', label: 'Doors', group: 'FINISHING', unit: 'pc', aliases: ['door', 'doors'], ref_cost: 245_000, ref_rate: 15_000 },
+  { key: 'SOIL_TEST', label: 'Soil test (per hole, 20 ft, with report)', group: 'SITE_OTHER', unit: 'lot', aliases: ['soil test', 'soil testing', 'soil test per hole'], ref_cost: 0, ref_rate: 9_000 },
+  { key: 'WATER_BORING', label: 'Water boring (per ft)', group: 'SITE_OTHER', unit: 'rft', aliases: ['water boring', 'boring', 'tube well boring', 'boring per ft'], ref_cost: 0, ref_rate: 700 },
   { key: 'DOOR_HANDLE', label: 'Door handle (room door)', group: 'FINISHING', unit: 'pc', aliases: ['door handle', 'door handles', 'room door handle', 'handle'], ref_cost: 0, ref_rate: 1_300 },
   { key: 'MAIN_DOOR_HANDLE', label: 'Main door handle / lock', group: 'FINISHING', unit: 'pc', aliases: ['main door handle', 'main door handles', 'main door lock', 'main handle'], ref_cost: 0, ref_rate: 3_625 },
   { key: 'CARPENTER_LABOUR', label: 'Carpenter labour', group: 'FINISHING', unit: 'sqft', aliases: ['carpenter labour', 'carpenter labor', 'wood labour', 'labour carpenter'], ref_cost: 130_000, ref_rate: null },
@@ -78,7 +80,7 @@ export const UNIT_WORDS: Record<string, RateUnit | 'ton'> = {
   rft: 'rft', rf: 'rft', ft: 'rft', runningft: 'rft', runningfoot: 'rft', rfeet: 'rft',
   roll: 'roll', rolls: 'roll',
   set: 'set', sets: 'set',
-  lot: 'lot', lumpsum: 'lot', lump: 'lot', ls: 'lot', lumpsump: 'lot',
+  lot: 'lot', hole: 'lot', holes: 'lot', lumpsum: 'lot', lump: 'lot', ls: 'lot', lumpsump: 'lot',
 };
 
 export function normaliseUnit(raw: string): RateUnit | 'ton' | null {

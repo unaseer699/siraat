@@ -21,9 +21,6 @@ export const BoqRequestSchema = z.object({
   floors: BoqFloorsSchema,
   basement: z.boolean(),
   finish_level: FinishLevelSchema,
-  // Optional, for the soil and boring step of the whole-house estimate.
-  boring_depth_ft: z.number().min(0).max(1000).optional(),
-  soil_test_holes: z.number().int().min(0).max(10).optional(),
 });
 export type BoqRequest = z.infer<typeof BoqRequestSchema>;
 

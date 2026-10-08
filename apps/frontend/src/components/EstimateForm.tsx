@@ -51,8 +51,6 @@ export function EstimateForm({ onSubmit, loading }: EstimateFormProps) {
   const [areaMode, setAreaMode] = useState<'PLOT' | 'COVERED'>('PLOT');
   const [floors, setFloors] = useState<BoqFloors>(1);
   const [basement, setBasement] = useState(false);
-  const [boringDepth, setBoringDepth] = useState('200');
-  const [soilHoles, setSoilHoles] = useState('2');
   const [finishLevel, setFinishLevel] = useState<FinishLevel>('STANDARD');
 
   useEffect(() => {
@@ -93,8 +91,6 @@ export function EstimateForm({ onSubmit, loading }: EstimateFormProps) {
       floors,
       basement,
       finish_level: finishLevel,
-      boring_depth_ft: boringDepth.trim() !== '' && Number(boringDepth) >= 0 ? Number(boringDepth) : undefined,
-      soil_test_holes: soilHoles.trim() !== '' && Number.isInteger(Number(soilHoles)) && Number(soilHoles) >= 0 ? Number(soilHoles) : undefined,
     });
   }
 
@@ -207,17 +203,6 @@ export function EstimateForm({ onSubmit, loading }: EstimateFormProps) {
         />
         <span style={labelTextStyle}>Basement (extra level below ground, same size as one floor)</span>
       </label>
-
-      <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
-        <label style={{ display: 'flex', flexDirection: 'column', gap: '4px', flex: 1, minWidth: '140px' }}>
-          <span style={labelTextStyle}>Soil test holes (20 ft each)</span>
-          <input type="number" min="0" max="10" value={soilHoles} onChange={(e) => setSoilHoles(e.target.value)} style={selectStyle} aria-label="Soil test holes" />
-        </label>
-        <label style={{ display: 'flex', flexDirection: 'column', gap: '4px', flex: 1, minWidth: '140px' }}>
-          <span style={labelTextStyle}>Water boring depth (ft)</span>
-          <input type="number" min="0" max="1000" value={boringDepth} onChange={(e) => setBoringDepth(e.target.value)} style={selectStyle} aria-label="Water boring depth in feet" />
-        </label>
-      </div>
 
       <label style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
         <span style={labelTextStyle}>Finish level</span>

@@ -84,7 +84,7 @@ export class EstimatesService {
               computeExcavationCft(resp.area_sqft, resp.floors, true) / Math.max(computeExcavationCft(resp.area_sqft, resp.floors, false), 1),
           }
         : undefined;
-    const whole_house = computeWholeHouse({ areaSqft: resp.area_sqft, finishLevel: resp.finish_level, market, baselines, basement, boringDepthFt: req.boring_depth_ft, soilTestHoles: req.soil_test_holes });
+    const whole_house = computeWholeHouse({ areaSqft: resp.area_sqft, finishLevel: resp.finish_level, market, baselines, basement });
     if (!regional) {
       whole_house.notes.push(`Priced at Islamabad reference prices; ${req.city} prices may differ.`);
     }
