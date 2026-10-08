@@ -415,6 +415,8 @@ export function EstimateResults({ result }: Props) {
 
       {(result.state === 'FULL' || result.state === 'DEGRADED_SUCCESS') && (
         <>
+          {result.whole_house && <RoadmapCard w={result.whole_house} />}
+
           <div
             style={{
               background: '#fff',
@@ -429,7 +431,7 @@ export function EstimateResults({ result }: Props) {
           >
             <div style={{ flex: 1, minWidth: '200px' }}>
               <p style={{ fontSize: '13px', color: 'var(--muted)', fontWeight: 600 }}>
-                {result.state === 'FULL' ? 'Materials & selected works total' : 'Materials & selected works – some rates missing'}
+                {result.state === 'FULL' ? 'Materials & selected works (BOQ) total' : 'Materials & selected works (BOQ), some rates missing'}
               </p>
               {result.state === 'FULL' ? (
                 <p style={{ fontSize: '32px', fontWeight: 800, marginTop: '4px' }}>
@@ -442,7 +444,7 @@ export function EstimateResults({ result }: Props) {
                   </p>
                   {result.missing_major_items.length > 0 && (
                     <p style={{ fontSize: '13px', color: WARNING_AMBER, marginTop: '6px' }}>
-                      Missing rates for: {result.missing_major_items.join(', ')} — not included in this figure.
+                      Missing rates for: {result.missing_major_items.join(', ')}. Not included in this materials figure{result.whole_house ? '; the whole-house estimate above already covers them' : ''}.
                     </p>
                   )}
                 </>
@@ -471,8 +473,6 @@ export function EstimateResults({ result }: Props) {
               <p style={{ fontSize: '14px', color: '#78350f' }}>{result.affiliation_disclosure}</p>
             </div>
           )}
-
-          {result.whole_house && <RoadmapCard w={result.whole_house} />}
 
           <p style={{ fontSize: '13px', fontWeight: 700, margin: '4px 0 -8px' }}>
             Materials &amp; selected works (BOQ): cement, steel, bricks, sand, crush, doors, windows, rough-in. Labour,

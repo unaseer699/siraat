@@ -54,7 +54,7 @@ export const MARKET_RATE_ITEMS: MarketRateItem[] = [
   { key: 'WINDOW_GRILLS', label: 'Window iron grills (5 windows)', group: 'FINISHING', unit: 'lot', aliases: ['window grills', 'window grill', 'windows iron grill', 'iron grill', 'grill windows', '5 windows iron grill', 'window iron grills', 'window iron grills 5 windows'], ref_cost: 90_000, ref_rate: 90_000 },
   { key: 'STEEL_WORK', label: 'Steel work, other (chokhats, back grill)', group: 'FINISHING', unit: 'kg', aliases: ['steel work', 'iron work', 'welding', 'chokhat', 'chokhats', 'steel work other'], ref_cost: 157_152, ref_rate: null },
   { key: 'PAINT_LABOUR', label: 'Paint labour', group: 'FINISHING', unit: 'sqft', aliases: ['paint labour', 'painter labour', 'paint labor', 'labour paint', 'labour painter'], ref_cost: 150_000, ref_rate: null },
-  { key: 'PAINT_MATERIAL', label: 'Paint material', group: 'FINISHING', unit: 'sqft', aliases: ['paint material', 'paint', 'paints', 'emulsion', 'paint materials'], ref_cost: 138_000, ref_rate: null },
+  { key: 'PAINT_MATERIAL', label: 'Paint material', group: 'FINISHING', unit: 'sqft', aliases: ['paint material', 'paint', 'paints', 'emulsion', 'paint materials'], ref_cost: 138_000, ref_rate: 51.11 },
   // SITE
   { key: 'BOUNDARY_WALL', label: 'Boundary wall', group: 'SITE_OTHER', unit: 'rft', aliases: ['boundary wall', 'boundary', 'boundary wall rate'], ref_cost: 0, ref_rate: null },
 ];

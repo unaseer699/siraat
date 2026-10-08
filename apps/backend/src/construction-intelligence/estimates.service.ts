@@ -38,6 +38,7 @@ const DAILY_RATE_ITEMS: Readonly<Record<string, BoqItemKey>> = {
   ALUMINIUM_WINDOWS: 'WINDOWS',
   ELECTRICAL_ROUGH_IN: 'ELECTRICAL_ROUGH_IN',
   PLUMBING_ROUGH_IN: 'PLUMBING_ROUGH_IN',
+  PAINT_MATERIAL: 'PAINT',
 };
 
 @Injectable()
@@ -117,7 +118,7 @@ export class EstimatesService {
     // "nothing to compute" condition here; rates are looked up per line item
     // below, independently of whether any exist at all for this city.
     const rates = await this.ciSvc.listRawRatesForCity(req.city);
-    if (useDaily) rates.push(...(await this.dailyMarketRatesAsRates(req.city)));
+    if (useDaily) rates.push(...(await this.dailyMarketRatesAsRates(req.city, areaSqft, req)));
     return this.computeAndSave(req, areaSqft, rates);
   }
 
@@ -125,28 +126,56 @@ export class EstimatesService {
   // presented as first-party FIELD_REPORTED rates, so the normal staleness
   // rule still applies to a rate that has not been refreshed for too long.
   // Their id is the market-rate quote FACT, which becomes a derived_from entry.
-  private async dailyMarketRatesAsRates(city: string): Promise<MaterialRateEntity[]> {
+  private async dailyMarketRatesAsRates(city: string, areaSqft: number, req: BoqRequest): Promise<MaterialRateEntity[]> {
     try {
       const current = (await this.marketRates?.currentRates()) ?? [];
-      return current
-        .filter((c) => c.key in DAILY_RATE_ITEMS)
-        .map(
-          (c) =>
-            ({
-              id: c.quote_id,
-              material_name: BOQ_ITEM_LABELS[DAILY_RATE_ITEMS[c.key]],
-              unit: BOQ_ITEM_UNITS[DAILY_RATE_ITEMS[c.key]],
-              price: c.rate,
-              city,
-              source_tier: 'FIELD_REPORTED',
-              source_name: 'Siraat daily market rates',
-              source_contact: null,
-              supplier_id: null,
-              recorded_date: c.rate_date,
-              record_type: 'FACT',
-              is_stale: false,
-            }) as unknown as MaterialRateEntity,
-        );
+      let baselines: Awaited<ReturnType<MarketRateService['baselines']>> = {};
+      try {
+        baselines = (await this.marketRates?.baselines()) ?? {};
+      } catch {
+        baselines = {};
+      }
+      const today = new Date().toISOString().slice(0, 10);
+      const toRate = (key: string, price: number, id: string, date: string, source: string): MaterialRateEntity => {
+        const item = DAILY_RATE_ITEMS[key];
+        let unitPrice = price;
+        // Paint material is quoted per sq ft of covered area; the BOQ counts
+        // litres, so convert using the same area and litres the BOQ uses.
+        if (key === 'PAINT_MATERIAL') {
+          const litres = computeBoqQuantity('PAINT', areaSqft, req.floors, req.basement, 'STANDARD');
+          unitPrice = litres && litres > 0 ? (price * areaSqft) / litres : 0;
+        }
+        return {
+          id,
+          material_name: BOQ_ITEM_LABELS[item],
+          unit: BOQ_ITEM_UNITS[item],
+          price: unitPrice,
+          city,
+          source_tier: 'FIELD_REPORTED',
+          source_name: source,
+          source_contact: null,
+          supplier_id: null,
+          recorded_date: date,
+          record_type: 'FACT',
+          is_stale: false,
+        } as unknown as MaterialRateEntity;
+      };
+      const out: MaterialRateEntity[] = [];
+      const quoted = new Set<string>();
+      for (const c of current) {
+        if (!(c.key in DAILY_RATE_ITEMS)) continue;
+        quoted.add(c.key);
+        out.push(toRate(c.key, c.rate, c.quote_id, c.rate_date, 'Siraat daily market rates'));
+      }
+      // No quote yet for an item: use the completed reference house's own rate
+      // (clearly labelled) so the estimate is not left blank.
+      for (const key of Object.keys(DAILY_RATE_ITEMS)) {
+        if (quoted.has(key)) continue;
+        const base = baselines[key];
+        if (!base || base.rate === null || base.source !== 'REFERENCE') continue;
+        out.push(toRate(key, base.rate, `reference:${key}`, today, 'Zoraiz One reference house rate (no recent quote)'));
+      }
+      return out;
     } catch (err) {
       this.logger.warn(`Daily market rates unavailable for estimate: ${err instanceof Error ? err.message : String(err)}`);
       return [];
@@ -223,7 +252,7 @@ export class EstimatesService {
       const pricePerBoqUnit = Number(best.rate.price) / best.factor;
       const unitRate = round2(pricePerBoqUnit);
       const subtotal = round2(quantity * pricePerBoqUnit);
-      derivedFrom.push(best.rate.id);
+      if (!String(best.rate.id).startsWith('reference:')) derivedFrom.push(best.rate.id);
       lineItems.push({
         item_key: key,
         item_name: itemName,

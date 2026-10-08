@@ -451,6 +451,19 @@ describe('EstimatesService with daily market rates', () => {
     expect(pl.subtotal).toBe(391500);
   });
 
+  it('prices paint from the reference house rate when no paint quote exists', async () => {
+    const m4 = {
+      latestQuoteAt: async () => null,
+      currentRates: async () => [],
+      baselines: async () => ({ PAINT_MATERIAL: { key: 'PAINT_MATERIAL', rate: 51.11, source: 'REFERENCE', set_date: null } }),
+    };
+    const r: any = await build(m4).getEstimate({ ...req, area: 12, area_unit: 'MARLA' });
+    const paint = r.line_items.find((l: any) => l.item_key === 'PAINT');
+    expect(paint.subtotal).toBeCloseTo(51.11 * 2700, 0);
+    expect(paint.source_name).toContain('reference house');
+    expect(r.derived_from.some((d: string) => d.startsWith('reference:'))).toBe(false);
+  });
+
   it('does not use them for other cities', async () => {
     const r: any = await build(market).getEstimate({ ...req, city: 'Lahore' });
     expect(r.line_items.find((l: any) => l.item_key === 'CEMENT').unit_rate).toBeNull();
