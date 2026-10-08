@@ -83,11 +83,11 @@ function OfferRow({ offer, title, societyName, showPrice, showConfirmed }: { off
           {/* No dealer names are captured, so the number itself is the label and
               links to that dealer's profile when there is one. */}
           {offer.dealer_key ? (
-            <Link href={`/dealers/${offer.dealer_key}`} style={{ color: '#111827', fontWeight: 800, fontSize: '20px', letterSpacing: '0.01em', textDecoration: 'none' }}>
+            <Link href={`/dealers/${offer.dealer_key}`} style={{ color: '#111827', fontWeight: 700, fontSize: '16px', letterSpacing: '0.01em', textDecoration: 'none' }}>
               📞 {offer.contact_phone}
             </Link>
           ) : (
-            <span style={{ color: '#111827', fontWeight: 800, fontSize: '20px', letterSpacing: '0.01em' }}>📞 {offer.contact_phone}</span>
+            <span style={{ color: '#111827', fontWeight: 700, fontSize: '16px', letterSpacing: '0.01em' }}>📞 {offer.contact_phone}</span>
           )}
           {/* With a single dealer the card already says when it was confirmed. */}
           {showConfirmed && <span style={{ fontSize: '12px', color: 'var(--muted)' }}>confirmed {formatAge(offer.last_confirmed_at)}</span>}
@@ -140,7 +140,9 @@ export function PlotGroupCard({ plot, showSociety }: { plot: PropertyPlotGroup; 
       }}
     >
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: '12px', flexWrap: 'wrap' }}>
-        <h3 style={{ fontSize: '15px', fontWeight: 700 }}>{title}</h3>
+        <h3 style={{ fontSize: '20px', fontWeight: 800, lineHeight: 1.2, color: '#111827' }}>
+          {plot.block && <span style={{ color: ACCENT_BLUE }}>Block {plot.block} · </span>}Plot {plot.plot_number}
+        </h3>
         <span style={{ fontSize: '16px', fontWeight: 800, color: ACCENT_BLUE }}>
           {formatPriceRange(plot.min_price_lac, plot.max_price_lac)}
         </span>
