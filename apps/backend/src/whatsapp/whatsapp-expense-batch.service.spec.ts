@@ -1,4 +1,4 @@
-import { buildBatchSummary, isCancelReply, isExpenseBatchMessage, projectNamesMatch } from './whatsapp-expense-batch.service';
+import { buildBatchSummary, isCancelReply, isExpenseBatchMessage, isLedgerLinesMessage, projectNamesMatch } from './whatsapp-expense-batch.service';
 
 describe('expense batch helpers', () => {
   it('detects ledger messages', () => {
@@ -35,5 +35,18 @@ describe('heading detection', () => {
 describe('project-name header', () => {
   it('treats a Project Name line at the top as a ledger', () => {
     expect(isExpenseBatchMessage('Project Name: THE COURTYARD\n\nItems\nDuck - 4000')).toBe(true);
+  });
+});
+
+describe('isLedgerLinesMessage', () => {
+  it('accepts short name - amount lists, with or without a Project Name line', () => {
+    expect(isLedgerLinesMessage('Jabbar Labour - 100000')).toBe(true);
+    expect(isLedgerLinesMessage('Project Name: THE COURTYARD\n\nJabbar Labour - 100000\nCement 50 bags- 76000')).toBe(true);
+  });
+  it('rejects ordinary chat, rate messages and single expenses with @', () => {
+    expect(isLedgerLinesMessage('Hello, how is the work going?')).toBe(false);
+    expect(isLedgerLinesMessage('Cement: 1300 /bag')).toBe(false);
+    expect(isLedgerLinesMessage('cement 50 bags @ 1490')).toBe(false);
+    expect(isLedgerLinesMessage('Project Name: THE COURTYARD')).toBe(false);
   });
 });

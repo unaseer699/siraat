@@ -24,6 +24,17 @@ export function isExpenseBatchMessage(text: string | null): boolean {
   return head.some((l) => BATCH_TRIGGER.test(l) || /^project\s*name\s*[:\-]/i.test(l));
 }
 
+// A short list of "name - amount" lines with no heading (e.g. "Jabbar Labour -
+// 100000"). Only used once the message is already tied to a project, so it
+// cannot catch forwarded listings.
+export function isLedgerLinesMessage(text: string | null): boolean {
+  if (!text) return false;
+  const lines = text.split('\n').map((l) => l.trim()).filter(Boolean);
+  if (lines.length === 0 || lines.length > 40) return false;
+  const row = /^[•*\-–—\s]*[A-Za-z][^@:]*?[-–—]\s*(?:rs\.?\s*|pkr\s*)?\d[\d,]{2,}(?:\s+[A-Za-z0-9 ]+)?$/i;
+  return lines.some((l) => row.test(l)) && lines.every((l) => row.test(l) || /^project\b/i.test(l) || /^\d{1,2}[-/.]\d{1,2}[-/.]\d{2,4}$/.test(l) || /^[-–—_=]+$/.test(l));
+}
+
 export function isCancelReply(text: string | null): boolean {
   if (!text) return false;
   return CANCEL_WORDS.includes(text.trim().toLowerCase().replace(/[.!?]+$/, ''));

@@ -19,11 +19,8 @@ import { WhatsappListingParsingService } from './whatsapp-listing-parsing.servic
 import { WhatsappListingAlertService } from './whatsapp-listing-alert.service';
 import { WhatsappGroundReportService } from './whatsapp-ground-report.service';
 import { WhatsappProjectResolverService } from './whatsapp-project-resolver.service';
-import { WhatsappExpenseBatchService, isExpenseBatchMessage, isCancelReply } from './whatsapp-expense-batch.service';
+import { WhatsappExpenseBatchService, isExpenseBatchMessage, isLedgerLinesMessage, isCancelReply } from './whatsapp-expense-batch.service';
 
-function countNonEmptyLines(text: string | null): number {
-  return (text ?? '').split('\n').filter((l) => l.trim().length > 0).length;
-}
 import { maskPhone } from './whatsapp-phone.util';
 
 export { maskPhone };
@@ -411,7 +408,7 @@ export class WhatsappService {
       } catch (err) {
         this.logger.error('Pending expense batch lookup failed — continuing normal routing', err instanceof Error ? err.stack : String(err));
       }
-      if (isExpenseBatchMessage(message.message_text) && countNonEmptyLines(message.message_text) > 3) {
+      if (isExpenseBatchMessage(message.message_text) || isLedgerLinesMessage(message.message_text)) {
         void this.expenseBatchSvc.parseAndStoreBatch(message);
         return;
       }
