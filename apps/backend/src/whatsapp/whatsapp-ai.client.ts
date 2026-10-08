@@ -156,12 +156,12 @@ function buildListingSystemPrompt(): string {
     '{"listings": [{"society_name_raw": string, "block": string|null, "plot_number": string, "size_raw": string|null, "size_marla": number|null, "price_lac": number|null, "status_raw": string|null, "contact_phone": string|null, "raw_line": string}]}',
     '',
     'Field rules:',
-    '- society_name_raw: the single society named by the sender (e.g. the "Society: Faisal Hills" line -> "Faisal Hills"). Never a block/size heading and never a line like "Inventory Updated: 6th Oct". Identical for every plot in the message.',
+    '- society_name_raw: the single society named by the sender (e.g. the "Society: Faisal Hills" line -> "Faisal Hills"). Never a block/size heading and never a line like "Inventory Updated: 6th Oct". Identical for every plot in the message. When there is no "Society:" line, take the society from the title or heading (e.g. "7 Marla Plot for Sale – Gulberg Residencia Islamabad" -> "Gulberg Residencia"; leave out the city name and words like "plots for sale").',
     '- block: a block letter/code if the plot code or its section heading names one — e.g. "FHC 7473" means Society abbreviation "FH" + Block letter "C", so block = "C"; a heading "FHA - 25x50" means block = "A" and size = 25x50 for the plots under it; a heading with a block NAME instead of a letter, such as "FH Executive - 40x80", means block = "Executive" (title case) and size = 40x80. Null if no block is indicated.',
-    '- plot_number: the plot\'s own number as a string, e.g. "7473".',
-    '- size_raw: the plot size, usually a dimension in a section heading such as "25x50", "25 * 50" or "30 x 60" (feet) — normalize to the form "25x50" (lowercase x, no spaces). A size given in Marla/Kanal is written like "5 Marla" / "1 Kanal". A size heading applies to every plot under it until the next heading. Null only if no size is stated for the plot.',
+    '- plot_number: the plot\'s own number as a string, e.g. "7473". A code that joins a block letter and a number, such as "A 3352", "C-443", "K-708" or "P-1101", means block = the letter and plot_number = the number ("3352", "443", "708", "1101"). Only emit a plot that HAS a plot number: an advert that gives a block and a price but no plot number is skipped, not emitted.',
+    '- size_raw: the plot size, usually a dimension in a section heading such as "25x50", "25 * 50" or "30 x 60" (feet) — normalize to the form "25x50" (lowercase x, no spaces). A size given in Marla/Kanal is written like "5 Marla" / "1 Kanal" — this includes section headings such as "7 Marla plots" or "10 Marla plot" and adverts titled "7 Marla Plot for Sale". A size heading applies to every plot under it until the next heading. Null only if no size is stated for the plot.',
     '- size_marla: always null — the server derives it from size_raw. Do NOT compute it yourself.',
-    '- price_lac: the final price in Lac as a decimal number. CRITICAL decimal rule, apply exactly: a price written as a plain multi-digit number with MORE than 2 digits (e.g. "5450") means insert a decimal point 2 digits from the right, giving 54.50 — NOT 5450.00. A number with 2 or fewer digits (e.g. "52") is already a whole Lac value and stays as-is (52.00), it does NOT become 0.52. A price written with a literal apostrophe as the decimal separator (e.g. "47\'50") means 47.50 directly — use the apostrophe position, do not also apply the digit-count rule to it. If no price is given for a plot, use null.',
+    '- price_lac: the final price in Lac as a decimal number. CRITICAL decimal rule, apply exactly: a price written as a plain multi-digit number with MORE than 2 digits (e.g. "5450") means insert a decimal point 2 digits from the right, giving 54.50 — NOT 5450.00. A number with 2 or fewer digits (e.g. "52") is already a whole Lac value and stays as-is (52.00), it does NOT become 0.52. A price written with a literal apostrophe as the decimal separator (e.g. "47\'50") means 47.50 directly — use the apostrophe position, do not also apply the digit-count rule to it. If no price is given for a plot, use null. A price WITH a unit is never subject to the digit rule: "1.55 cr", "1.15 Cr" or "PKR 1.60 Crore" mean crore, so price_lac = the number x 100 (155, 115, 160); "90 Lac" or "72 Lakh" means 90 and 72.',
     '- status_raw: copy the legal/possession status phrase verbatim exactly as written in the message (e.g. "MDR back NDC open", "NDC open", "NDC Closed", "Sun face NDC open") — do not normalize, abbreviate, or map it to a fixed set of values.',
     '- contact_phone: the number from a line like "Contact: 0300-1234567" (normally the last line, covering every plot in the message), copied as written. Null if the message contains no phone number. Never invent or guess a number.',
     '- raw_line: the exact original line(s) this plot was parsed from, for a human reviewer to double check the parse.',
@@ -185,8 +185,19 @@ function cleanSocietyName(name: string): string {
   return name
     .replace(/[*_~]/g, '')
     .replace(/\s*[-–:]?\s*(inventory|updated|list(ing)?s?|available)\b.*$/i, '')
+    .replace(/\s+(islamabad|rawalpindi|lahore|karachi)$/i, '')
     .replace(/\s+/g, ' ')
     .trim();
+}
+
+// A price written with a unit is converted here, so it never depends on the
+// model: crore -> x100 lac, lac/lakh as written.
+export function priceFromRawLine(raw: string): number | null {
+  const cr = raw.match(/(\d+(?:\.\d+)?)\s*(?:cr|crore)\b/i);
+  if (cr) return Math.round(Number(cr[1]) * 100 * 100) / 100;
+  const lac = raw.match(/(\d+(?:\.\d+)?)\s*(?:lac|lacs|lakh|lakhs)\b/i);
+  if (lac) return Number(lac[1]);
+  return null;
 }
 
 export function applyMessageRules(text: string, listings: ListingExtraction[]): ListingExtraction[] {
@@ -212,11 +223,18 @@ export function applyMessageRules(text: string, listings: ListingExtraction[]): 
     const lastLine = text.trim().split('\n').pop()?.replace(/[*_~]/g, '').trim() ?? '';
     if (/^[+\d][\d\s\-()+]{9,}$/.test(lastLine)) contact = lastLine;
   }
+  if (!contact) {
+    // A dealer sign-off such as "0333-8215834 / Endeavor Marketing": take the last mobile number.
+    const phones = [...text.matchAll(/(?:\+92|0)3\d{2}[\s-]?\d{7}/g)];
+    if (phones.length > 0) contact = phones[phones.length - 1][0];
+  }
 
   return listings.map((l) => {
     const label = normalizeSizeLabel(l.size_raw) ?? normalizeSizeLabel(l.raw_line);
+    const unitPrice = priceFromRawLine(l.raw_line);
     return {
       ...l,
+      price_lac: unitPrice ?? l.price_lac,
       society_name_raw: society ?? cleanSocietyName(l.society_name_raw) ?? l.society_name_raw,
       contact_phone: contact ?? l.contact_phone,
       size_raw: label,
