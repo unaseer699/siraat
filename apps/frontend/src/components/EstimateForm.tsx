@@ -74,7 +74,11 @@ export function EstimateForm({ onSubmit, loading }: EstimateFormProps) {
   const areaNumber = Number(area);
 
   const enteredSqft = areaNumber * (areaUnit === 'MARLA' ? 225 : 1);
-  const coveredSqft = areaMode === 'PLOT' ? enteredSqft * floors : enteredSqft;
+  // Plot size x floors misses the stair head (mumty), porch and balconies. On the
+  // completed 25 x 50 house, 2,700 sq ft covered vs 2 x 1,250 plot = +8%, so a
+  // multi-floor plot is uplifted by 8%. One house is one sample.
+  const PLOT_UPLIFT = floors > 1 ? 1.08 : 1;
+  const coveredSqft = areaMode === 'PLOT' ? enteredSqft * floors * PLOT_UPLIFT : enteredSqft;
   const canSubmit = city.length > 0 && area.length > 0 && areaNumber > 0;
 
   function handleSubmit(e: React.FormEvent) {
@@ -167,7 +171,7 @@ export function EstimateForm({ onSubmit, loading }: EstimateFormProps) {
         {coveredSqft > 0 && (
           <span style={{ fontSize: '12px', color: 'var(--muted)' }}>
             {areaMode === 'PLOT'
-              ? `Covered area used: ${Math.round(coveredSqft).toLocaleString()} sq ft (plot × ${floors} floor${floors > 1 ? 's' : ''}; each floor assumed to cover the plot). Switch to "Total covered area" to enter the exact built area.`
+              ? `Covered area used: ${Math.round(coveredSqft).toLocaleString()} sq ft (plot × ${floors} floor${floors > 1 ? 's' : ''}${floors > 1 ? ' + 8% for stair head, porch and balconies' : ''}). Switch to "Total covered area" to enter the exact built area.`
               : `Covered area used: ${Math.round(coveredSqft).toLocaleString()} sq ft across all floors.`}
           </span>
         )}
