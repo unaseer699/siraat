@@ -79,6 +79,36 @@ export class WhatsappProjectResolverService {
     private readonly outbound: WhatsappOutboundClient,
   ) {}
 
+  // Owner numbers (env WHATSAPP_ADMIN_NUMBERS, comma-separated digits) can
+  // post to ANY project: they are treated as mapped to every project, so a
+  // new project works from WhatsApp immediately, with no mapping row to add.
+  // Numbers not on that list keep using explicit mappings only.
+  isOwnerNumber(waId: string): boolean {
+    const list = (process.env.WHATSAPP_ADMIN_NUMBERS ?? '')
+      .split(',')
+      .map((n) => n.replace(/\D/g, ''))
+      .filter(Boolean);
+    return list.includes(waId.replace(/\D/g, ''));
+  }
+
+  async withOwnerProjects(
+    waId: string,
+    mappings: WhatsappProjectMappingEntity[],
+  ): Promise<WhatsappProjectMappingEntity[]> {
+    if (!this.isOwnerNumber(waId)) return mappings;
+    try {
+      const all = await this.cpSvc.listProjects({ page: 1, limit: 200 });
+      const have = new Set(mappings.map((m) => m.project_ref));
+      const extra = all.projects
+        .filter((p) => !have.has(p.id))
+        .map((p) => ({ wa_id: waId, project_ref: p.id }) as WhatsappProjectMappingEntity);
+      return [...mappings, ...extra];
+    } catch (err) {
+      this.logger.warn(`Owner project list failed: ${err instanceof Error ? err.message : String(err)}`);
+      return mappings;
+    }
+  }
+
   async resolve(
     waId: string,
     text: string | null,

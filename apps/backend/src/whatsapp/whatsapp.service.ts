@@ -327,7 +327,8 @@ export class WhatsappService {
     let askReply: string | null = null;
     if (!isListingForwarder) {
       if (this.projectResolver) {
-        const mappings = await this.mappingRepo.find({ where: { wa_id: msg.from }, order: { created_at: 'ASC' } });
+        const stored = await this.mappingRepo.find({ where: { wa_id: msg.from }, order: { created_at: 'ASC' } });
+        const mappings = await this.projectResolver.withOwnerProjects(msg.from, stored);
         if (mappings.length > 0) {
           const r = await this.projectResolver.resolve(msg.from, msg.text, mappings);
           if (r.kind === 'resolved') mapping = { project_ref: r.project_ref };
