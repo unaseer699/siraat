@@ -10,6 +10,14 @@ import {
 import { MARKET_RATE_ITEMS } from './market-rate-catalog';
 import type { CurrentMarketRate } from './market-rate.service';
 
+// Soil test and boring rates, confirmed by the founder (Oct 2026). The
+// reference house paid Rs 200,000 for the soil, boring and meter step in total;
+// whatever the test and boring do not account for is the meter and connections.
+const SOIL_TEST_COST = 18_000; // two holes of 20 ft, complete report
+const BORING_RATE_PER_FT = 700; // Rs 140,000 for 200 ft
+const BORING_DEPTH_FT = 200;
+const SOIL_STEP_TOTAL = 200_000;
+
 const GROUPS: SectionGroup[] = ['STRUCTURE', 'SERVICES', 'FINISHING', 'SITE_OTHER'];
 interface PhaseDef {
   key: string;
@@ -35,10 +43,10 @@ const PHASES: PhaseDef[] = [
     summary: 'Draw the plan and get it approved before any digging.',
     includes: ['Architect fees', 'RDA approval fees', 'Map vetting fees', 'Structural and services design'],
     note: 'A separate structural engineer fee was not recorded on the reference house; ask for it in your design quote.' },
-  { key: 'SOIL', title: 'Soil testing, boring & demarcation', stage: 'BEFORE', group: null, ref_cost: 200_000,
+  { key: 'SOIL', title: 'Soil testing, boring & demarcation', stage: 'BEFORE', group: null, ref_cost: SOIL_STEP_TOTAL,
     summary: 'Test the soil, mark the plot boundary and arrange water and power.',
-    includes: ['Soil testing', 'Water boring', 'Rain water boring', 'Electricity meter'],
-    note: 'Plot demarcation was not recorded as a separate cost on the reference house; confirm it with your dealer or the authority.' },
+    includes: ['Soil test report (2 holes, 20 ft each)', 'Water boring (200 ft)', 'Electricity meter and other connections'],
+    note: `Soil test: Rs ${SOIL_TEST_COST.toLocaleString()} for two holes of 20 ft with the full report (Rs ${(SOIL_TEST_COST / 2).toLocaleString()} per hole). Water boring: Rs ${BORING_RATE_PER_FT}/ft, so ${BORING_DEPTH_FT} ft is Rs ${(BORING_RATE_PER_FT * BORING_DEPTH_FT).toLocaleString()}. The rest of the step is the meter and other connections from the reference house. Boring depth depends on your area's water level, so confirm it with the driller. Plot demarcation was not recorded as a separate cost; confirm it with your dealer or the authority.` },
   { key: 'SITE_SETUP', title: 'Site setup, utilities & site staff', stage: 'STRUCTURE', group: 'SITE_OTHER', ref_cost: 356_550,
     summary: 'Contractor agreement, site store, temporary water and power, and the supervisor who stays through the build.',
     includes: ['Site staff and supervision', 'Temporary water and power', 'Tea and refreshments for pours', 'Site running costs'],
