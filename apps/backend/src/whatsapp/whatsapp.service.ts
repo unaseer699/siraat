@@ -243,7 +243,8 @@ export class WhatsappService {
     if (this.marketRateSvc && isMarketRateMessage(msg.text)) {
       const known =
         ((await this.listingForwarderSvc?.isForwarder(msg.from)) ?? false) ||
-        (await this.mappingRepo.count({ where: { wa_id: msg.from } })) > 0;
+        (await this.mappingRepo.count({ where: { wa_id: msg.from } })) > 0 ||
+        (this.projectResolver?.isOwnerNumber(msg.from) ?? false);
       if (known) {
         try {
           const saved = await this.inboundRepo.save(
@@ -274,7 +275,8 @@ export class WhatsappService {
     let looksLikeExpense = isExpenseBatchMessage(msg.text);
     if (!looksLikeExpense && this.projectResolver && (isConfirmationReply(msg.text) || isCancelReply(msg.text))) {
       try {
-        const refs = (await this.mappingRepo.find({ where: { wa_id: msg.from } })).map((m) => m.project_ref);
+        const stored = await this.mappingRepo.find({ where: { wa_id: msg.from } });
+        const refs = (await this.projectResolver.withOwnerProjects(msg.from, stored)).map((m) => m.project_ref);
         looksLikeExpense = await this.projectResolver.hasPending(refs);
       } catch (err) {
         this.logger.warn(`Pending-expense check failed — routing normally: ${err instanceof Error ? err.message : String(err)}`);
