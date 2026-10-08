@@ -126,6 +126,19 @@ export class WhatsappListingParsingService {
       this.logger.log(
         `Parsed WhatsApp listing message id=${message.id} into ${outcome.listings.length} draft plot(s)`,
       );
+      // Acknowledge, so the sender knows the message arrived. Nothing goes live
+      // until it is reviewed (Law 8), and the reply says so.
+      const n = outcome.listings.length;
+      const noPrice = outcome.listings.filter((l) => l.price_lac === null).length;
+      const ack =
+        n === 0
+          ? 'Received your message, but I could not find any plots in it. Please check the format and resend.'
+          : `Received ${n} plot${n === 1 ? '' : 's'}${noPrice > 0 ? ` (${noPrice} without a price)` : ''}. They will go live after review.`;
+      try {
+        await this.outbound.sendTextMessage(message.wa_id, ack);
+      } catch (err) {
+        this.logger.warn(`Listing acknowledgement send failed: ${err instanceof Error ? err.message : String(err)}`);
+      }
     } catch (err) {
       // Same RETRY APPROACH as WhatsappParsingService.parseAndStoreDraft —
       // left at LISTING_RECEIVED (not flipped to any "FAILED" state) so it
