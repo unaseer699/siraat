@@ -1,6 +1,6 @@
 'use client';
 
-import { Fragment } from 'react';
+import { Fragment, useState } from 'react';
 import Link from 'next/link';
 import type { BoqResponse, BoqLineItem } from '@siraat/shared-types';
 import { ConfidenceGauge } from './ConfidenceGauge';
@@ -187,7 +187,22 @@ function BoqTable({ lineItems, basement }: { lineItems: BoqLineItem[]; basement:
 
 type WholeHouse = NonNullable<Extract<BoqResponse, { state: 'FULL' }>['whole_house']>;
 
+const ALLOWANCE_OPTIONS = [0, 5, 7.5, 10, 15];
+
 function RoadmapCard({ w }: { w: WholeHouse }) {
+  // Your own quotes for steps the estimate cannot price (plot, roof, ...), and
+  // the contingency percentage. Kept in this page only, not saved.
+  const [quotes, setQuotes] = useState<Record<string, string>>({});
+  const [allowancePct, setAllowancePct] = useState(5);
+  const quoteOf = (key: string) => {
+    const n = Number((quotes[key] ?? '').replace(/,/g, ''));
+    return Number.isFinite(n) && n > 0 ? n : 0;
+  };
+  const yourQuotes = w.phases.filter((p) => p.basis === 'NOT_ESTIMATED' && p.key !== 'CONTINGENCY').reduce((sum, p) => sum + quoteOf(p.key), 0);
+  const plotQuote = quoteOf('PLOT');
+  const allowanceBase = w.total + w.before_building_total + (yourQuotes - plotQuote);
+  const allowance = Math.round((allowanceBase * allowancePct) / 100);
+  const allIn = w.total + w.before_building_total + yourQuotes + allowance;
   const scaled = w.phases.filter((p) => p.basis === 'SCALED' && p.amount !== null);
   const pct = (amount: number) => (w.total > 0 ? Math.round((amount / w.total) * 100) : 0);
   return (
@@ -203,6 +218,13 @@ function RoadmapCard({ w }: { w: WholeHouse }) {
           Plus before building starts (approvals, soil testing, excavation, reference amounts):{' '}
           <strong>{formatPKR(w.before_building_total)}</strong>. The plot price is not included.
         </p>
+        <div style={{ background: '#f9fafb', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '12px 14px', fontSize: '13px' }}>
+          <strong>All-in estimate with your quotes and {allowancePct}% contingency: {formatPKR(allIn)}</strong>
+          <div style={{ color: 'var(--muted)', marginTop: '4px' }}>
+            Building {formatPKR(w.total)} + approvals, soil and excavation {formatPKR(w.before_building_total)}
+            {yourQuotes > 0 ? ` + your quotes ${formatPKR(yourQuotes)}` : ''} + contingency {formatPKR(allowance)}. Enter your own quotes in the steps marked &quot;Not estimated&quot; below.
+          </div>
+        </div>
         {/* Share of the building cost by step, in build order. */}
         <div style={{ display: 'flex', height: '14px', borderRadius: '99px', overflow: 'hidden', background: '#e5e7eb' }} aria-hidden="true">
           {scaled.map((p) => (
@@ -237,7 +259,7 @@ function RoadmapCard({ w }: { w: WholeHouse }) {
                 <div style={{ display: 'flex', justifyContent: 'space-between', gap: '10px', flexWrap: 'wrap', alignItems: 'baseline' }}>
                   <span style={{ fontWeight: 800, fontSize: '15px', color: st.ink }}>{p.title}</span>
                   <span style={{ fontWeight: 800, fontSize: '15px', color: st.ink }}>
-                    {p.amount === null ? 'Not estimated' : formatPKR(p.amount)}
+                    {p.key === 'CONTINGENCY' ? formatPKR(allowance) : p.amount === null ? (quoteOf(p.key) > 0 ? formatPKR(quoteOf(p.key)) : 'Not estimated') : formatPKR(p.amount)}
                     {p.basis === 'SCALED' && p.amount !== null && (
                       <span style={{ fontWeight: 600, fontSize: '12px', marginLeft: '8px' }}>{pct(p.amount)}% of building cost</span>
                     )}
@@ -253,6 +275,29 @@ function RoadmapCard({ w }: { w: WholeHouse }) {
                   ))}
                 </div>
                 {p.note && <span style={{ fontSize: '12px', color: '#6b7280' }}>{p.note}</span>}
+                {p.key === 'CONTINGENCY' ? (
+                  <label style={{ fontSize: '12px', fontWeight: 600, color: st.ink, display: 'flex', gap: '8px', alignItems: 'center' }}>
+                    Allowance
+                    <select value={allowancePct} onChange={(e) => setAllowancePct(Number(e.target.value))} style={{ padding: '4px 8px', border: `1px solid ${st.color}`, borderRadius: '6px', background: '#fff' }}>
+                      {ALLOWANCE_OPTIONS.map((o) => (
+                        <option key={o} value={o}>{o}%</option>
+                      ))}
+                    </select>
+                  </label>
+                ) : (
+                  p.basis === 'NOT_ESTIMATED' && (
+                    <label style={{ fontSize: '12px', fontWeight: 600, color: st.ink, display: 'flex', gap: '8px', alignItems: 'center' }}>
+                      Your quote (PKR)
+                      <input
+                        inputMode="numeric"
+                        value={quotes[p.key] ?? ''}
+                        onChange={(e) => setQuotes({ ...quotes, [p.key]: e.target.value })}
+                        placeholder="e.g. 150000"
+                        style={{ padding: '4px 8px', border: `1px solid ${st.color}`, borderRadius: '6px', width: '140px', background: '#fff' }}
+                      />
+                    </label>
+                  )
+                )}
               </div>
             </li>
           );

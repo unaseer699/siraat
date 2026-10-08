@@ -479,8 +479,10 @@ describe('whole-house estimate', () => {
   it('lists the build in order and the phases add up', async () => {
     const r: any = await build(undefined).getEstimate(req);
     const ph = r.whole_house.phases;
-    expect(ph.map((p: any) => p.key)).toEqual(['PLOT', 'MAP', 'SOIL', 'EXCAVATION', 'GREY', 'ROUGH_IN', 'CEILING', 'TILES', 'WOOD', 'STEEL', 'WINDOWS', 'PAINT', 'HANDOVER']);
-    expect(ph.map((p: any) => p.step)).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13]);
+    expect(ph.map((p: any) => p.key)).toEqual(['PLOT', 'MAP', 'SOIL', 'SITE_SETUP', 'EXCAVATION', 'GREY', 'ROOF', 'ROUGH_IN', 'CEILING', 'TILES', 'WOOD', 'STEEL', 'WINDOWS', 'PAINT', 'FIXTURES', 'OUTSIDE', 'SNAGGING', 'CONTINGENCY']);
+    expect(ph.map((p: any) => p.step)).toEqual(Array.from({ length: 18 }, (_, i) => i + 1));
+    expect(ph.find((p: any) => p.key === 'ROOF').amount).toBeNull();
+    expect(ph.find((p: any) => p.key === 'FIXTURES').amount).toBe(831_390);
     expect(ph.find((p: any) => p.key === 'PLOT').amount).toBeNull();
     const scaled = ph.filter((p: any) => p.basis === 'SCALED').reduce((s: number, p: any) => s + p.amount, 0);
     expect(scaled).toBe(r.whole_house.total);
