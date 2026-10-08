@@ -42,6 +42,8 @@ export interface UpdateProjectInput {
   owner_contact?: string;
   status?: ConstructionProjectStatus;
   boq_template?: string | null;
+  is_public?: boolean;
+  public_title?: string | null;
 }
 
 export interface ProjectResult {
@@ -54,6 +56,8 @@ export interface ProjectResult {
   record_type: 'FACT';
   city: string | null;
   boq_template: string | null;
+  is_public: boolean;
+  public_title: string | null;
 }
 
 function toProjectResult(e: ConstructionProjectEntity): ProjectResult {
@@ -67,6 +71,8 @@ function toProjectResult(e: ConstructionProjectEntity): ProjectResult {
     record_type: e.record_type,
     city: e.city,
     boq_template: e.boq_template ?? null,
+    is_public: e.is_public === true,
+    public_title: e.public_title ?? null,
   };
 }
 
@@ -317,6 +323,18 @@ export class ConstructionProjectService {
     return toProjectResult(saved);
   }
 
+  // REAL BUILDS — only projects the owner opted in. Returns the minimum the
+  // public summary needs; owner_contact/name/city are never selected.
+  async listPublicProjects(): Promise<Array<{ id: string; public_title: string | null; status: ConstructionProjectStatus; start_date: string }>> {
+    const rows = await this.projectRepo.find({ where: { is_public: true }, order: { created_at: 'DESC' } });
+    return rows.map((r) => ({ id: r.id, public_title: r.public_title, status: r.status, start_date: r.start_date }));
+  }
+
+  async findPublicProject(id: string) {
+    const r = await this.projectRepo.findOneBy({ id, is_public: true });
+    return r ? { id: r.id, public_title: r.public_title, status: r.status, start_date: r.start_date } : null;
+  }
+
   async findProjectById(id: string): Promise<ProjectResult | null> {
     const entity = await this.projectRepo.findOneBy({ id });
     return entity ? toProjectResult(entity) : null;
@@ -359,6 +377,14 @@ export class ConstructionProjectService {
     if (data.boq_template !== undefined && data.boq_template !== entity.boq_template) {
       changes.push({ field: 'boq_template', old: entity.boq_template, new: data.boq_template ?? '' });
       entity.boq_template = data.boq_template;
+    }
+    if (data.is_public !== undefined && data.is_public !== (entity.is_public === true)) {
+      changes.push({ field: 'is_public', old: String(entity.is_public === true), new: String(data.is_public) });
+      entity.is_public = data.is_public;
+    }
+    if (data.public_title !== undefined && data.public_title !== entity.public_title) {
+      changes.push({ field: 'public_title', old: entity.public_title, new: data.public_title ?? '' });
+      entity.public_title = data.public_title;
     }
     if (data.owner_contact !== undefined && data.owner_contact !== entity.owner_contact) {
       changes.push({ field: 'owner_contact', old: entity.owner_contact, new: data.owner_contact });

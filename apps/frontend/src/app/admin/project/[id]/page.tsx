@@ -70,6 +70,8 @@ interface ProjectEditDraft {
   city: string;
   owner_contact: string;
   status: ConstructionProjectStatus;
+  is_public: boolean;
+  public_title: string;
 }
 
 // ADMIN PROJECT EDIT — small pre-filled form for the four administrative
@@ -171,6 +173,37 @@ function EditProjectForm({
             ))}
           </select>
         </div>
+      </div>
+
+      <div style={{ ...fieldGroupStyle, padding: '12px', background: '#fff', border: '1px solid var(--border)', borderRadius: RADIUS.md }}>
+        <label style={{ display: 'flex', gap: '10px', alignItems: 'flex-start', fontSize: '14px', fontWeight: 700, cursor: 'pointer' }}>
+          <input
+            type="checkbox"
+            checked={draft.is_public}
+            onChange={(e) => onChange({ ...draft, is_public: e.target.checked })}
+            style={{ marginTop: '3px' }}
+          />
+          <span>
+            Share on the public &quot;Real builds&quot; page
+            <span style={{ display: 'block', fontSize: '12px', fontWeight: 400, color: 'var(--muted)', marginTop: '2px' }}>
+              Only if the owner agreed. Shows phase progress and cost against estimate. Name, location and contact details are never shown.
+              Needs a confirmed layout.
+            </span>
+          </span>
+        </label>
+        {draft.is_public && (
+          <>
+            <label style={labelStyle}>Public title (anonymous, optional)</label>
+            <input
+              type="text"
+              value={draft.public_title}
+              onChange={(e) => onChange({ ...draft, public_title: e.target.value })}
+              maxLength={100}
+              placeholder="e.g. 5 Marla family home"
+              style={inputStyle}
+            />
+          </>
+        )}
       </div>
 
       {error && <p style={{ fontSize: '13px', color: 'var(--error)' }}>{error}</p>}
@@ -899,6 +932,8 @@ export default function AdminProjectPage({ params }: Props) {
       city: project.city ?? '',
       owner_contact: project.owner_contact,
       status: project.status,
+      is_public: project.is_public === true,
+      public_title: project.public_title ?? '',
     });
     setProjectEditError(null);
     setEditingProject(true);
@@ -921,6 +956,8 @@ export default function AdminProjectPage({ params }: Props) {
         city: projectDraft.city,
         owner_contact: projectDraft.owner_contact,
         status: projectDraft.status,
+        is_public: projectDraft.is_public,
+        public_title: projectDraft.public_title,
       };
       await updateProject(project.id, body);
       setEditingProject(false);

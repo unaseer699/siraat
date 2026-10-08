@@ -329,6 +329,13 @@ const UpdateProjectBodySchema = z
       .optional(),
     status: z.enum(PROJECT_STATUSES).optional(),
     boq_template: z.enum(['5_MARLA']).nullable().optional(),
+    is_public: z.boolean().optional(),
+    public_title: z
+      .string()
+      .transform((v) => v.trim())
+      .refine((v) => v.length <= 100, { message: 'public_title must be at most 100 characters' })
+      .transform((v) => (v === '' ? null : v))
+      .optional(),
   })
   .refine((data) => Object.keys(data).length > 0, { message: 'At least one field must be provided' });
 type UpdateProjectBody = z.infer<typeof UpdateProjectBodySchema>;

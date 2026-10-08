@@ -38,6 +38,15 @@ export class ConstructionProjectEntity {
   @Column({ type: 'varchar', length: 20, nullable: true })
   boq_template: string | null;
 
+  // REAL BUILDS — owner opt-in. Off by default; when on, only an anonymised
+  // cost/progress summary is exposed (never name, location or contact).
+  @Column({ type: 'boolean', default: false })
+  is_public: boolean;
+
+  // Owner-approved anonymous label shown on the public page.
+  @Column({ type: 'varchar', length: 100, nullable: true })
+  public_title: string | null;
+
   @Column({ type: 'varchar', length: 255 })
   owner_contact: string;
 

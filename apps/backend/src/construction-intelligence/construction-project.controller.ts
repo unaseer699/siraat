@@ -3,6 +3,7 @@ import { BearerGuard } from '../auth/bearer.guard';
 import { ConstructionProjectService } from './construction-project.service';
 import { ProjectDocumentService } from './project-document.service';
 import { ProjectForecastService } from './project-forecast.service';
+import { PublicBuildsService } from './public-builds.service';
 
 // PROJECT COST TRACKER Chunk 2 fix — a genuinely public route, matching the
 // pattern every other "public" page in this app follows (its own route
@@ -18,7 +19,20 @@ export class ConstructionProjectController {
     private readonly cpSvc: ConstructionProjectService,
     private readonly docs: ProjectDocumentService,
     private readonly forecastSvc: ProjectForecastService,
+    private readonly publicBuilds: PublicBuildsService,
   ) {}
+
+  // REAL BUILDS — anonymised summaries of owner-opted-in projects. Never 404s:
+  // NOT_COVERED when nothing is shared.
+  @Get('public-builds')
+  listPublicBuilds() {
+    return this.publicBuilds.list();
+  }
+
+  @Get('public-builds/:id')
+  getPublicBuild(@Param('id') id: string) {
+    return this.publicBuilds.get(id);
+  }
 
   @Get('projects/:id')
   async getProject(@Param('id') id: string) {

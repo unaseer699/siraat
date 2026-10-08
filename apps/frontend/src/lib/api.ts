@@ -1,4 +1,5 @@
 import type {
+  PublicBuildsResponse,
   RecommendationRequest,
   RecommendationResponse,
   RecommendationDetail,
@@ -901,6 +902,8 @@ export interface ProjectResult {
   record_type: 'FACT';
   city: string | null;
   boq_template?: string | null;
+  is_public?: boolean;
+  public_title?: string | null;
 }
 
 export interface CreateProjectBody {
@@ -930,6 +933,8 @@ export interface UpdateProjectBody {
   city?: string | null;
   owner_contact?: string;
   status?: ConstructionProjectStatus;
+  is_public?: boolean;
+  public_title?: string | null;
 }
 
 export async function updateProject(id: string, data: UpdateProjectBody): Promise<ProjectResult> {
@@ -1727,4 +1732,10 @@ export async function saveMarketRates(date: string, rates: Record<string, number
 
 export async function saveMarketRateBaseline(key: string, rate: number): Promise<MarketRatesView> {
   return apiFetch('/v1/admin/market-rates/baseline', { method: 'POST', body: JSON.stringify({ key, rate }) });
+}
+
+// GET /v1/construction-intelligence/public-builds — anonymised, owner-shared
+// builds only. Never 404s: NOT_COVERED when nothing is shared yet.
+export async function fetchPublicBuilds(): Promise<PublicBuildsResponse> {
+  return apiFetch('/v1/construction-intelligence/public-builds');
 }

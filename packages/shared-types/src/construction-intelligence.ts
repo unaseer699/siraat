@@ -235,3 +235,41 @@ export const BoqResponseSchema = z.discriminatedUnion('state', [
   }),
 ]);
 export type BoqResponse = z.infer<typeof BoqResponseSchema>;
+
+// REAL BUILDS — anonymised, owner-opt-in view of a live project. Never carries
+// the project name, location, owner contact or any invoice detail.
+export interface PublicBuildPhase {
+  label: string;
+  estimated: number | null;
+  spent: number;
+  progress_pct: number | null;
+}
+
+export interface PublicBuild {
+  id: string;
+  title: string;
+  status: 'ACTIVE' | 'COMPLETE' | 'ON_HOLD';
+  started_month: string;
+  covered_area_sqft: number;
+  floors: number;
+  finish_level: 'BASIC' | 'STANDARD' | 'PREMIUM';
+  estimated_total: number;
+  spent_total: number;
+  forecast_total: number;
+  variance_pct: number | null;
+  per_sqft: number | null;
+  overall_progress_pct: number | null;
+  phases: PublicBuildPhase[];
+}
+
+export interface PublicBuildsResponse {
+  state: 'FULL' | 'DEGRADED_SUCCESS' | 'NOT_COVERED';
+  record_type: 'GENERATED';
+  derived_from: string[];
+  builds: PublicBuild[];
+  confidence_score: number;
+  is_stale: boolean;
+  staleness_threshold_days: number;
+  affiliation_disclosure: string | null;
+  notes: string[];
+}
