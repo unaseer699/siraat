@@ -63,7 +63,7 @@ function contactButtonStyle(color: string): React.CSSProperties {
   };
 }
 
-function OfferRow({ offer, title, societyName, showPrice }: { offer: PropertyListingSummary; title: string; societyName: string; showPrice: boolean }) {
+function OfferRow({ offer, title, societyName, showPrice, showConfirmed }: { offer: PropertyListingSummary; title: string; societyName: string; showPrice: boolean; showConfirmed: boolean }) {
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap', padding: '8px 0', borderTop: '1px solid var(--border)' }}>
       {showPrice && <span style={{ fontWeight: 700, fontSize: '14px', minWidth: '110px' }}>{formatLac(offer.price_lac)}</span>}
@@ -75,10 +75,11 @@ function OfferRow({ offer, title, societyName, showPrice }: { offer: PropertyLis
             <Link href={`/dealers/${offer.dealer_key}`} style={{ color: ACCENT_BLUE, fontWeight: 600 }}>
               {offer.contact_phone}
             </Link>
-            {' · '}
+            {showConfirmed ? ' · ' : null}
           </>
         )}
-        confirmed {formatAge(offer.last_confirmed_at)}
+        {/* With a single dealer the card already says when it was confirmed. */}
+        {showConfirmed && <>confirmed {formatAge(offer.last_confirmed_at)}</>}
       </span>
       {offer.contact_phone && (
         <span style={{ display: 'inline-flex', gap: '8px', marginLeft: 'auto' }}>
@@ -106,6 +107,9 @@ export function PlotGroupCard({ plot, showSociety }: { plot: PropertyPlotGroup; 
   const societyName = plot.society_name ?? plot.society_name_raw;
   const tone = plot.status_raw ? statusTone(plot.status_raw) : null;
   const perMarla = formatPerMarla(plot.min_price_per_marla_lac);
+  // Green while fresh (within 3 days), grey after that.
+  const ageHours = (Date.now() - new Date(plot.last_confirmed_at).getTime()) / 3_600_000;
+  const freshness = ageHours <= 72 ? { color: TRUST_GREEN, bg: '#f0fdf4' } : { color: 'var(--muted)', bg: '#f3f4f6' };
 
   return (
     <article
@@ -150,15 +154,15 @@ export function PlotGroupCard({ plot, showSociety }: { plot: PropertyPlotGroup; 
         {plot.status_raw && tone && <span style={chipStyle(tone.color, tone.bg)}>{plot.status_raw}</span>}
         {plot.offers.length > 1 && <span style={chipStyle('#7c3aed', '#f5f3ff')}>{plot.offers.length} dealers</span>}
         {plot.may_be_sold && <span style={chipStyle(WARNING_AMBER, '#fffbeb')}>May be sold — not reconfirmed recently</span>}
-        <span style={{ fontSize: '12px', color: 'var(--muted)', marginLeft: 'auto' }}>
-          Confirmed {formatAge(plot.last_confirmed_at)}
+        <span style={{ ...chipStyle(freshness.color, freshness.bg), marginLeft: 'auto' }} title="When the dealer last confirmed this plot is available">
+          ✓ Dealer confirmed {formatAge(plot.last_confirmed_at)}
         </span>
       </div>
 
       {plot.offers.some((o) => o.contact_phone || plot.offers.length > 1) && (
         <div style={{ display: 'flex', flexDirection: 'column', marginTop: '4px' }}>
           {plot.offers.map((o) => (
-            <OfferRow key={o.id} offer={o} title={title} societyName={societyName} showPrice={plot.offers.length > 1} />
+            <OfferRow key={o.id} offer={o} title={title} societyName={societyName} showPrice={plot.offers.length > 1} showConfirmed={plot.offers.length > 1} />
           ))}
         </div>
       )}
