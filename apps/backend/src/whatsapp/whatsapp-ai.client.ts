@@ -283,6 +283,52 @@ const ExpenseBatchResponseSchema = z.object({
   ),
 });
 
+
+// The model sometimes skips a plain "Name - amount" line (e.g. "Jabbar Labour
+// - 100000"). Every such line in the original message that the model did not
+// return is added back here, so nothing the owner typed is silently dropped.
+// Anything recovered still goes through the same YES/CANCEL review.
+export function recoverMissedExpenseLines(messageText: string, found: ExpenseBatchLine[]): ExpenseBatchLine[] {
+  const out: ExpenseBatchLine[] = [];
+  const dateRe = /^\s*(\d{1,2})[-/.](\d{1,2})[-/.](\d{2,4})\s*$/;
+  const lineRe = /^[\s•*\-–—]*([A-Za-z][^\n]*?)\s*[-–—:]\s*(?:rs\.?|pkr|₨)?\s*([\d][\d,]*)\s*$/i;
+  let date: string | null = null;
+  const taken = new Set(found.map((f) => `${f.amount}|${f.raw_line.toLowerCase().replace(/[^a-z0-9]+/g, '')}`));
+  for (const raw of messageText.split('\n')) {
+    const line = raw.trim();
+    const d = dateRe.exec(line);
+    if (d) {
+      const y = d[3].length === 2 ? `20${d[3]}` : d[3];
+      date = `${y}-${d[2].padStart(2, '0')}-${d[1].padStart(2, '0')}`;
+      continue;
+    }
+    if (/^project\b/i.test(line) || /^[-–—_=\s]+$/.test(line)) continue;
+    const m = lineRe.exec(line);
+    if (!m) continue;
+    const amount = Number(m[2].replace(/,/g, ''));
+    if (!Number.isFinite(amount) || amount <= 0) continue;
+    const key = `${amount}|${line.toLowerCase().replace(/[^a-z0-9]+/g, '')}`;
+    const sameAmount = found.some((f) => f.amount === amount && f.raw_line.toLowerCase().replace(/[^a-z0-9]+/g, '').includes(m[1].toLowerCase().replace(/[^a-z0-9]+/g, '').slice(0, 6)));
+    if (taken.has(key) || sameAmount) continue;
+    const description = m[1].trim();
+    const labour = /labou?r|mason|mistri|majdoor|mazdoor/i.test(description);
+    out.push({
+      date,
+      description,
+      amount,
+      quantity: null,
+      unit: null,
+      vendor: null,
+      paid_by: null,
+      trade_category: labour ? 'MASON_LABOUR' : null,
+      kind: labour ? 'LABOUR' : null,
+      raw_line: line,
+    });
+    taken.add(key);
+  }
+  return out;
+}
+
 function buildExpenseBatchPrompt(): string {
   return [
     'You extract a construction-expense LEDGER from a WhatsApp message sent by a project owner. The message has a "Project Expense(s)" heading together with the project name (either a "Project Name: ..." line, or a title line such as "THE COURTYARD" just before or after the heading), then lists many expense lines, grouped under date headings like "13-9-2026" (day-month-year, Pakistan format). Separator lines made of dashes are just dividers.',
@@ -415,7 +461,10 @@ export class WhatsappAiClient {
     const SOFT = 30;
     const HARD = 45;
 
-    if (lines.length <= HARD) return this.extractExpenseBatchChunk(messageText);
+    if (lines.length <= HARD) {
+      const single = await this.extractExpenseBatchChunk(messageText);
+      return { ...single, lines: [...single.lines, ...recoverMissedExpenseLines(messageText, single.lines)] };
+    }
 
     const preamble = lines.slice(0, 2).join('\n');
     const all: ExpenseBatchLine[] = [];
@@ -438,6 +487,7 @@ export class WhatsappAiClient {
       if (isDate(line)) dateLine = line;
     }
     await flush();
+    all.push(...recoverMissedExpenseLines(messageText, all));
     return { project_name: projectName, lines: all, raw: { chunks: raws.length, responses: raws } };
   }
 

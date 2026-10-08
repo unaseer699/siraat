@@ -1,4 +1,4 @@
-import { WhatsappAiClient, applyMessageRules } from './whatsapp-ai.client';
+import { WhatsappAiClient, applyMessageRules, recoverMissedExpenseLines } from './whatsapp-ai.client';
 
 // WHATSAPP INTEGRATION Phase 2 — AI PARSING. global.fetch is mocked
 // throughout — no real network call ever leaves this suite, and no
@@ -256,5 +256,21 @@ describe('dealer broadcast with crore prices and no Society line', () => {
   });
   it('keeps marla sizes', () => {
     expect(rows.map((r) => r.size_marla)).toEqual([7, 7, 10]);
+  });
+});
+
+describe('recoverMissedExpenseLines', () => {
+  const msg = 'Project Name: THE COURTYARD\n\nJabbar Labour - 100000\nCement 50 bags- 76000';
+  const cement = { date: null, description: 'Cement', amount: 76000, quantity: 50, unit: 'bags', vendor: null, paid_by: null, trade_category: 'CEMENT' as const, kind: 'MATERIAL' as const, raw_line: 'Cement 50 bags- 76000' };
+
+  it('adds back a Name - amount line the model skipped', () => {
+    const out = recoverMissedExpenseLines(msg, [cement]);
+    expect(out).toHaveLength(1);
+    expect(out[0]).toMatchObject({ description: 'Jabbar Labour', amount: 100000, trade_category: 'MASON_LABOUR', kind: 'LABOUR' });
+  });
+
+  it('adds nothing when the model returned every line', () => {
+    const labour = { ...cement, description: 'Jabbar Labour', amount: 100000, raw_line: 'Jabbar Labour - 100000' };
+    expect(recoverMissedExpenseLines(msg, [labour, cement])).toEqual([]);
   });
 });

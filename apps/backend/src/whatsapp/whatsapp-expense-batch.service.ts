@@ -110,8 +110,13 @@ export class WhatsappExpenseBatchService {
         // The founder's own rules and past section moves beat the AI's guess.
         let rule: { category: SectionCategory; kind: ExpenseKind | null } | null = null;
         try {
-          rule = await this.cpSvc.findCategoryRule(`${l.description} ${l.raw_line}`);
+          rule = await this.cpSvc.findCategoryRule(l.description);
         } catch {
+          rule = null;
+        }
+        // A plainly named material beats a learned rule that points elsewhere
+        // (e.g. a stray rule sending cement to Mason Grey Structure).
+        if (rule && /\bcement\b/i.test(l.description) && !/labou?r|mason|mistri/i.test(l.description) && rule.category !== 'CEMENT') {
           rule = null;
         }
         lines.push({
@@ -122,7 +127,7 @@ export class WhatsappExpenseBatchService {
           unit: l.unit,
           vendor: l.vendor?.trim() || 'Not specified',
           paid_by: l.paid_by,
-          trade_category: rule?.category ?? l.trade_category ?? 'MISCELLANEOUS',
+          trade_category: rule?.category ?? l.trade_category ?? (/\bcement\b/i.test(l.description) ? 'CEMENT' : 'MISCELLANEOUS'),
           kind: rule?.kind ?? l.kind,
           raw_line: l.raw_line,
         });

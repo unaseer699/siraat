@@ -663,7 +663,7 @@ export class ConstructionProjectService {
     const rules = await this.ruleRepo.find();
     let best: ExpenseCategoryRuleEntity | null = null;
     for (const r of rules) {
-      if (text.includes(r.pattern) && (!best || r.pattern.length > best.pattern.length)) best = r;
+      if (` ${text} `.includes(` ${r.pattern} `) && (!best || r.pattern.length > best.pattern.length)) best = r;
     }
     return best ? { category: best.category as SectionCategory, kind: (best.kind as ExpenseKind | null) ?? null } : null;
   }
