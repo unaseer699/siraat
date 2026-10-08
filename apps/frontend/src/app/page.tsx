@@ -51,37 +51,32 @@ const TRUST_STRIP_ITEMS = [
 const CHECK_SOCIETY_HREF = '/browse';
 const ESTIMATE_BUILD_COST_HREF = '/construction-estimate';
 
-// Equal visual weight per the brief — both hero CTAs share this style, only
-// the label differs.
-const heroCtaStyle: CSSProperties = {
-  flex: '1 1 220px',
-  textAlign: 'center',
-  padding: '14px 20px',
-  background: 'var(--brand)',
-  color: '#fff',
-  borderRadius: RADIUS.md,
-  fontSize: '15px',
-  fontWeight: 700,
-  textDecoration: 'none',
-};
+// The five things most visitors come for, shown first. "Estimate Build Cost"
+// appears here once only (it used to repeat as a second "Cost Estimate" card).
+const PRIMARY_TOOLS: {
+  href: string;
+  title: string;
+  subtitle: string;
+  color: string;
+  icon: ComponentType<LucideProps>;
+}[] = [
+  { href: '/plots', title: 'Plots for Sale', subtitle: 'Browse listings', color: '#7c3aed', icon: LandPlot },
+  { href: ESTIMATE_BUILD_COST_HREF, title: 'Estimate Build Cost', subtitle: 'Step-by-step cost and BOQ', color: WARNING_AMBER, icon: Building2 },
+  { href: '/contractors', title: 'Contractors', subtitle: 'Find verified builders', color: TRUST_GREEN, icon: HardHat },
+  { href: '/suppliers', title: 'Suppliers', subtitle: 'Materials and rates', color: ACCENT_BLUE, icon: Package },
+  { href: '/house-plans', title: 'House Plans', subtitle: 'Designs by plot size', color: '#db2777', icon: Home },
+];
 
-// REDESIGN — the pill style for the "Looking for something else?" quick
-// links (Contractors/Suppliers/House Plans), replacing the old single
-// "Browse Tools →" accent-bar line. Each pill gets its own filled tint
-// (passed per-link) rather than one shared neutral outline, so the row reads
-// as three distinct, colorful destinations rather than one muted afterthought.
-function quickLinkPillStyle(color: string): CSSProperties {
+function primaryToolStyle(color: string): CSSProperties {
   return {
-    display: 'inline-flex',
+    display: 'flex',
     alignItems: 'center',
-    gap: '8px',
-    padding: '12px 22px',
-    border: `1.5px solid ${color}40`,
-    borderRadius: '99px',
-    background: `${color}14`,
-    fontSize: '15px',
-    fontWeight: 700,
-    color,
+    gap: '12px',
+    padding: '16px',
+    border: `1.5px solid ${color}55`,
+    borderLeft: `6px solid ${color}`,
+    borderRadius: RADIUS.md,
+    background: `${color}12`,
     textDecoration: 'none',
   };
 }
@@ -162,18 +157,37 @@ function HeroBand() {
           <div
             style={{
               width: '100%',
-              display: 'flex',
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fit, minmax(190px, 1fr))',
               gap: '12px',
-              flexWrap: 'wrap',
-              justifyContent: 'center',
             }}
           >
-            <Link href={CHECK_SOCIETY_HREF} style={heroCtaStyle}>
-              Check a Society
-            </Link>
-            <Link href={ESTIMATE_BUILD_COST_HREF} style={heroCtaStyle}>
-              Estimate Build Cost
-            </Link>
+            {PRIMARY_TOOLS.map((t) => {
+              const Icon = t.icon;
+              return (
+                <Link key={t.href} href={t.href} className="quick-link-pill" aria-label={t.title} style={primaryToolStyle(t.color)}>
+                  <span
+                    style={{
+                      width: '44px',
+                      height: '44px',
+                      borderRadius: RADIUS.md,
+                      background: '#fff',
+                      border: `1px solid ${t.color}40`,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      flexShrink: 0,
+                    }}
+                  >
+                    <Icon size={22} color={t.color} aria-hidden="true" />
+                  </span>
+                  <span style={{ display: 'flex', flexDirection: 'column', gap: '2px', textAlign: 'left' }}>
+                    <span style={{ fontSize: '15px', fontWeight: 800, color: t.color }}>{t.title}</span>
+                    <span style={{ fontSize: '12px', fontWeight: 500, color: 'var(--muted)' }}>{t.subtitle}</span>
+                  </span>
+                </Link>
+              );
+            })}
           </div>
 
           <a href="#how-we-verify" style={{ fontSize: '13px', fontWeight: 600, color: 'var(--muted)' }}>
@@ -487,6 +501,38 @@ function HomeView() {
 
       <HeroBand />
 
+      <SecondarySearch
+        onSearch={handleSearch}
+        loading={loading}
+        initialValue={searchParams.get('q') ?? ''}
+        showHint={!result && !loading && !error}
+      />
+
+      {error && (
+        <div
+          style={{
+            maxWidth: '680px',
+            width: '100%',
+            padding: '12px 16px',
+            background: '#fef2f2',
+            border: '1px solid #fecaca',
+            borderRadius: 'var(--radius)',
+            color: 'var(--error)',
+            fontSize: '14px',
+          }}
+        >
+          {error}
+        </div>
+      )}
+
+      {result && (
+        <ResultsPanel
+          result={result}
+          compareSelection={compareSelection}
+          onToggleCompare={toggleCompare}
+        />
+      )}
+
       {/* REDESIGN — same soft gradient panel treatment as the "Looking for
           something else?" and "Or search a specific property" strips below
           (dc344e8, 27a6efc), so all three secondary sections read as a
@@ -532,12 +578,12 @@ function HomeView() {
           tint={ACCENT_BLUE}
         />
         <QuickAccessCard
-          href="/construction-estimate"
-          icon={Building2}
-          title="Cost Estimate"
-          subtitle="Full material + works BOQ"
-          ariaLabel="Construction cost estimate"
-          tint={WARNING_AMBER}
+          href={CHECK_SOCIETY_HREF}
+          icon={MapPin}
+          title="Check a Society"
+          subtitle="Browse verified societies"
+          ariaLabel="Check a society"
+          tint={TRUST_GREEN}
         />
         <QuickAccessCard
           id="how-we-verify"
@@ -550,79 +596,6 @@ function HomeView() {
         </div>
       </div>
 
-      {/* REDESIGN — replaces the single generic "Browse Tools →" line (which
-          routed through an extra page) with direct links to the three
-          destinations it used to bundle together, styled as a lightweight
-          quick-link row rather than promoting them to full cards (they're
-          secondary to the three pillars above). */}
-      <div
-        style={{
-          width: '100%',
-          maxWidth: '720px',
-          display: 'flex',
-          flexDirection: 'column',
-          gap: '14px',
-          alignItems: 'center',
-          padding: '20px',
-          background: 'linear-gradient(135deg, #f0fdf4 0%, #eff6ff 50%, #fffbeb 100%)',
-          border: '1px solid var(--border)',
-          borderRadius: RADIUS.lg,
-        }}
-      >
-        <p style={{ fontSize: '15px', fontWeight: 800, color: 'var(--text)', margin: 0, textAlign: 'center' }}>
-          Looking for something else?
-        </p>
-        <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', justifyContent: 'center' }}>
-          <Link href="/plots" className="quick-link-pill" style={quickLinkPillStyle('#7c3aed')}>
-            <LandPlot size={18} color="#7c3aed" aria-hidden="true" />
-            Plots for Sale
-          </Link>
-          <Link href="/contractors" className="quick-link-pill" style={quickLinkPillStyle(TRUST_GREEN)}>
-            <HardHat size={18} color={TRUST_GREEN} aria-hidden="true" />
-            Contractors
-          </Link>
-          <Link href="/suppliers" className="quick-link-pill" style={quickLinkPillStyle(ACCENT_BLUE)}>
-            <Package size={18} color={ACCENT_BLUE} aria-hidden="true" />
-            Suppliers
-          </Link>
-          <Link href="/house-plans" className="quick-link-pill" style={quickLinkPillStyle(WARNING_AMBER)}>
-            <Home size={18} color={WARNING_AMBER} aria-hidden="true" />
-            House Plans
-          </Link>
-        </div>
-      </div>
-
-      <SecondarySearch
-        onSearch={handleSearch}
-        loading={loading}
-        initialValue={searchParams.get('q') ?? ''}
-        showHint={!result && !loading && !error}
-      />
-
-      {error && (
-        <div
-          style={{
-            maxWidth: '680px',
-            width: '100%',
-            padding: '12px 16px',
-            background: '#fef2f2',
-            border: '1px solid #fecaca',
-            borderRadius: 'var(--radius)',
-            color: 'var(--error)',
-            fontSize: '14px',
-          }}
-        >
-          {error}
-        </div>
-      )}
-
-      {result && (
-        <ResultsPanel
-          result={result}
-          compareSelection={compareSelection}
-          onToggleCompare={toggleCompare}
-        />
-      )}
     </main>
   );
 }
