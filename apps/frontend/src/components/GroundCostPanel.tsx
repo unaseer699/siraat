@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import type { GroundBlockSummary, GroundConditionsResponse, PropertyListingFacets } from '@siraat/shared-types';
+import type { GroundBlockSummary, GroundPlotReport, GroundConditionsResponse, PropertyListingFacets } from '@siraat/shared-types';
 import { fetchGroundConditions, fetchPropertyListings } from '@/lib/api';
 
 // Links the estimator to what owners/builders actually reported underground.
@@ -21,6 +21,7 @@ export function GroundCostPanel() {
   const [societyKey, setSocietyKey] = useState('');
   const [data, setData] = useState<GroundConditionsResponse | null>(null);
   const [block, setBlock] = useState('');
+  const [myPlot, setMyPlot] = useState('');
 
   useEffect(() => {
     fetchPropertyListings()
@@ -31,6 +32,7 @@ export function GroundCostPanel() {
   useEffect(() => {
     setData(null);
     setBlock('');
+    setMyPlot('');
     if (!societyKey) return;
     fetchGroundConditions(societyKey)
       .then(setData)
@@ -82,7 +84,7 @@ export function GroundCostPanel() {
           ))}
         </select>
         {data && data.blocks.length > 0 && (
-          <select aria-label="Block" value={block} onChange={(e) => setBlock(e.target.value)} style={selectStyle}>
+          <select aria-label="Block" value={block} onChange={(e) => { setBlock(e.target.value); setMyPlot(''); }} style={selectStyle}>
             <option value="">2. Select block…</option>
             {data.blocks.map((b) => (
               <option key={b.block} value={b.block}>Block {b.block} ({b.report_count})</option>
@@ -134,6 +136,8 @@ export function GroundCostPanel() {
             {summary.soil_test_count > 0 && <Chip text={`${summary.soil_test_count} backed by soil test`} />}
           </div>
 
+          <PlotList plots={summary.plots ?? []} myPlot={myPlot} setMyPlot={setMyPlot} />
+
           <p style={{ fontSize: '12px', color: 'var(--muted)' }}>
             Based on owner/builder reports reviewed by Siraat (confidence {Math.round(summary.confidence_score * 100)}%
             {summary.state === 'DEGRADED_SUCCESS' ? ', few reports so far' : ''}
@@ -161,6 +165,77 @@ export function GroundCostPanel() {
         </Link>
       )}
     </section>
+  );
+}
+
+const CONDITION_LABEL: Record<string, { text: string; color: string }> = {
+  SOLID: { text: 'Solid ground', color: '#15803d' },
+  FILLED: { text: 'Filled land', color: '#b91c1c' },
+  MIXED: { text: 'Mixed', color: '#b45309' },
+};
+const FOUNDATION_LABEL: Record<string, string> = {
+  STANDARD: 'Standard foundation',
+  RAFT: 'Raft foundation',
+  DEEP_STRIP: 'Deep strip foundation',
+  PILING: 'Piling',
+};
+
+function PlotList({ plots, myPlot, setMyPlot }: { plots: GroundPlotReport[]; myPlot: string; setMyPlot: (v: string) => void }) {
+  if (plots.length === 0) return null;
+  const q = myPlot.trim().toLowerCase();
+  const match = q ? plots.filter((p) => (p.plot_number ?? '').toLowerCase() === q) : [];
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', borderTop: '1px solid var(--border)', paddingTop: '12px' }}>
+      <div style={{ fontSize: '14px', fontWeight: 800 }}>Reports by plot number</div>
+      <p style={{ fontSize: '13px', color: 'var(--muted)' }}>
+        Ground can differ from one plot to the next, even in the same block. Compare with plots close to yours.
+      </p>
+      <input
+        aria-label="Your plot number"
+        value={myPlot}
+        onChange={(e) => setMyPlot(e.target.value)}
+        placeholder="Enter your plot number to check"
+        style={{ padding: '10px 12px', border: '1.5px solid var(--border)', borderRadius: '10px', fontSize: '14px', maxWidth: '280px' }}
+      />
+      {q && match.length === 0 && (
+        <p style={{ fontSize: '13px', color: 'var(--muted)' }}>
+          No report for plot {myPlot.trim()} yet. Use the nearby plots below as a guide only.
+        </p>
+      )}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+        {plots.map((p, i) => {
+          const c = CONDITION_LABEL[p.ground_condition] ?? CONDITION_LABEL.MIXED;
+          const mine = q !== '' && (p.plot_number ?? '').toLowerCase() === q;
+          return (
+            <div
+              key={`${p.plot_number ?? 'x'}-${i}`}
+              style={{
+                display: 'flex',
+                gap: '10px',
+                alignItems: 'center',
+                flexWrap: 'wrap',
+                background: mine ? '#eff6ff' : '#fff',
+                border: mine ? '2px solid #1a56db' : '1px solid var(--border)',
+                borderRadius: '10px',
+                padding: '8px 12px',
+                fontSize: '13px',
+              }}
+            >
+              <strong style={{ fontSize: '15px', minWidth: '84px' }}>
+                Plot {p.plot_number ?? 'not given'}
+              </strong>
+              <span style={{ color: c.color, fontWeight: 700 }}>{c.text}</span>
+              <span>{FOUNDATION_LABEL[p.foundation_type] ?? p.foundation_type}</span>
+              {p.foundation_depth_ft !== null && <span>{p.foundation_depth_ft} ft deep</span>}
+              {p.extra_cost_lac !== null && <span style={{ fontWeight: 700 }}>+{p.extra_cost_lac} Lac</span>}
+              {p.soil_test_done && <span style={{ color: 'var(--muted)' }}>soil tested</span>}
+              {p.build_year !== null && <span style={{ color: 'var(--muted)' }}>{p.build_year}</span>}
+              {mine && <span style={{ color: '#1a56db', fontWeight: 800 }}>Your plot</span>}
+            </div>
+          );
+        })}
+      </div>
+    </div>
   );
 }
 

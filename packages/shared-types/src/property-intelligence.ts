@@ -493,6 +493,18 @@ export type GroundCondition = 'SOLID' | 'FILLED' | 'MIXED';
 export type FoundationType = 'STANDARD' | 'RAFT' | 'DEEP_STRIP' | 'PILING';
 export type ReporterRole = 'OWNER' | 'BUILDER' | 'CONTRACTOR' | 'OTHER';
 
+// One reviewed report, shown by plot number so a reader can compare their own
+// plot with specific neighbours (ground varies plot to plot within a block).
+export interface GroundPlotReport {
+  plot_number: string | null;
+  ground_condition: GroundCondition;
+  foundation_type: FoundationType;
+  foundation_depth_ft: number | null;
+  extra_cost_lac: number | null;
+  soil_test_done: boolean;
+  build_year: number | null;
+}
+
 export interface GroundBlockSummary {
   block: string;
   state: 'FULL' | 'DEGRADED_SUCCESS';
@@ -514,6 +526,7 @@ export interface GroundBlockSummary {
   // Only set from 3+ reports; null = too few to call.
   reported_risk: 'LOWER' | 'MODERATE' | 'HIGHER' | null;
   latest_report_year: number;
+  plots: GroundPlotReport[];
   record_type: 'GENERATED';
   derived_from: string[];
   confidence_score: number; // 0.0 - 1.0

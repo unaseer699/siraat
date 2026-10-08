@@ -121,7 +121,7 @@ function ReportForm() {
           <input value={block} onChange={(e) => setBlock(e.target.value)} placeholder="e.g. A" style={field} />
         </div>
         <div>
-          <label style={label}>Plot number (optional)</label>
+          <label style={label}>Plot number (recommended: ground differs plot to plot)</label>
           <input value={plot} onChange={(e) => setPlot(e.target.value)} placeholder="e.g. 2071" style={field} />
         </div>
       </div>

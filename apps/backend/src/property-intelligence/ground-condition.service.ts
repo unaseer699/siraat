@@ -125,6 +125,17 @@ export class GroundConditionService {
       extra_cost_lac_median: median(costs),
       reported_risk: risk,
       latest_report_year: newest.getFullYear(),
+      plots: rows
+        .map((r) => ({
+          plot_number: r.plot_number ? r.plot_number.trim() : null,
+          ground_condition: r.ground_condition,
+          foundation_type: r.foundation_type,
+          foundation_depth_ft: r.foundation_depth_ft === null ? null : Number(r.foundation_depth_ft),
+          extra_cost_lac: r.extra_cost_lac === null ? null : Number(r.extra_cost_lac),
+          soil_test_done: r.soil_test_done,
+          build_year: r.build_year,
+        }))
+        .sort((a, b) => (a.plot_number ?? '~').localeCompare(b.plot_number ?? '~', undefined, { numeric: true })),
       record_type: 'GENERATED',
       derived_from: rows.map((r) => r.id),
       // More independent reports -> more confidence, discounted for age.
