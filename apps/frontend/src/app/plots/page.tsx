@@ -293,6 +293,20 @@ function PlotsView() {
                   {g.ref ? <Link href={`/society/${g.ref}`} style={{ color: 'inherit' }}>{g.name} →</Link> : g.name}{' '}
                   <span style={{ fontWeight: 600, color: 'var(--muted)', fontSize: '13px' }}>({g.count})</span>
                 </h2>
+                {(() => {
+                  const missing = g.blocks
+                    .map(([b]) => b)
+                    .filter((b) => b && !ground[g.key]?.blocks.find((x) => x.block === b.toUpperCase()));
+                  if (missing.length === 0) return null;
+                  return (
+                    <p style={{ fontSize: '13px', color: 'var(--muted)' }}>
+                      No ground reports yet for {missing.length === 1 ? 'block' : 'blocks'} {missing.map((b) => b.toUpperCase()).join(', ')}.{' '}
+                      <Link href={`/report-ground?society=${encodeURIComponent(g.name)}`} style={{ color: '#1a56db', fontWeight: 600 }}>
+                        Built here? Report what you found →
+                      </Link>
+                    </p>
+                  );
+                })()}
                 {g.blocks.map(([block, items]) => (
                   <div key={block} style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                     <h3 style={{ fontSize: '12px', fontWeight: 800, letterSpacing: '0.04em', color: 'var(--muted)' }}>

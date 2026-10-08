@@ -20,16 +20,7 @@ export function GroundChip({
 }) {
   const reportHref = `/report-ground?society=${encodeURIComponent(societyName)}&block=${encodeURIComponent(block)}`;
 
-  if (!summary) {
-    return (
-      <p style={{ fontSize: '12px', color: 'var(--muted)' }}>
-        No ground reports yet for this block.{' '}
-        <Link href={reportHref} style={{ color: '#1a56db', fontWeight: 600 }}>
-          Built here? Report what you found →
-        </Link>
-      </p>
-    );
-  }
+  if (!summary) return null;
 
   const risk = summary.reported_risk ? RISK[summary.reported_risk] : null;
   const parts = [
