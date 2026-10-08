@@ -30,27 +30,6 @@ const STATE_META: Record<string, { label: string; color: string; bg: string }> =
   NOT_COVERED: { label: 'Not Covered', color: DANGER_RED, bg: `${DANGER_RED}18` },
 };
 
-const headCellStyle = {
-  padding: '10px 14px',
-  fontSize: '11px',
-  fontWeight: 700,
-  color: '#6b7280',
-  textTransform: 'uppercase' as const,
-  letterSpacing: '0.04em',
-  textAlign: 'left' as const,
-  background: '#f9fafb',
-  borderBottom: '2px solid #e5e7eb',
-  whiteSpace: 'nowrap' as const,
-};
-
-const cellStyle = {
-  padding: '12px 14px',
-  fontSize: '13px',
-  color: '#111827',
-  borderBottom: '1px solid #e5e7eb',
-  verticalAlign: 'middle' as const,
-};
-
 // SourceTierBadge moved to components/SourceTierBadge.tsx — see that file's
 // comment (UI REVIEW finding: this was duplicated in 3 places).
 
@@ -85,102 +64,94 @@ function ApproximationCaveat({ text }: { text: string }) {
   );
 }
 
-function BoqTable({ lineItems, basement }: { lineItems: BoqLineItem[]; basement: boolean }) {
+const BOQ_CSS = `
+.est-layout{display:grid;grid-template-columns:minmax(0,1fr);gap:16px;width:100%}
+.est-col{display:flex;flex-direction:column;gap:14px;min-width:0}
+@media(min-width:1100px){.est-layout{grid-template-columns:minmax(0,1.1fr) minmax(0,1fr);align-items:start;gap:20px}}
+.boq-phase{border-radius:12px;overflow:hidden;border:1px solid #e5e7eb;background:#fff}
+.boq-row{display:grid;grid-template-columns:1fr auto;gap:2px 12px;padding:12px 14px;border-top:1px solid #eef0f3}
+.boq-name{font-weight:700;font-size:14px;color:#111827}
+.boq-total{font-weight:800;font-size:15px;color:#111827;text-align:right;white-space:nowrap}
+.boq-math{grid-column:1 / -1;font-size:13px;color:#4b5563}
+.boq-det{grid-column:1 / -1;margin-top:4px}
+.boq-det summary{cursor:pointer;font-size:12px;font-weight:600;color:#2563eb;list-style:none}
+.boq-det summary::-webkit-details-marker{display:none}
+.boq-det-body{display:flex;flex-direction:column;gap:6px;align-items:flex-start;margin-top:6px}
+`;
+
+function BoqList({ lineItems, basement }: { lineItems: BoqLineItem[]; basement: boolean }) {
   // Lines grouped under the build step they belong to, in site order.
   const sections = PHASE_STYLES.map((p) => ({
     phaseKey: p.key,
     items: lineItems.filter((li) => (BOQ_ITEM_PHASE[li.item_key] ?? 'GREY') === p.key),
   })).filter((x) => x.items.length > 0);
   return (
-    <div style={{ overflowX: 'auto', borderRadius: RADIUS.md, border: '1px solid #e5e7eb' }}>
-      <table style={{ borderCollapse: 'collapse', width: '100%', minWidth: '760px' }}>
-        <thead>
-          <tr>
-            <th style={headCellStyle}>Item</th>
-            <th style={headCellStyle}>Unit</th>
-            <th style={headCellStyle}>Estimated Quantity</th>
-            <th style={headCellStyle}>Rate</th>
-            <th style={headCellStyle}>Line Total</th>
-            <th style={headCellStyle}>Notes</th>
-          </tr>
-        </thead>
-        <tbody>
-          {sections.map(({ phaseKey, items }) => {
-            const st = PHASE_BY_KEY[phaseKey];
-            return (
-              <Fragment key={phaseKey}>
-                <tr>
-                  <td colSpan={6} style={{ padding: '10px 14px', fontWeight: 800, fontSize: '13px', color: st.ink, background: st.tint, borderLeft: `6px solid ${st.color}`, borderBottom: `1px solid ${st.color}55` }}>
-                    Step {st.step} · {st.title}
-                  </td>
-                </tr>
-                {items.map((item) => (
-            <tr key={item.item_key}>
-              <td style={{ ...cellStyle, fontWeight: 600 }}>
-                {item.item_name}
-                {item.is_major && (
-                  <span style={{ marginLeft: '6px', fontSize: '10px', color: 'var(--muted)', fontWeight: 600 }}>
-                    MAJOR
-                  </span>
-                )}
-              </td>
-              <td style={cellStyle}>{item.unit}</td>
-              <td style={cellStyle}>
-                {item.quantity !== null ? (
-                  formatQuantity(item.quantity)
-                ) : (
-                  <span style={{ color: 'var(--muted)', fontStyle: 'italic' }}>Not available</span>
-                )}
-              </td>
-              <td style={cellStyle}>
-                {!item.available ? (
-                  '—'
-                ) : item.unit_rate !== null ? (
-                  formatPKR(item.unit_rate)
-                ) : (
-                  <span style={{ color: 'var(--muted)' }}>Rate not yet available</span>
-                )}
-              </td>
-              <td style={{ ...cellStyle, fontWeight: 600 }}>
-                {item.subtotal !== null ? formatPKR(item.subtotal) : '—'}
-              </td>
-              <td style={cellStyle}>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', alignItems: 'flex-start' }}>
-                  {item.notes && (
-                    <span style={{ fontSize: '12px', color: 'var(--muted)', maxWidth: '260px' }}>{item.notes}</span>
-                  )}
-                  {APPROXIMATION_CAVEATS[item.item_key] && (
-                    <ApproximationCaveat text={APPROXIMATION_CAVEATS[item.item_key]!} />
-                  )}
-                  {item.item_key === 'EXCAVATION' && basement && (
-                    <ApproximationCaveat text={BASEMENT_EXCAVATION_CAVEAT} />
-                  )}
-                  {item.available && item.unit_rate !== null && (
-                    <>
-                      <SourceTierBadge tier={item.source_tier} />
-                      {item.source_name && (
-                        <span style={{ fontSize: '12px', color: 'var(--muted)' }}>{item.source_name}</span>
-                      )}
-                      {item.recorded_date && (
-                        <span style={{ fontSize: '11px', color: 'var(--muted)' }}>as of {item.recorded_date}</span>
-                      )}
-                    </>
-                  )}
-                  {/* Staleness describes a rate, so it only shows when a rate is shown. */}
-                  {item.available && item.unit_rate !== null && item.is_stale && (
-                    <span style={{ fontSize: '11px', color: WARNING_AMBER, fontWeight: 600 }}>
-                      ⚠ Stale{item.recorded_date ? ` (as of ${item.recorded_date})` : ''}
-                    </span>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+      <style>{BOQ_CSS}</style>
+      {sections.map(({ phaseKey, items }) => {
+        const st = PHASE_BY_KEY[phaseKey];
+        const stepTotal = items.reduce((sum, i) => sum + (i.subtotal ?? 0), 0);
+        return (
+          <section key={phaseKey} className="boq-phase" style={{ borderLeft: `6px solid ${st.color}` }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', gap: '10px', padding: '10px 14px', background: st.tint, color: st.ink, fontWeight: 800, fontSize: '14px' }}>
+              <span>Step {st.step} · {st.title}</span>
+              {stepTotal > 0 && <span style={{ whiteSpace: 'nowrap' }}>{formatPKR(stepTotal)}</span>}
+            </div>
+            {items.map((item) => {
+              const hasDetails =
+                !!item.notes ||
+                !!APPROXIMATION_CAVEATS[item.item_key] ||
+                (item.available && item.unit_rate !== null);
+              return (
+                <div key={item.item_key} className="boq-row">
+                  <div className="boq-name">
+                    {item.item_name}
+                    {item.is_major && <span style={{ marginLeft: '6px', fontSize: '10px', color: 'var(--muted)', fontWeight: 600 }}>MAJOR</span>}
+                  </div>
+                  <div className="boq-total">{item.subtotal !== null ? formatPKR(item.subtotal) : '—'}</div>
+                  <div className="boq-math">
+                    {item.quantity === null ? (
+                      <span style={{ color: 'var(--muted)', fontStyle: 'italic' }}>Quantity not available</span>
+                    ) : (
+                      <>
+                        <strong>{formatQuantity(item.quantity)}</strong> {item.unit}
+                        {item.available &&
+                          (item.unit_rate !== null ? (
+                            <> × {formatPKR(item.unit_rate)}</>
+                          ) : (
+                            <span style={{ color: WARNING_AMBER, fontWeight: 600 }}> · rate not yet available</span>
+                          ))}
+                      </>
+                    )}
+                  </div>
+                  {hasDetails && (
+                    <details className="boq-det">
+                      <summary>Details and source</summary>
+                      <div className="boq-det-body">
+                        {item.notes && <span style={{ fontSize: '12px', color: 'var(--muted)' }}>{item.notes}</span>}
+                        {APPROXIMATION_CAVEATS[item.item_key] && <ApproximationCaveat text={APPROXIMATION_CAVEATS[item.item_key]!} />}
+                        {item.item_key === 'EXCAVATION' && basement && <ApproximationCaveat text={BASEMENT_EXCAVATION_CAVEAT} />}
+                        {item.available && item.unit_rate !== null && (
+                          <>
+                            <SourceTierBadge tier={item.source_tier} />
+                            {item.source_name && <span style={{ fontSize: '12px', color: 'var(--muted)' }}>{item.source_name}</span>}
+                            {item.recorded_date && <span style={{ fontSize: '11px', color: 'var(--muted)' }}>as of {item.recorded_date}</span>}
+                            {item.is_stale && (
+                              <span style={{ fontSize: '11px', color: WARNING_AMBER, fontWeight: 600 }}>
+                                ⚠ Stale{item.recorded_date ? ` (as of ${item.recorded_date})` : ''}
+                              </span>
+                            )}
+                          </>
+                        )}
+                      </div>
+                    </details>
                   )}
                 </div>
-              </td>
-            </tr>
-                ))}
-              </Fragment>
-            );
-          })}
-        </tbody>
-      </table>
+              );
+            })}
+          </section>
+        );
+      })}
     </div>
   );
 }
@@ -369,7 +340,7 @@ export function EstimateResults({ result }: Props) {
     <div
       style={{
         width: '100%',
-        maxWidth: '900px',
+        maxWidth: '1240px',
         display: 'flex',
         flexDirection: 'column',
         gap: '16px',
@@ -415,8 +386,14 @@ export function EstimateResults({ result }: Props) {
 
       {(result.state === 'FULL' || result.state === 'DEGRADED_SUCCESS') && (
         <>
-          {result.whole_house && <RoadmapCard w={result.whole_house} />}
-
+          <style>{BOQ_CSS}</style>
+          <div className="est-layout">
+          {result.whole_house && (
+            <div className="est-col">
+              <RoadmapCard w={result.whole_house} />
+            </div>
+          )}
+          <div className="est-col" style={result.whole_house ? undefined : { gridColumn: '1 / -1' }}>
           <div
             style={{
               background: '#fff',
@@ -478,9 +455,11 @@ export function EstimateResults({ result }: Props) {
             Materials &amp; selected works (BOQ): cement, steel, bricks, sand, crush, doors, windows, rough-in. Labour,
             tiles, wood, paint, sanitary ware and site work are in the whole-house estimate above.
           </p>
-          <BoqTable lineItems={result.line_items} basement={result.basement} />
+          <BoqList lineItems={result.line_items} basement={result.basement} />
 
           <AssumptionsBlock result={result} />
+          </div>
+          </div>
 
           {/* CONTRACTOR DIRECTORY Chunk 3 — pre-filtered to the grey-structure
               trade this estimate covers (excavation/masonry/steel/shuttering
