@@ -67,19 +67,31 @@ const PRIMARY_TOOLS: {
   { href: '/house-plans', title: 'House Plans', subtitle: 'Designs by plot size', color: '#db2777', icon: Home },
 ];
 
-function primaryToolStyle(color: string): CSSProperties {
-  return {
-    display: 'flex',
-    alignItems: 'center',
-    gap: '12px',
-    padding: '16px',
-    border: `1.5px solid ${color}55`,
-    borderLeft: `6px solid ${color}`,
-    borderRadius: RADIUS.md,
-    background: `${color}12`,
-    textDecoration: 'none',
-  };
+const TOOL_GRID_CSS = `
+.tool-grid{display:grid;grid-template-columns:1fr;gap:12px;width:100%}
+.tool-tile{display:flex;flex-direction:row;align-items:center;gap:14px;padding:16px;background:color-mix(in srgb,var(--c) 8%,#fff);border:1.5px solid color-mix(in srgb,var(--c) 35%,#fff);border-left:6px solid var(--c);border-radius:14px;text-decoration:none;box-shadow:0 1px 3px rgba(0,0,0,.06);transition:transform .15s,box-shadow .15s}
+.tool-tile:hover{transform:translateY(-2px);box-shadow:0 6px 16px rgba(0,0,0,.12)}
+.tool-icon{width:48px;height:48px;border-radius:12px;background:#fff;border:1px solid color-mix(in srgb,var(--c) 30%,#fff);display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.tool-body{display:flex;flex-direction:column;gap:3px;min-width:0;flex:1}
+.tool-title{font-size:16px;font-weight:800;color:var(--c);line-height:1.25}
+.tool-sub{font-size:13px;font-weight:500;color:var(--muted);line-height:1.4}
+.tool-arrow{color:var(--c);font-weight:800;font-size:18px}
+@media(min-width:600px){
+.tool-grid{grid-template-columns:repeat(2,1fr);gap:14px}
+.tool-tile:first-child{grid-column:span 2}
 }
+@media(min-width:900px){
+.tool-grid{grid-template-columns:repeat(6,1fr);gap:16px}
+.tool-tile:first-child{grid-column:span 3}
+.tool-tile:nth-child(2){grid-column:span 3}
+.tool-tile:nth-child(n+3){grid-column:span 2}
+.tool-tile{flex-direction:column;align-items:flex-start;padding:20px;gap:12px;border-left-width:1.5px;border-top:6px solid var(--c)}
+.tool-icon{width:56px;height:56px}
+.tool-title{font-size:18px}
+.tool-sub{font-size:14px}
+.tool-arrow{position:absolute;top:18px;right:18px}.tool-tile{position:relative}
+}
+`;
 
 // Trust-style hero band: flat tinted container (TRUST_GREEN_BG/BORDER/TEXT,
 // imported from tokens.ts) with a
@@ -96,7 +108,7 @@ function HeroBand() {
     <div
       style={{
         width: '100%',
-        maxWidth: '720px',
+        maxWidth: '960px',
         borderRadius: '16px',
         overflow: 'hidden',
         border: `1px solid ${TRUST_GREEN_BORDER}`,
@@ -105,7 +117,7 @@ function HeroBand() {
       <div
         style={{
           background: TRUST_GREEN_BG,
-          padding: '40px 24px 32px',
+          padding: '40px 20px 32px',
           display: 'flex',
           flexDirection: 'column',
           alignItems: 'center',
@@ -139,52 +151,27 @@ function HeroBand() {
           </p>
         </header>
 
-        <div
-          style={{
-            width: '100%',
-            maxWidth: '640px',
-            background: '#fff',
-            border: '1px solid var(--border)',
-            borderRadius: RADIUS.lg,
-            padding: '24px 20px',
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-            gap: '14px',
-            boxShadow: '0 1px 3px rgba(0,0,0,0.08)',
-          }}
-        >
-          <div
-            style={{
-              width: '100%',
-              display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fit, minmax(190px, 1fr))',
-              gap: '12px',
-            }}
-          >
+        <style>{TOOL_GRID_CSS}</style>
+        <div style={{ width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '18px' }}>
+          <div className="tool-grid">
             {PRIMARY_TOOLS.map((t) => {
               const Icon = t.icon;
               return (
-                <Link key={t.href} href={t.href} className="quick-link-pill" aria-label={t.title} style={primaryToolStyle(t.color)}>
-                  <span
-                    style={{
-                      width: '44px',
-                      height: '44px',
-                      borderRadius: RADIUS.md,
-                      background: '#fff',
-                      border: `1px solid ${t.color}40`,
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      flexShrink: 0,
-                    }}
-                  >
-                    <Icon size={22} color={t.color} aria-hidden="true" />
+                <Link
+                  key={t.href}
+                  href={t.href}
+                  className="tool-tile"
+                  aria-label={t.title}
+                  style={{ ['--c' as string]: t.color } as CSSProperties}
+                >
+                  <span className="tool-icon">
+                    <Icon size={26} color={t.color} aria-hidden="true" />
                   </span>
-                  <span style={{ display: 'flex', flexDirection: 'column', gap: '2px', textAlign: 'left' }}>
-                    <span style={{ fontSize: '15px', fontWeight: 800, color: t.color }}>{t.title}</span>
-                    <span style={{ fontSize: '12px', fontWeight: 500, color: 'var(--muted)' }}>{t.subtitle}</span>
+                  <span className="tool-body">
+                    <span className="tool-title">{t.title}</span>
+                    <span className="tool-sub">{t.subtitle}</span>
                   </span>
+                  <span className="tool-arrow" aria-hidden="true">→</span>
                 </Link>
               );
             })}
