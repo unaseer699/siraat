@@ -476,6 +476,14 @@ describe('EstimatesService with daily market rates', () => {
     expect(withB.whole_house.before_building_total).toBeGreaterThan(without.whole_house.before_building_total);
   });
 
+  it('prices soil testing and boring from the holes and depth entered', async () => {
+    const base: any = await build(market).getEstimate({ ...req, area: 12, area_unit: 'MARLA' });
+    const deep: any = await build(market).getEstimate({ ...req, area: 12, area_unit: 'MARLA', boring_depth_ft: 300, soil_test_holes: 3 });
+    const soil = (r: any) => r.whole_house.phases.find((p: any) => p.key === 'SOIL').amount;
+    expect(soil(base)).toBe(200_000);
+    expect(soil(deep)).toBe(200_000 + 9_000 + 100 * 700);
+  });
+
   it('does not use them for other cities', async () => {
     const r: any = await build(market).getEstimate({ ...req, city: 'Lahore' });
     expect(r.line_items.find((l: any) => l.item_key === 'CEMENT').unit_rate).toBeNull();

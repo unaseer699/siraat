@@ -47,6 +47,8 @@ export const MARKET_RATE_ITEMS: MarketRateItem[] = [
   { key: 'MARBLE', label: 'Marble / granite', group: 'FINISHING', unit: 'sqft', aliases: ['marble', 'granite', 'marble granite'], ref_cost: 192_000, ref_rate: null },
   { key: 'WOOD', label: 'Wood', group: 'FINISHING', unit: 'cft', aliases: ['wood', 'timber', 'kikar', 'deodar', 'lakri'], ref_cost: 546_200, ref_rate: null },
   { key: 'DOORS', label: 'Doors', group: 'FINISHING', unit: 'pc', aliases: ['door', 'doors'], ref_cost: 245_000, ref_rate: 15_000 },
+  { key: 'DOOR_HANDLE', label: 'Door handle (room door)', group: 'FINISHING', unit: 'pc', aliases: ['door handle', 'door handles', 'room door handle', 'handle'], ref_cost: 0, ref_rate: 1_300 },
+  { key: 'MAIN_DOOR_HANDLE', label: 'Main door handle / lock', group: 'FINISHING', unit: 'pc', aliases: ['main door handle', 'main door handles', 'main door lock', 'main handle'], ref_cost: 0, ref_rate: 3_625 },
   { key: 'CARPENTER_LABOUR', label: 'Carpenter labour', group: 'FINISHING', unit: 'sqft', aliases: ['carpenter labour', 'carpenter labor', 'wood labour', 'labour carpenter'], ref_cost: 130_000, ref_rate: null },
   { key: 'ALUMINIUM_WINDOWS', label: 'Aluminium windows', group: 'FINISHING', unit: 'sqft', aliases: ['aluminium windows', 'aluminum windows', 'aluminium', 'aluminum', 'windows', 'window'], ref_cost: 462_000, ref_rate: 1_000 },
   { key: 'GATE', label: 'Gate', group: 'FINISHING', unit: 'lot', aliases: ['gate', 'main gate', 'iron gate', 'steel gate'], ref_cost: 97_250, ref_rate: 97_250 },

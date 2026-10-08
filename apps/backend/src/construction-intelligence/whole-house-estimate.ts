@@ -13,9 +13,13 @@ import type { CurrentMarketRate } from './market-rate.service';
 // Soil test and boring rates, confirmed by the founder (Oct 2026). The
 // reference house paid Rs 200,000 for the soil, boring and meter step in total;
 // whatever the test and boring do not account for is the meter and connections.
-const SOIL_TEST_COST = 18_000; // two holes of 20 ft, complete report
+const SOIL_TEST_PER_HOLE = 9_000; // Rs 18,000 for two holes of 20 ft, complete report
+const SOIL_TEST_HOLES = 2;
 const BORING_RATE_PER_FT = 700; // Rs 140,000 for 200 ft
 const BORING_DEPTH_FT = 200;
+// The reference house paid Rs 200,000 for the whole step; what the test and
+// boring above do not cover (meter and connections) is the remainder.
+const SOIL_OTHER = 200_000 - SOIL_TEST_PER_HOLE * SOIL_TEST_HOLES - BORING_RATE_PER_FT * BORING_DEPTH_FT;
 const SOIL_STEP_TOTAL = 200_000;
 
 const GROUPS: SectionGroup[] = ['STRUCTURE', 'SERVICES', 'FINISHING', 'SITE_OTHER'];
@@ -46,7 +50,7 @@ const PHASES: PhaseDef[] = [
   { key: 'SOIL', title: 'Soil testing, boring & demarcation', stage: 'BEFORE', group: null, ref_cost: SOIL_STEP_TOTAL,
     summary: 'Test the soil, mark the plot boundary and arrange water and power.',
     includes: ['Soil test report (2 holes, 20 ft each)', 'Water boring (200 ft)', 'Electricity meter and other connections'],
-    note: `Soil test: Rs ${SOIL_TEST_COST.toLocaleString()} for two holes of 20 ft with the full report (Rs ${(SOIL_TEST_COST / 2).toLocaleString()} per hole). Water boring: Rs ${BORING_RATE_PER_FT}/ft, so ${BORING_DEPTH_FT} ft is Rs ${(BORING_RATE_PER_FT * BORING_DEPTH_FT).toLocaleString()}. The rest of the step is the meter and other connections from the reference house. Boring depth depends on your area's water level, so confirm it with the driller. Plot demarcation was not recorded as a separate cost; confirm it with your dealer or the authority.` },
+    note: `Soil test: Rs ${SOIL_TEST_PER_HOLE.toLocaleString()} per hole of 20 ft with the full report. Water boring: Rs ${BORING_RATE_PER_FT}/ft. The rest of the step (Rs ${SOIL_OTHER.toLocaleString()}) is the meter and other connections from the reference house. Change the number of holes and the boring depth in the form. Boring depth depends on your area's water level, so confirm it with the driller. Plot demarcation was not recorded as a separate cost; confirm it with your dealer or the authority.` },
   { key: 'SITE_SETUP', title: 'Site setup, utilities & site staff', stage: 'STRUCTURE', group: 'SITE_OTHER', ref_cost: 356_550,
     summary: 'Contractor agreement, site store, temporary water and power, and the supervisor who stays through the build.',
     includes: ['Site staff and supervision', 'Temporary water and power', 'Tea and refreshments for pours', 'Site running costs'],
@@ -72,7 +76,7 @@ const PHASES: PhaseDef[] = [
     includes: ['Tiles', 'Tile labour', 'Chips', 'Marble for stairs and sills', 'Kitchen and washroom tops'] },
   { key: 'WOOD', title: 'Wood & carpentry', stage: 'FINISHING', group: 'FINISHING', ref_cost: 921_200,
     summary: 'Door frames, doors, wardrobes and kitchen woodwork.',
-    includes: ['Wood', 'Doors', 'Carpenter labour'] },
+    includes: ['Wood', 'Doors', 'Door handles and main door locks', 'Carpenter labour'] },
   { key: 'STEEL', title: 'Gate, grills & railings', stage: 'FINISHING', group: 'FINISHING', ref_cost: 404_402,
     summary: 'Main gate, window grills, stair railing and door frames in steel.',
     includes: ['Gate', 'Window grills', 'Stair railing', 'Chokhats and back grill'] },
@@ -111,6 +115,8 @@ export function computeWholeHouse(input: {
   baselines: Record<string, { rate: number | null }>;
   // Extra below-ground level, if any: its area and how much more the dig costs.
   basement?: { areaSqft: number; structureFactor: number; excavationRatio: number };
+  boringDepthFt?: number;
+  soilTestHoles?: number;
   now?: Date;
 }): WholeHouseEstimate {
   const level: ForecastFinishLevel = input.finishLevel === 'ECONOMY' ? 'BASIC' : input.finishLevel;
@@ -134,7 +140,8 @@ export function computeWholeHouse(input: {
   const total = groups.reduce((s, g) => s + g.amount, 0);
   const phases: BuildPhase[] = [];
   const allocated: Partial<Record<SectionGroup, number>> = {};
-  PHASES.forEach((d, i) => {
+  PHASES.forEach((d0, i) => {
+    let d = d0;
     let amount: number | null = null;
     let basis: BuildPhase['basis'] = 'NOT_ESTIMATED';
     if (d.group !== null && d.ref_cost !== null) {
@@ -146,6 +153,12 @@ export function computeWholeHouse(input: {
       basis = 'SCALED';
     } else if (d.ref_cost !== null) {
       amount = d.key === 'EXCAVATION' && input.basement ? Math.round(d.ref_cost * input.basement.excavationRatio) : d.ref_cost;
+      if (d.key === 'SOIL') {
+        const holes = input.soilTestHoles ?? SOIL_TEST_HOLES;
+        const depth = input.boringDepthFt ?? BORING_DEPTH_FT;
+        amount = holes * SOIL_TEST_PER_HOLE + Math.round(depth * BORING_RATE_PER_FT) + SOIL_OTHER;
+        d = { ...d, includes: [`Soil test report (${holes} hole${holes === 1 ? '' : 's'}, 20 ft each)`, `Water boring (${depth} ft)`, 'Electricity meter and other connections'] };
+      }
       basis = 'REFERENCE';
     }
     phases.push({ key: d.key, step: i + 1, title: d.title, stage: d.stage, amount, basis, summary: d.summary, includes: d.includes, note: d.note ?? null });
