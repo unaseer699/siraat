@@ -464,6 +464,18 @@ describe('EstimatesService with daily market rates', () => {
     expect(r.derived_from.some((d: string) => d.startsWith('reference:'))).toBe(false);
   });
 
+  it('a basement adds quantities, excavation and whole-house cost', async () => {
+    const withB: any = await build(market).getEstimate({ ...req, area: 12, area_unit: 'MARLA', floors: 2, basement: true });
+    const without: any = await build(market).getEstimate({ ...req, area: 12, area_unit: 'MARLA', floors: 2, basement: false });
+    const q = (r: any, k: string) => r.line_items.find((l: any) => l.item_key === k).quantity;
+    expect(q(withB, 'CEMENT')).toBeGreaterThan(q(without, 'CEMENT'));
+    expect(q(withB, 'EXCAVATION')).toBeGreaterThan(q(without, 'EXCAVATION'));
+    expect(withB.whole_house.total).toBeGreaterThan(without.whole_house.total);
+    expect(withB.whole_house.basement_area_sqft).toBe(1350);
+    expect(without.whole_house.basement_area_sqft).toBe(0);
+    expect(withB.whole_house.before_building_total).toBeGreaterThan(without.whole_house.before_building_total);
+  });
+
   it('does not use them for other cities', async () => {
     const r: any = await build(market).getEstimate({ ...req, city: 'Lahore' });
     expect(r.line_items.find((l: any) => l.item_key === 'CEMENT').unit_rate).toBeNull();

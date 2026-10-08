@@ -197,7 +197,7 @@ export function EstimateForm({ onSubmit, loading }: EstimateFormProps) {
           aria-label="Basement"
           style={{ width: '18px', height: '18px' }}
         />
-        <span style={labelTextStyle}>Basement</span>
+        <span style={labelTextStyle}>Basement (extra level below ground, same size as one floor)</span>
       </label>
 
       <label style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>

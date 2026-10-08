@@ -219,7 +219,7 @@ const FOOTING_DEPTH_FT_BY_FLOORS: Record<BoqFloors, number> = { 1: 3, 2: 4, 3: 5
 const TRENCH_WIDTH_FT = 2;
 const BASEMENT_DEPTH_FT = 9;
 
-function computeExcavationCft(areaSqftTotal: number, floors: BoqFloors, basement: boolean): number {
+export function computeExcavationCft(areaSqftTotal: number, floors: BoqFloors, basement: boolean): number {
   const footprintPerFloor = areaSqftTotal / floors;
   const side = Math.sqrt(footprintPerFloor);
   const perimeter = 4 * side;
@@ -250,6 +250,16 @@ function computePaintLiters(areaSqftTotal: number, floors: BoqFloors): number {
   return totalWallArea / PAINT_COVERAGE_SQFT_PER_LITER;
 }
 
+// A basement is one extra level under the footprint (total covered area divided
+// by the floors above ground). Its structure costs more per sq ft than an
+// above-ground floor (deeper dig, retaining walls, waterproofing); 1.25 is a
+// general assumption, not a Pakistan-verified figure, and is shown in the notes.
+export const BASEMENT_STRUCTURE_FACTOR = 1.25;
+
+export function basementAreaSqft(areaSqftTotal: number, floors: BoqFloors, basement: boolean): number {
+  return basement ? round2(areaSqftTotal / floors) : 0;
+}
+
 export function round2(n: number): number {
   return Math.round(n * 100) / 100;
 }
@@ -265,6 +275,9 @@ export function computeBoqQuantity(
   finishLevel: FinishLevel,
 ): number | null {
   const tierMultiplier = FINISH_LEVEL_MULTIPLIER[finishLevel];
+  const bsmt = basementAreaSqft(areaSqftTotal, floors, basement);
+  const structureArea = areaSqftTotal + bsmt * BASEMENT_STRUCTURE_FACTOR;
+  const finishArea = areaSqftTotal + bsmt;
 
   switch (key) {
     case 'CEMENT':
@@ -272,9 +285,9 @@ export function computeBoqQuantity(
     case 'BRICKS':
     case 'SAND':
     case 'CRUSH':
-      return round2(CORE_RATIO_PER_MARLA[key] * toMarla(areaSqftTotal) * tierMultiplier);
+      return round2(CORE_RATIO_PER_MARLA[key] * toMarla(structureArea) * tierMultiplier);
     case 'PAINT':
-      return round2(computePaintLiters(areaSqftTotal, floors) * tierMultiplier);
+      return round2(computePaintLiters(finishArea, floors) * tierMultiplier);
     case 'DOORS':
       // A count, so whole doors; not scaled by finish level.
       return Math.max(1, Math.round(DOORS_PER_MARLA * toMarla(areaSqftTotal)));
@@ -283,7 +296,7 @@ export function computeBoqQuantity(
     case 'ELECTRICAL_ROUGH_IN':
     case 'PLUMBING_ROUGH_IN':
       // Stopgap: priced per sq ft of covered area until point counts exist.
-      return round2(areaSqftTotal);
+      return round2(finishArea);
     case 'EXCAVATION':
       // Deliberately NOT scaled by finish level — digging depth isn't a finish choice.
       return round2(computeExcavationCft(areaSqftTotal, floors, basement));

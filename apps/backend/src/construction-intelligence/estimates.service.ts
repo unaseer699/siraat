@@ -16,6 +16,9 @@ import {
   BOQ_UNAVAILABLE_ITEM_NOTES,
   ESTIMATE_STALENESS_THRESHOLD_DAYS,
   computeBoqQuantity,
+  computeExcavationCft,
+  basementAreaSqft,
+  BASEMENT_STRUCTURE_FACTOR,
   isBoqItemAvailable,
   matchBoqItemKey,
   rateUnitFactor,
@@ -71,7 +74,17 @@ export class EstimatesService {
         market = [];
       }
     }
-    const whole_house = computeWholeHouse({ areaSqft: resp.area_sqft, finishLevel: resp.finish_level, market, baselines });
+    const bArea = basementAreaSqft(resp.area_sqft, resp.floors, resp.basement);
+    const basement =
+      bArea > 0
+        ? {
+            areaSqft: bArea,
+            structureFactor: BASEMENT_STRUCTURE_FACTOR,
+            excavationRatio:
+              computeExcavationCft(resp.area_sqft, resp.floors, true) / Math.max(computeExcavationCft(resp.area_sqft, resp.floors, false), 1),
+          }
+        : undefined;
+    const whole_house = computeWholeHouse({ areaSqft: resp.area_sqft, finishLevel: resp.finish_level, market, baselines, basement });
     if (!regional) {
       whole_house.notes.push(`Priced at Islamabad reference prices; ${req.city} prices may differ.`);
     }
@@ -143,7 +156,7 @@ export class EstimatesService {
         // litres, so convert using the same area and litres the BOQ uses.
         if (key === 'PAINT_MATERIAL') {
           const litres = computeBoqQuantity('PAINT', areaSqft, req.floors, req.basement, 'STANDARD');
-          unitPrice = litres && litres > 0 ? (price * areaSqft) / litres : 0;
+          unitPrice = litres && litres > 0 ? (price * (areaSqft + basementAreaSqft(areaSqft, req.floors, req.basement))) / litres : 0;
         }
         return {
           id,

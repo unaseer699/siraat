@@ -164,6 +164,8 @@ export const WholeHouseEstimateSchema = z.object({
   total: z.number(),
   per_sqft: z.number(),
   area_sqft: z.number(),
+  // Extra below-ground level, 0 when there is no basement.
+  basement_area_sqft: z.number().optional(),
   groups: z.array(z.object({ group: z.string(), label: z.string(), amount: z.number() })),
   basis: z.string(),
   priced_items: z.number(),

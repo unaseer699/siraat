@@ -101,6 +101,8 @@ export function computeWholeHouse(input: {
   finishLevel: 'ECONOMY' | 'STANDARD' | 'PREMIUM';
   market: CurrentMarketRate[];
   baselines: Record<string, { rate: number | null }>;
+  // Extra below-ground level, if any: its area and how much more the dig costs.
+  basement?: { areaSqft: number; structureFactor: number; excavationRatio: number };
   now?: Date;
 }): WholeHouseEstimate {
   const level: ForecastFinishLevel = input.finishLevel === 'ECONOMY' ? 'BASIC' : input.finishLevel;
@@ -116,7 +118,9 @@ export function computeWholeHouse(input: {
   const groups = GROUPS.map((g) => {
     const perSqft = (REFERENCE_GROUP_COST[g] ?? 0) / REFERENCE_AREA_SQFT;
     const factor = groupPriceFactor(g, ratios).factor;
-    const amount = Math.round(perSqft * input.areaSqft * (FINISH_MULTIPLIER[level][g] ?? 1) * factor);
+    const b = input.basement;
+    const effArea = !b ? input.areaSqft : g === 'STRUCTURE' ? input.areaSqft + b.areaSqft * b.structureFactor : g === 'SITE_OTHER' ? input.areaSqft : input.areaSqft + b.areaSqft;
+    const amount = Math.round(perSqft * effArea * (FINISH_MULTIPLIER[level][g] ?? 1) * factor);
     return { group: g, label: SECTION_GROUP_LABELS[g], amount };
   });
   const total = groups.reduce((s, g) => s + g.amount, 0);
@@ -133,7 +137,7 @@ export function computeWholeHouse(input: {
       allocated[d.group] = (allocated[d.group] ?? 0) + amount;
       basis = 'SCALED';
     } else if (d.ref_cost !== null) {
-      amount = d.ref_cost;
+      amount = d.key === 'EXCAVATION' && input.basement ? Math.round(d.ref_cost * input.basement.excavationRatio) : d.ref_cost;
       basis = 'REFERENCE';
     }
     phases.push({ key: d.key, step: i + 1, title: d.title, stage: d.stage, amount, basis, summary: d.summary, includes: d.includes, note: d.note ?? null });
@@ -145,6 +149,11 @@ export function computeWholeHouse(input: {
     'Scaled from one completed 25 x 50 house (2,700 sq ft) in Islamabad, May 2026, with labour included. One house is a single sample.',
     'The building total excludes the plot, legal fees and the approval, soil and excavation steps (shown separately at reference amounts), and furniture.',
   ];
+  if (input.basement) {
+    notes.push(
+      `Includes a basement of about ${Math.round(input.basement.areaSqft).toLocaleString()} sq ft (one extra level under the footprint). Its structure is priced at ${input.basement.structureFactor}x an above-ground floor and the excavation step is scaled to the deeper dig. These are general assumptions, not verified against a Pakistani basement build; get a structural quote.`,
+    );
+  }
   if (used.length === 0) notes.push('No current market rates applied: priced at the reference house prices of May 2026.');
   else notes.push(`${used.length} item prices updated from today's market rates; the rest stay at reference prices.`);
   return {
@@ -153,8 +162,9 @@ export function computeWholeHouse(input: {
     before_building_total: beforeTotal,
     derived_from: quotes,
     total,
-    per_sqft: input.areaSqft > 0 ? Math.round(total / input.areaSqft) : 0,
+    per_sqft: input.areaSqft > 0 ? Math.round(total / (input.areaSqft + (input.basement?.areaSqft ?? 0))) : 0,
     area_sqft: input.areaSqft,
+    basement_area_sqft: input.basement?.areaSqft ?? 0,
     groups,
     basis: 'Completed 25 x 50 house, Islamabad (actual costs paid)',
     priced_items: used.length,

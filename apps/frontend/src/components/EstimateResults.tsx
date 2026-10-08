@@ -217,7 +217,7 @@ function RoadmapCard({ w }: { w: WholeHouse }) {
           Building cost {formatPKR(w.total)} + contingency {formatPKR(allowance)}
         </p>
         <p style={{ fontSize: '13px', color: 'var(--muted)' }}>
-          About PKR {Math.round(houseTotal / Math.max(w.area_sqft, 1)).toLocaleString()} per sq ft · {Math.round(w.area_sqft).toLocaleString()} sq ft covered ·
+          About PKR {Math.round(houseTotal / Math.max(w.area_sqft + (w.basement_area_sqft ?? 0), 1)).toLocaleString()} per sq ft · {Math.round(w.area_sqft).toLocaleString()} sq ft covered{(w.basement_area_sqft ?? 0) > 0 ? ` + ${Math.round(w.basement_area_sqft ?? 0).toLocaleString()} sq ft basement` : ''} ·
           confidence {Math.round(w.confidence_score * 100)}%{w.is_stale ? ' · prices are not current' : ''}
         </p>
         <p style={{ fontSize: '13px' }}>
