@@ -177,6 +177,25 @@ function HeroBand() {
             })}
           </div>
 
+          <Link
+            href="/build-guide"
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '8px',
+              fontSize: '15px',
+              fontWeight: 800,
+              color: '#fff',
+              background: TRUST_GREEN,
+              borderRadius: '99px',
+              padding: '12px 22px',
+              textDecoration: 'none',
+              boxShadow: '0 2px 6px rgba(0,0,0,0.15)',
+            }}
+          >
+            Steps to build a home: plot to move-in →
+          </Link>
+
           <a href="#how-we-verify" style={{ fontSize: '13px', fontWeight: 600, color: 'var(--muted)' }}>
             See how we verify every claim →
           </a>

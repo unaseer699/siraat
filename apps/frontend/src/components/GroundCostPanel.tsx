@@ -47,6 +47,7 @@ export function GroundCostPanel() {
 
   return (
     <section
+      id="ground-check"
       style={{
         width: '100%',
         maxWidth: '680px',
