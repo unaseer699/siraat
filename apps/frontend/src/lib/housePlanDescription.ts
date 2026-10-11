@@ -82,7 +82,13 @@ const ROOM_ICONS: [RegExp, string][] = [
   [/bed/i, '🛏️'],
   [/bath|washroom|toilet/i, '🚿'],
   [/servant|store|quarter/i, '🧰'],
-  [/roof|mumty|mumty|tank/i, '☀️'],
+  [/roof|mumty|overhead/i, '☀️'],
+  [/water|tank|bore/i, '💧'],
+  [/tile|floor|granite|wardrobe|door|sheet|aluminium|aluminum|glass|light|fan|commode|sanitary/i, '✨'],
+  [/parking|garage/i, '🚗'],
+  [/meter|electric|gas/i, '⚡'],
+  [/washing|laundry/i, '🧺'],
+  [/sun/i, '☀️'],
   [/terrace|balcon/i, '🌇'],
   [/stair|corridor|hallway/i, '🪜'],
 ];
@@ -92,7 +98,16 @@ export function roomIcon(label: string | null): string {
   return ROOM_ICONS.find(([re]) => re.test(label))?.[1] ?? '•';
 }
 
+// A floor section ("Ground Floor", "Rooftop") as opposed to a topic section
+// ("Finishes", "Water and utilities").
+export function isFloorSection(title: string): boolean {
+  return /floor|ground|roof|mumty|basement|upper|lower|storey|story/i.test(title);
+}
+
 export function sectionIcon(title: string): string {
+  if (/finish|material|fitting/i.test(title)) return '✨';
+  if (/water|utilit|service|power|gas|electric/i.test(title)) return '💧';
+  if (/layout|feature|facilit|highlight|include/i.test(title)) return '🏡';
   if (/ground|lower/i.test(title)) return '🏠';
   if (/roof|mumty|top/i.test(title)) return '☀️';
   if (/basement/i.test(title)) return '⬇️';

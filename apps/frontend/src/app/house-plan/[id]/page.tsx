@@ -5,7 +5,7 @@ import { HousePlanImage } from '@/components/HousePlanImage';
 import { HousePlanGallery } from '@/components/HousePlanGallery';
 import { BackLink } from '@/components/BackLink';
 import { HOUSE_PLAN_STYLE_OPTIONS } from '@/lib/housePlanStyles';
-import { parseHousePlanDescription, roomIcon, sectionIcon } from '@/lib/housePlanDescription';
+import { parseHousePlanDescription, roomIcon, sectionIcon, isFloorSection } from '@/lib/housePlanDescription';
 import { TRUST_GREEN, ACCENT_BLUE } from '@/styles/tokens';
 
 interface Props {
@@ -71,7 +71,9 @@ export default async function HousePlanProfilePage({ params }: Props) {
   const whatsappMessage = `Hi, I'm interested in the "${plan.title}" house plan on Siraat.`;
   const whatsappHref = `https://wa.me/${toWaMeNumber(plan.contact_whatsapp)}?text=${encodeURIComponent(whatsappMessage)}`;
   const parsed = parseHousePlanDescription(plan.description);
-  const levels = parsed.sections.length;
+  const floorSections = parsed.sections.filter((s) => isFloorSection(s.title));
+  const levels = floorSections.length;
+  const allFloors = parsed.sections.length > 0 && floorSections.length === parsed.sections.length;
   const coveredSqft = Math.round(plan.area_marla * SQFT_PER_MARLA);
 
   return (
@@ -103,7 +105,7 @@ export default async function HousePlanProfilePage({ params }: Props) {
           <Fact icon="📐" label="PLOT SIZE" value={`${plan.area_marla} Marla`} sub={`about ${coveredSqft.toLocaleString('en-US')} sq ft`} />
           <Fact icon="🛏️" label="BEDROOMS" value={`${plan.bedrooms}`} />
           <Fact icon="🎨" label="STYLE" value={styleLabel(plan.style)} />
-          {levels > 0 ? <Fact icon="🏠" label="LEVELS" value={`${levels}`} sub={parsed.sections.map((s) => s.title.replace(/\s*\(.*\)/, '')).join(' · ')} /> : <Fact icon="🏠" label="TYPE" value="Family home" />}
+          {levels > 0 ? <Fact icon="🏠" label="LEVELS" value={`${levels}`} sub={floorSections.map((s) => s.title.replace(/\s*\(.*\)/, '')).join(' · ')} /> : <Fact icon="🏠" label="TYPE" value="Family home" />}
         </div>
 
         {parsed.intro.length > 0 && (
@@ -119,7 +121,7 @@ export default async function HousePlanProfilePage({ params }: Props) {
 
         {parsed.sections.length > 0 && (
           <section style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-            <SectionHeading sub="What is on each floor, in plain words.">Room by room</SectionHeading>
+            <SectionHeading sub={allFloors ? 'What is on each floor, in plain words.' : 'Everything this house comes with, in plain words.'}>{allFloors ? 'Room by room' : "What's included"}</SectionHeading>
             {parsed.sections.map((sec) => (
               <div key={sec.title} style={{ background: '#fff', border: '1px solid var(--border)', borderRadius: '16px', padding: '16px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
                 <h3 style={{ fontSize: '17px', fontWeight: 800 }}>
