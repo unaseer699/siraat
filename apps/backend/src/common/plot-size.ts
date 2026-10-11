@@ -42,3 +42,37 @@ export function sizeLabelArea(label: string): number {
   const m = sizeLabelToMarla(label);
   return m !== null ? m * SQFT_PER_MARLA : Number.MAX_SAFE_INTEGER;
 }
+
+// Dimensions that are sold under a fixed name whatever the exact arithmetic
+// says (30x50 is sold as 7 Marla although 1500 / 225 = 6.67).
+const NAMED_DIMENSIONS: Record<string, number> = { '30x50': 7 };
+
+// One filter category per plot size: 25x50 -> "5 Marla", 30x60 -> "8 Marla",
+// 35x70 -> "10 Marla", 40x80 -> "14 Marla", 50x90 and 60x90 -> "1 Kanal".
+// Dimensions are rounded down to the whole Marla they are sold as; from about
+// a Kanal up the nearest half Kanal is used. Returns null when unrecognisable.
+export function sizeCategory(rawLabel: string | null | undefined, marlaHint?: number | null): string | null {
+  const label = normalizeSizeLabel(rawLabel);
+  let marla: number | null = null;
+  if (label) {
+    const named = NAMED_DIMENSIONS[label];
+    if (named !== undefined) marla = named;
+    else {
+      const m = sizeLabelToMarla(label);
+      const isDim = /^\d/.test(label) && label.includes('x');
+      marla = m === null ? null : isDim && m < 18 ? Math.floor(m + 0.0001) : m;
+    }
+  } else if (marlaHint != null && Number.isFinite(marlaHint) && marlaHint > 0) {
+    marla = marlaHint < 18 ? Math.floor(marlaHint + 0.0001) : marlaHint;
+  }
+  if (marla === null || marla <= 0) return null;
+  if (marla >= 18) {
+    const kanal = Math.max(1, Math.round((marla / 20) * 2) / 2);
+    return `${kanal} Kanal`;
+  }
+  return `${marla} Marla`;
+}
+
+export function sizeCategoryArea(category: string): number {
+  return sizeLabelArea(category);
+}

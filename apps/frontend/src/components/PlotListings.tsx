@@ -118,7 +118,7 @@ function OfferRow({ offer, title, societyName, showPrice, showConfirmed }: { off
 
 export function PlotGroupCard({ plot, showSociety }: { plot: PropertyPlotGroup; showSociety?: boolean }) {
   const title = `${plot.block ? `Block ${plot.block} · ` : ''}Plot ${plot.plot_number}`;
-  const societyName = plot.society_name ?? plot.society_name_raw;
+  const societyName = plot.society_name ?? plot.society_display;
   const tone = plot.status_raw ? statusTone(plot.status_raw) : null;
   const perMarla = formatPerMarla(plot.min_price_per_marla_lac);
   // Green while fresh (within 3 days), grey after that.
@@ -161,9 +161,10 @@ export function PlotGroupCard({ plot, showSociety }: { plot: PropertyPlotGroup; 
       )}
 
       <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center' }}>
-        {(plot.size_label ?? (plot.size_marla !== null ? `${plot.size_marla} Marla` : null)) && (
+        {(plot.size_category ?? plot.size_label) && (
           <span style={chipStyle('var(--text)', '#f3f4f6')}>
-            {plot.size_label ?? `${plot.size_marla} Marla`}
+            {plot.size_category ?? plot.size_label}
+            {plot.size_category && plot.size_label && plot.size_label !== plot.size_category ? ` · ${plot.size_label.replace('x', '×')}` : ''}
           </span>
         )}
         {perMarla && <span style={chipStyle(ACCENT_BLUE, '#eff6ff')}>{perMarla}</span>}

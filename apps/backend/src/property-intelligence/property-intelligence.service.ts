@@ -1,5 +1,6 @@
 import { BadRequestException, Injectable, Logger } from '@nestjs/common';
-import { normalizeSizeLabel, sizeLabelArea } from '../common/plot-size';
+import { normalizeSizeLabel, sizeCategory, sizeCategoryArea } from '../common/plot-size';
+import { compactSocietyName, tidySocietyName } from '../common/society-name';
 import { InjectRepository } from '@nestjs/typeorm';
 import { ILike, In, MoreThan, Repository } from 'typeorm';
 import type { ParsedIntent, TradeCategory, MaterialCategory, HousePlanStyle } from '@siraat/shared-types';
@@ -277,7 +278,7 @@ export function resolveListingSociety(
 // Society identity for grouping/filtering: the Society id when resolved,
 // else `raw:<lowercased header>`. Matches PropertyListingFacets.society keys.
 export function societyKeyOf(e: { society_name_raw: string }, society: SocietyRef | null): string {
-  return society ? society.id : `raw:${norm(e.society_name_raw)}`;
+  return society ? society.id : `raw:${compactSocietyName(e.society_name_raw)}`;
 }
 
 // One physical plot = society + block + plot number. Several dealers
@@ -286,8 +287,27 @@ function plotKeyOf(e: PropertyListingEntity, society: SocietyRef | null): string
   return `${societyKeyOf(e, society)}|${norm(e.block)}|${norm(e.plot_number)}`;
 }
 
+type ListingRow = { e: PropertyListingEntity; society: SocietyRef | null; city: string | null };
+
+// Most common tidy spelling per society key, so "B 17", "B-17" and "B17"
+// all read "B-17" wherever the society is shown.
+function societyDisplayNames(rows: ListingRow[]): Map<string, string> {
+  const tally = new Map<string, Map<string, number>>();
+  for (const r of rows) {
+    const key = societyKeyOf(r.e, r.society);
+    const name = r.society?.name ?? tidySocietyName(r.e.society_name_raw);
+    const m = tally.get(key) ?? new Map<string, number>();
+    m.set(name, (m.get(name) ?? 0) + 1);
+    tally.set(key, m);
+  }
+  const out = new Map<string, string>();
+  for (const [key, m] of tally) out.set(key, [...m.entries()].sort((a, b) => b[1] - a[1])[0][0]);
+  return out;
+}
+
 function groupOffersIntoPlots(
-  rows: { e: PropertyListingEntity; society: SocietyRef | null; city: string | null }[],
+  rows: ListingRow[],
+  display: Map<string, string> = societyDisplayNames(rows),
 ): PropertyPlotGroup[] {
   const map = new Map<string, { e: PropertyListingEntity; society: SocietyRef | null; city: string | null; offers: PropertyListingSummary[] }>();
   for (const r of rows) {
@@ -310,11 +330,14 @@ function groupOffersIntoPlots(
       society_ref: g.society?.id ?? g.e.society_ref,
       society_name: g.society?.name ?? null,
       society_name_raw: g.e.society_name_raw,
+      society_key: societyKeyOf(g.e, g.society),
+      society_display: display.get(societyKeyOf(g.e, g.society)) ?? tidySocietyName(g.e.society_name_raw),
       city: g.city ?? g.e.city,
       block: g.e.block,
       plot_number: g.e.plot_number,
       size_label: g.offers.find((o) => o.size_label)?.size_label ?? null,
       size_marla: sizes.length ? sizes[0] : null,
+      size_category: sizeCategory(g.offers.find((o) => o.size_label)?.size_label ?? null, sizes.length ? sizes[0] : null),
       status_raw: g.offers.find((o) => o.status_raw)?.status_raw ?? null,
       min_price_lac: prices.length ? Math.min(...prices) : null,
       max_price_lac: prices.length ? Math.max(...prices) : null,
@@ -1368,19 +1391,27 @@ export class PropertyIntelligenceService {
   }): Promise<PropertyListingListResponse> {
     const { rows } = await this.loadActiveListings();
     const wantCity = params.city?.trim().toLowerCase();
-    const wantSize = normalizeSizeLabel(params.size) ?? undefined;
+    const wantSize = sizeCategory(params.size) ?? undefined;
+    const wantSociety = params.society_id?.startsWith('raw:') ? `raw:${compactSocietyName(params.society_id.slice(4))}` : params.society_id;
 
     // Facets are built from EVERY active plot, before any filter, and count
-    // distinct plots (not offers).
-    const allPlots = groupOffersIntoPlots(rows);
+    // distinct plots (not offers). Spellings of one society and sizes sold
+    // under one name (25x50 = 5 Marla) are merged into one option.
+    const display = societyDisplayNames(rows);
+    const allPlots = groupOffersIntoPlots(rows, display);
     const facetCities = new Set<string>();
     const facetSocieties = new Map<string, { key: string; name: string; count: number }>();
-    const facetSizes = new Map<string, number>();
+    const facetSizes = new Map<string, { count: number; aliases: Set<string> }>();
     for (const g of allPlots) {
       if (g.city) facetCities.add(g.city);
-      if (g.size_label) facetSizes.set(g.size_label, (facetSizes.get(g.size_label) ?? 0) + 1);
-      const key = g.society_ref ?? `raw:${norm(g.society_name_raw)}`;
-      const f = facetSocieties.get(key) ?? { key, name: g.society_name ?? g.society_name_raw.trim(), count: 0 };
+      if (g.size_category) {
+        const f = facetSizes.get(g.size_category) ?? { count: 0, aliases: new Set<string>() };
+        f.count += 1;
+        if (g.size_label && g.size_label !== g.size_category) f.aliases.add(g.size_label);
+        facetSizes.set(g.size_category, f);
+      }
+      const key = g.society_key;
+      const f = facetSocieties.get(key) ?? { key, name: g.society_name ?? g.society_display, count: 0 };
       f.count += 1;
       facetSocieties.set(key, f);
     }
@@ -1388,9 +1419,9 @@ export class PropertyIntelligenceService {
     // `society_id` is a Society id, or `raw:<lowercased name>` for inventory
     // whose Society isn't onboarded yet (see PropertyListingFacets).
     const filtered = rows.filter(({ e, society, city }) => {
-      if (params.society_id && societyKeyOf(e, society) !== params.society_id) return false;
+      if (wantSociety && societyKeyOf(e, society) !== wantSociety) return false;
       if (wantCity && city?.toLowerCase() !== wantCity) return false;
-      if (wantSize && e.size_label !== wantSize) return false;
+      if (wantSize && sizeCategory(e.size_label, e.size_marla === null ? null : Number(e.size_marla)) !== wantSize) return false;
       const price = e.price_lac === null ? null : Number(e.price_lac);
       const size = e.size_marla === null ? null : Number(e.size_marla);
       if (params.max_price_lac != null && (price === null || price > params.max_price_lac)) return false;
@@ -1399,7 +1430,7 @@ export class PropertyIntelligenceService {
       return true;
     });
 
-    const plots = groupOffersIntoPlots(filtered);
+    const plots = groupOffersIntoPlots(filtered, display);
     return {
       listings: filtered.map((r) => toListingResult(r.e, r.society, r.city)),
       plots,
@@ -1408,8 +1439,8 @@ export class PropertyIntelligenceService {
         cities: [...facetCities].sort(),
         societies: [...facetSocieties.values()].sort((x, y) => x.name.localeCompare(y.name)),
         sizes: [...facetSizes.entries()]
-          .map(([label, count]) => ({ label, count }))
-          .sort((x, y) => sizeLabelArea(x.label) - sizeLabelArea(y.label)),
+          .map(([label, f]) => ({ label, count: f.count, aliases: [...f.aliases].sort() }))
+          .sort((x, y) => sizeCategoryArea(x.label) - sizeCategoryArea(y.label)),
       },
     };
   }

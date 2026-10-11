@@ -427,11 +427,16 @@ export interface PropertyPlotGroup {
   society_ref: string | null;
   society_name: string | null;
   society_name_raw: string;
+  // Merged identity and display name: "B 17", "B-17" and "B17" are one society.
+  society_key: string;
+  society_display: string;
   city: string | null;
   block: string | null;
   plot_number: string;
   size_label: string | null;
   size_marla: number | null;
+  // Filter category: 25x50 -> "5 Marla", 50x90 and 60x90 -> "1 Kanal".
+  size_category: string | null;
   status_raw: string | null;
   min_price_lac: number | null;
   max_price_lac: number | null;
@@ -450,7 +455,8 @@ export interface PropertyListingFacets {
   cities: string[];
   societies: { key: string; name: string; count: number }[];
   // Distinct plot sizes ("25x50"…), smallest first, counted per distinct plot.
-  sizes: { label: string; count: number }[];
+  // `label` is the merged category ("5 Marla"); `aliases` are the dimensions sold under it.
+  sizes: { label: string; count: number; aliases?: string[] }[];
 }
 
 export interface PropertyListingListResponse {

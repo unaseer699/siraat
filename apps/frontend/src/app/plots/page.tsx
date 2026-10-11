@@ -170,8 +170,8 @@ function PlotsView() {
   const groups = useMemo(() => {
     const societies = new Map<string, { name: string; ref: string | null; blocks: Map<string, PropertyPlotGroup[]> }>();
     for (const p of sorted.slice(0, visible)) {
-      const sKey = p.society_ref ?? `raw:${p.society_name_raw.toLowerCase()}`;
-      const s = societies.get(sKey) ?? { name: p.society_name ?? p.society_name_raw, ref: p.society_ref, blocks: new Map() };
+      const sKey = p.society_key;
+      const s = societies.get(sKey) ?? { name: p.society_name ?? p.society_display, ref: p.society_ref, blocks: new Map() };
       const bKey = p.block ?? '';
       s.blocks.set(bKey, [...(s.blocks.get(bKey) ?? []), p]);
       societies.set(sKey, s);
@@ -248,7 +248,10 @@ function PlotsView() {
           <select aria-label="Plot size" value={size} onChange={(e) => setParam('size', e.target.value)} style={controlStyle}>
             <option value="">All sizes</option>
             {(facets?.sizes ?? []).map((s) => (
-              <option key={s.label} value={s.label}>{s.label} ({s.count})</option>
+              <option key={s.label} value={s.label}>
+                {s.label}
+                {s.aliases && s.aliases.length > 0 ? ` · ${s.aliases.slice(0, 3).map((a) => a.replace('x', '×')).join(', ')}` : ''} ({s.count})
+              </option>
             ))}
           </select>
           <select aria-label="Sort" value={sort} onChange={(e) => setSort(e.target.value as SortKey)} style={{ ...controlStyle, marginLeft: 'auto' }}>
