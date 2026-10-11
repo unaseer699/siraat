@@ -71,12 +71,23 @@ export function HousePlanImage({
   };
 
   return (
-    <div style={containerStyle}>
+    <div style={{ ...containerStyle, position: 'relative' }}>
       {showPlaceholder ? (
         <Home size={32} color="var(--muted)" aria-hidden="true" />
       ) : (
-        // eslint-disable-next-line @next/next/no-img-element -- presigned URL, not a static asset next/image can optimize
-        <img src={url} alt={alt} style={{ width: '100%', height: '100%', objectFit: fit }} />
+        <>
+          {maxHeight && (
+            // eslint-disable-next-line @next/next/no-img-element -- decorative blurred backdrop so a tall photo does not sit in a grey box
+            <img
+              src={url}
+              alt=""
+              aria-hidden="true"
+              style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', filter: 'blur(24px) saturate(1.1)', transform: 'scale(1.15)', opacity: 0.55 }}
+            />
+          )}
+          {/* eslint-disable-next-line @next/next/no-img-element -- presigned URL, not a static asset next/image can optimize */}
+          <img src={url} alt={alt} style={{ position: 'relative', width: '100%', height: '100%', objectFit: fit }} />
+        </>
       )}
     </div>
   );
