@@ -25,7 +25,7 @@ export function HousePlanImage({
   housePlanId,
   hasImage,
   alt,
-  aspectRatio = '4 / 3',
+  aspectRatio = '4 / 5',
   maxHeight,
 }: {
   housePlanId: string;
@@ -53,7 +53,9 @@ export function HousePlanImage({
   }, [housePlanId, hasImage]);
 
   const showPlaceholder = !hasImage || failed || !url;
-  const fit: CSSProperties['objectFit'] = maxHeight ? 'contain' : 'cover';
+  // Always show the WHOLE picture, centred in the tile; a blurred copy fills the
+  // spare space so every tile is the same size and nothing is cropped.
+  const fit: CSSProperties['objectFit'] = 'contain';
 
   const containerStyle: CSSProperties = {
     width: '100%',
@@ -76,7 +78,7 @@ export function HousePlanImage({
         <Home size={32} color="var(--muted)" aria-hidden="true" />
       ) : (
         <>
-          {maxHeight && (
+          {(
             // eslint-disable-next-line @next/next/no-img-element -- decorative blurred backdrop so a tall photo does not sit in a grey box
             <img
               src={url}
