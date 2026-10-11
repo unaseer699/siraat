@@ -25,14 +25,14 @@ function styleLabel(value: string): string {
 
 function HousePlanCard({ plan }: { plan: HousePlanListResponse['house_plans'][number] }) {
   return (
-    <Link href={`/house-plan/${plan.id}`} style={{ display: 'block', textDecoration: 'none', color: 'inherit' }}>
+    <Link href={`/house-plan/${plan.id}`} style={{ display: 'flex', height: '100%', textDecoration: 'none', color: 'inherit' }}>
       <article
         style={{
           background: '#fff',
           border: '1px solid var(--border)',
           borderRadius: RADIUS.md,
           overflow: 'hidden',
-          height: '100%',
+          width: '100%',
           display: 'flex',
           flexDirection: 'column',
           boxShadow: '0 1px 3px rgba(0,0,0,0.08)',
@@ -40,10 +40,26 @@ function HousePlanCard({ plan }: { plan: HousePlanListResponse['house_plans'][nu
       >
         <HousePlanImage housePlanId={plan.id} hasImage={Boolean(plan.preview_image_ref)} alt={plan.title} />
 
-        <div style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
-          <h3 style={{ fontSize: '16px', fontWeight: 700, color: 'var(--text)' }}>{plan.title}</h3>
+        <div style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: '10px', flex: 1 }}>
+          {/* Two lines reserved for every title so the badges line up across cards. */}
+          <h3
+            title={plan.title}
+            style={{
+              fontSize: '16px',
+              fontWeight: 700,
+              lineHeight: 1.35,
+              minHeight: '2.7em',
+              color: 'var(--text)',
+              display: '-webkit-box',
+              WebkitLineClamp: 2,
+              WebkitBoxOrient: 'vertical',
+              overflow: 'hidden',
+            }}
+          >
+            {plan.title}
+          </h3>
 
-          <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+          <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginTop: 'auto' }}>
             <span style={badgeStyle}>{plan.area_marla} Marla</span>
             <span style={badgeStyle}>
               {plan.bedrooms} Bed{plan.bedrooms === 1 ? '' : 's'}
@@ -264,6 +280,7 @@ function HousePlansView() {
               style={{
                 display: 'grid',
                 gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))',
+                gridAutoRows: '1fr',
                 gap: '16px',
                 opacity: loading ? 0.5 : 1,
                 transition: 'opacity 0.15s',
