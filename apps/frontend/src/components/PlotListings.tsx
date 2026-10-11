@@ -51,12 +51,12 @@ function chipStyle(color: string, bg: string): React.CSSProperties {
 
 function contactButtonStyle(color: string): React.CSSProperties {
   return {
-    fontSize: '15px',
+    fontSize: '14px',
     fontWeight: 700,
     color: '#fff',
     background: color,
     borderRadius: '99px',
-    padding: '11px 22px',
+    padding: '10px 20px',
     minHeight: '44px',
     textDecoration: 'none',
     display: 'inline-flex',
@@ -64,54 +64,41 @@ function contactButtonStyle(color: string): React.CSSProperties {
   };
 }
 
-function OfferRow({ offer, title, societyName, showPrice, showConfirmed }: { offer: PropertyListingSummary; title: string; societyName: string; showPrice: boolean; showConfirmed: boolean }) {
+function OfferRow({ offer, title, societyName, showPrice }: { offer: PropertyListingSummary; title: string; societyName: string; showPrice: boolean }) {
+  if (!offer.contact_phone) {
+    return showPrice ? (
+      <div style={{ padding: '8px 0 0', fontWeight: 800, fontSize: '14px' }}>{formatLac(offer.price_lac)}</div>
+    ) : null;
+  }
   return (
-    <div
-      style={{
-        display: 'flex',
-        alignItems: 'center',
-        gap: '10px 14px',
-        flexWrap: 'wrap',
-        padding: '12px 0 4px',
-        borderTop: '1px solid var(--border)',
-      }}
-    >
-      {showPrice && <span style={{ fontWeight: 800, fontSize: '15px', minWidth: '110px' }}>{formatLac(offer.price_lac)}</span>}
-      {offer.contact_phone ? (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', minWidth: 0 }}>
-          <span style={{ fontSize: '11px', fontWeight: 700, color: 'var(--muted)', letterSpacing: '0.04em' }}>DEALER CONTACT</span>
-          {/* No dealer names are captured, so the number itself is the label and
-              links to that dealer's profile when there is one. */}
-          {offer.dealer_key ? (
-            <Link href={`/dealers/${offer.dealer_key}`} style={{ color: '#111827', fontWeight: 700, fontSize: '16px', letterSpacing: '0.01em', textDecoration: 'none' }}>
-              📞 {offer.contact_phone}
-            </Link>
-          ) : (
-            <span style={{ color: '#111827', fontWeight: 700, fontSize: '16px', letterSpacing: '0.01em' }}>📞 {offer.contact_phone}</span>
-          )}
-          {/* With a single dealer the card already says when it was confirmed. */}
-          {showConfirmed && <span style={{ fontSize: '12px', color: 'var(--muted)' }}>confirmed {formatAge(offer.last_confirmed_at)}</span>}
-        </div>
-      ) : (
-        showConfirmed && <span style={{ fontSize: '12px', color: 'var(--muted)' }}>confirmed {formatAge(offer.last_confirmed_at)}</span>
-      )}
-      {offer.contact_phone && (
-        <span style={{ display: 'inline-flex', gap: '10px', marginLeft: 'auto', flexWrap: 'wrap' }}>
-          <a href={`tel:${offer.contact_phone.replace(/[^\d+]/g, '')}`} style={contactButtonStyle(ACCENT_BLUE)}>
-            Call
-          </a>
-          <a
-            href={`https://wa.me/${waDigits(offer.contact_phone)}?text=${encodeURIComponent(
-              `Hi, I saw ${title} (${societyName}) on Siraat. Is it still available?`,
-            )}`}
-            target="_blank"
-            rel="noopener noreferrer"
-            style={contactButtonStyle(TRUST_GREEN)}
-          >
-            WhatsApp
-          </a>
-        </span>
-      )}
+    <div style={{ display: 'flex', alignItems: 'center', gap: '8px 12px', flexWrap: 'wrap', paddingTop: '10px' }}>
+      <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0, flex: '1 1 130px' }}>
+        {showPrice && <span style={{ fontWeight: 800, fontSize: '14px' }}>{formatLac(offer.price_lac)}</span>}
+        {/* No dealer names are captured, so the number is the label and links to that dealer's profile. */}
+        {offer.dealer_key ? (
+          <Link href={`/dealers/${offer.dealer_key}`} style={{ color: 'var(--muted)', fontWeight: 600, fontSize: '13px', textDecoration: 'none' }}>
+            Dealer {offer.contact_phone}
+          </Link>
+        ) : (
+          <span style={{ color: 'var(--muted)', fontWeight: 600, fontSize: '13px' }}>Dealer {offer.contact_phone}</span>
+        )}
+        {showPrice && <span style={{ fontSize: '12px', color: 'var(--muted)' }}>confirmed {formatAge(offer.last_confirmed_at)}</span>}
+      </div>
+      <span style={{ display: 'inline-flex', gap: '8px' }}>
+        <a href={`tel:${offer.contact_phone.replace(/[^\d+]/g, '')}`} style={contactButtonStyle(ACCENT_BLUE)}>
+          Call
+        </a>
+        <a
+          href={`https://wa.me/${waDigits(offer.contact_phone)}?text=${encodeURIComponent(
+            `Hi, I saw ${title} (${societyName}) on Siraat. Is it still available?`,
+          )}`}
+          target="_blank"
+          rel="noopener noreferrer"
+          style={contactButtonStyle(TRUST_GREEN)}
+        >
+          WhatsApp
+        </a>
+      </span>
     </div>
   );
 }
@@ -121,31 +108,42 @@ export function PlotGroupCard({ plot, showSociety }: { plot: PropertyPlotGroup; 
   const societyName = plot.society_name ?? plot.society_display;
   const tone = plot.status_raw ? statusTone(plot.status_raw) : null;
   const perMarla = formatPerMarla(plot.min_price_per_marla_lac);
-  // Green while fresh (within 3 days), grey after that.
+  const sizeText = plot.size_category ?? plot.size_label;
+  const dims = plot.size_category && plot.size_label && plot.size_label !== plot.size_category ? plot.size_label.replace('x', '×') : null;
+  // Green dot while fresh (within 3 days), grey after that.
   const ageHours = (Date.now() - new Date(plot.last_confirmed_at).getTime()) / 3_600_000;
-  const freshness = ageHours <= 72 ? { color: TRUST_GREEN, bg: '#f0fdf4' } : { color: 'var(--muted)', bg: '#f3f4f6' };
+  const fresh = ageHours <= 72;
+  const multi = plot.offers.length > 1;
 
   return (
     <article
       style={{
         background: '#fff',
         border: '1px solid var(--border)',
+        borderLeft: `4px solid ${plot.may_be_sold ? WARNING_AMBER : fresh ? TRUST_GREEN : 'var(--border)'}`,
         borderRadius: RADIUS.md,
         padding: '14px 16px',
         display: 'flex',
         flexDirection: 'column',
-        gap: '6px',
+        gap: '8px',
         boxShadow: '0 1px 3px rgba(0,0,0,0.06)',
         opacity: plot.may_be_sold ? 0.85 : 1,
       }}
     >
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: '12px', flexWrap: 'wrap' }}>
-        <h3 style={{ fontSize: '20px', fontWeight: 800, lineHeight: 1.2, color: '#111827' }}>
-          {plot.block && <span style={{ color: ACCENT_BLUE }}>Block {plot.block} · </span>}Plot {plot.plot_number}
-        </h3>
-        <span style={{ fontSize: '16px', fontWeight: 800, color: ACCENT_BLUE }}>
-          {formatPriceRange(plot.min_price_lac, plot.max_price_lac)}
-        </span>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '6px 12px', flexWrap: 'wrap' }}>
+        <div style={{ minWidth: 0, flex: '1 1 150px' }}>
+          <div style={{ fontSize: '19px', fontWeight: 800, lineHeight: 1.2, color: '#111827' }}>
+            {sizeText && <span>{sizeText}</span>}
+            {dims && <span style={{ fontSize: '13px', fontWeight: 600, color: 'var(--muted)' }}> · {dims}</span>}
+          </div>
+          <div style={{ fontSize: '14px', fontWeight: 700, color: ACCENT_BLUE, marginTop: '3px' }}>
+            {plot.block ? `Block ${plot.block} · ` : ''}Plot {plot.plot_number}
+          </div>
+        </div>
+        <div style={{ textAlign: 'right', flex: '0 0 auto', marginLeft: 'auto' }}>
+          <div style={{ fontSize: '18px', fontWeight: 800, color: '#111827' }}>{formatPriceRange(plot.min_price_lac, plot.max_price_lac)}</div>
+          {perMarla && <div style={{ fontSize: '12px', color: 'var(--muted)', marginTop: '2px' }}>{perMarla}</div>}
+        </div>
       </div>
 
       {showSociety && (
@@ -160,26 +158,19 @@ export function PlotGroupCard({ plot, showSociety }: { plot: PropertyPlotGroup; 
         </p>
       )}
 
-      <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center' }}>
-        {(plot.size_category ?? plot.size_label) && (
-          <span style={chipStyle('var(--text)', '#f3f4f6')}>
-            {plot.size_category ?? plot.size_label}
-            {plot.size_category && plot.size_label && plot.size_label !== plot.size_category ? ` · ${plot.size_label.replace('x', '×')}` : ''}
-          </span>
-        )}
-        {perMarla && <span style={chipStyle(ACCENT_BLUE, '#eff6ff')}>{perMarla}</span>}
+      <div style={{ display: 'flex', gap: '6px 8px', flexWrap: 'wrap', alignItems: 'center' }}>
         {plot.status_raw && tone && <span style={chipStyle(tone.color, tone.bg)}>{plot.status_raw}</span>}
-        {plot.offers.length > 1 && <span style={chipStyle('#7c3aed', '#f5f3ff')}>{plot.offers.length} dealers</span>}
-        {plot.may_be_sold && <span style={chipStyle(WARNING_AMBER, '#fffbeb')}>May be sold — not reconfirmed recently</span>}
-        <span style={{ ...chipStyle(freshness.color, freshness.bg), marginLeft: 'auto' }} title="When the dealer last confirmed this plot is available">
-          ✓ Dealer confirmed {formatAge(plot.last_confirmed_at)}
+        {multi && <span style={chipStyle('#7c3aed', '#f5f3ff')}>{plot.offers.length} dealers</span>}
+        {plot.may_be_sold && <span style={chipStyle(WARNING_AMBER, '#fffbeb')}>May be sold</span>}
+        <span style={{ fontSize: '12px', color: fresh ? TRUST_GREEN : 'var(--muted)', fontWeight: 600 }} title="When a dealer last confirmed this plot is available">
+          ● Confirmed {formatAge(plot.last_confirmed_at)}
         </span>
       </div>
 
-      {plot.offers.some((o) => o.contact_phone || plot.offers.length > 1) && (
-        <div style={{ display: 'flex', flexDirection: 'column', marginTop: '4px' }}>
+      {plot.offers.length > 0 && (
+        <div style={{ display: 'flex', flexDirection: 'column', borderTop: '1px solid var(--border)', marginTop: '2px' }}>
           {plot.offers.map((o) => (
-            <OfferRow key={o.id} offer={o} title={title} societyName={societyName} showPrice={plot.offers.length > 1} showConfirmed={plot.offers.length > 1} />
+            <OfferRow key={o.id} offer={o} title={title} societyName={societyName} showPrice={multi} />
           ))}
         </div>
       )}

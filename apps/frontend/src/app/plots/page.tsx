@@ -4,14 +4,25 @@ import { Suspense, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import type { PropertyPlotGroup, PropertyListingFacets, GroundConditionsResponse } from '@siraat/shared-types';
-import { CANONICAL_CITY_OPTIONS } from '@/app/admin/constants';
 import { fetchPropertyListings, fetchGroundConditions, subscribeListingAlert } from '@/lib/api';
 import { GroundChip } from '@/components/GroundChip';
 import { BackLink } from '@/components/BackLink';
 import { Spinner } from '@/components/Spinner';
-import { PlotGroupCard, ListingDisclaimer } from '@/components/PlotListings';
+import { PlotGroupCard, ListingDisclaimer, formatLac } from '@/components/PlotListings';
 
 const PAGE_SIZE = 30;
+
+const PLOTS_CSS = `
+.pl-bar{display:flex;flex-wrap:wrap;gap:10px}
+.pl-pills{display:flex;gap:8px;overflow-x:auto;padding-bottom:4px;-webkit-overflow-scrolling:touch;scrollbar-width:thin}
+.pl-grid{display:grid;grid-template-columns:1fr;gap:12px}
+@media(min-width:760px){.pl-grid{grid-template-columns:1fr 1fr}}
+.pl-block summary{display:flex;justify-content:space-between;align-items:baseline;gap:12px;flex-wrap:wrap;cursor:pointer;list-style:none;padding:10px 12px;background:#f3f4f6;border-radius:10px;margin-bottom:10px}
+.pl-block summary::-webkit-details-marker{display:none}
+.pl-block summary::before{content:'▾';margin-right:8px;color:var(--muted)}
+.pl-block:not([open]) summary::before{content:'▸'}
+.pl-block summary>span:first-child{margin-right:auto}
+`;
 
 type SortKey = 'newest' | 'price_asc' | 'price_desc' | 'ppm_asc';
 
@@ -31,7 +42,7 @@ function sizeArea(label: string | null, marla: number | null): number {
 }
 
 function AlertPanel({ city, societyKey, maxPrice }: { city: string; societyKey: string; maxPrice: string }) {
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(true);
   const [phone, setPhone] = useState('');
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
@@ -115,6 +126,7 @@ function PlotsView() {
   const [plots, setPlots] = useState<PropertyPlotGroup[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [alertOpen, setAlertOpen] = useState(false);
   // Reviewed ground-condition reports, per society key (loaded lazily).
   const [ground, setGround] = useState<Record<string, GroundConditionsResponse>>({});
 
@@ -147,12 +159,6 @@ function PlotsView() {
     else params.delete(key);
     router.push(`/plots${params.toString() ? `?${params}` : ''}`);
   }
-
-  // Every city: the full canonical list plus any city a listing carries.
-  const cityOptions = useMemo(
-    () => [...new Set([...CANONICAL_CITY_OPTIONS, ...(facets?.cities ?? [])])].sort(),
-    [facets],
-  );
 
   const sorted = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -213,67 +219,127 @@ function PlotsView() {
   }, [groups]);
 
 
+  const PRICE_PILLS = [
+    { v: '50', label: 'Up to 50 Lac' },
+    { v: '100', label: 'Up to 1 Crore' },
+    { v: '150', label: 'Up to 1.5 Crore' },
+    { v: '250', label: 'Up to 2.5 Crore' },
+  ];
+  const sizeFacets = facets?.sizes ?? [];
+  const societyName = facets?.societies.find((so) => so.key === societyId)?.name ?? '';
+  const anyFilter = Boolean(city || societyId || maxPrice || size || query);
+
+  const priced = sorted.map((p) => p.min_price_lac).filter((x): x is number => x !== null);
+  const sizeRange = (() => {
+    const present = new Set(sorted.map((p) => p.size_category).filter((x): x is string => Boolean(x)));
+    const labels = (facets?.sizes ?? []).map((x) => x.label).filter((l) => present.has(l));
+    return labels.length === 0 ? '' : labels.length <= 3 ? labels.join(' · ') : `${labels[0]} to ${labels[labels.length - 1]}`;
+  })();
+
+  const pill = (active: boolean): React.CSSProperties => ({
+    flex: '0 0 auto',
+    fontSize: '14px',
+    fontWeight: 700,
+    padding: '8px 14px',
+    minHeight: '38px',
+    borderRadius: '99px',
+    border: `1.5px solid ${active ? '#1a56db' : 'var(--border)'}`,
+    background: active ? '#1a56db' : '#fff',
+    color: active ? '#fff' : '#111827',
+    cursor: 'pointer',
+    whiteSpace: 'nowrap',
+  });
+
   return (
-    <main style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '48px 16px 32px' }}>
-      <div style={{ width: '100%', maxWidth: '760px', display: 'flex', flexDirection: 'column', gap: '20px' }}>
+    <main style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '40px 16px 32px' }}>
+      <style>{PLOTS_CSS}</style>
+      <div style={{ width: '100%', maxWidth: '980px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
         <BackLink />
 
         <div>
           <p style={{ fontSize: '12px', color: 'var(--muted)', fontWeight: 600, marginBottom: '4px' }}>PLOTS FOR SALE</p>
           <h1 style={{ fontSize: '26px', fontWeight: 800 }}>Available Plots</h1>
-          <p style={{ fontSize: '13px', color: 'var(--muted)', marginTop: '4px' }}>
-            {plots ? `${sorted.length} plot${sorted.length === 1 ? '' : 's'} listed` : 'Loading…'}
-          </p>
         </div>
 
-        <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', alignItems: 'center' }}>
-          <select aria-label="City" value={city} onChange={(e) => setParam('city', e.target.value)} style={controlStyle}>
-            <option value="">All cities</option>
-            {cityOptions.map((c) => (
-              <option key={c} value={c}>{c}</option>
-            ))}
-          </select>
-          <select aria-label="Society" value={societyId} onChange={(e) => setParam('society_id', e.target.value)} style={controlStyle}>
+        <div className="pl-bar">
+          <input
+            aria-label="Search plot number"
+            value={query}
+            onChange={(e) => {
+              setQuery(e.target.value);
+              setVisible(PAGE_SIZE);
+            }}
+            placeholder="Search plot number, e.g. 7473"
+            style={{ ...controlStyle, flex: '2 1 220px', padding: '10px 12px' }}
+          />
+          <select aria-label="Society" value={societyId} onChange={(e) => setParam('society_id', e.target.value)} style={{ ...controlStyle, flex: '1 1 180px', padding: '10px 12px' }}>
             <option value="">All societies</option>
             {(facets?.societies ?? []).map((so) => (
               <option key={so.key} value={so.key}>{so.name} ({so.count})</option>
             ))}
           </select>
-          <select aria-label="Maximum price" value={maxPrice} onChange={(e) => setParam('max_price_lac', e.target.value)} style={controlStyle}>
-            <option value="">Any price</option>
-            {[30, 50, 75, 100, 150, 250].map((p) => (
-              <option key={p} value={p}>Up to {p >= 100 ? `${p / 100} Crore` : `${p} Lac`}</option>
-            ))}
-          </select>
-          <select aria-label="Plot size" value={size} onChange={(e) => setParam('size', e.target.value)} style={controlStyle}>
-            <option value="">All sizes</option>
-            {(facets?.sizes ?? []).map((s) => (
-              <option key={s.label} value={s.label}>
-                {s.label}
-                {s.aliases && s.aliases.length > 0 ? ` · ${s.aliases.slice(0, 3).map((a) => a.replace('x', '×')).join(', ')}` : ''} ({s.count})
-              </option>
-            ))}
-          </select>
-          <select aria-label="Sort" value={sort} onChange={(e) => setSort(e.target.value as SortKey)} style={{ ...controlStyle, marginLeft: 'auto' }}>
-            <option value="newest">Recently confirmed</option>
-            <option value="price_asc">Price: low to high</option>
-            <option value="price_desc">Price: high to low</option>
-            <option value="ppm_asc">Price per marla: low to high</option>
-          </select>
         </div>
 
-        <input
-          aria-label="Search plot number"
-          value={query}
-          onChange={(e) => {
-            setQuery(e.target.value);
-            setVisible(PAGE_SIZE);
-          }}
-          placeholder="Search plot number, e.g. 7473"
-          style={{ ...controlStyle, width: '100%' }}
-        />
+        <div className="pl-pills" role="group" aria-label="Plot size">
+          <button style={pill(!size)} onClick={() => setParam('size', '')}>All sizes</button>
+          {sizeFacets.map((sf) => (
+            <button key={sf.label} style={pill(size === sf.label)} onClick={() => setParam('size', size === sf.label ? '' : sf.label)} title={sf.aliases?.join(', ')}>
+              {sf.label} <span style={{ opacity: 0.7, fontWeight: 600 }}>{sf.count}</span>
+            </button>
+          ))}
+        </div>
 
-        <AlertPanel city={city} societyKey={societyId} maxPrice={maxPrice} />
+        <div className="pl-pills" role="group" aria-label="Maximum price">
+          <button style={pill(!maxPrice)} onClick={() => setParam('max_price_lac', '')}>Any price</button>
+          {PRICE_PILLS.map((pp) => (
+            <button key={pp.v} style={pill(maxPrice === pp.v)} onClick={() => setParam('max_price_lac', maxPrice === pp.v ? '' : pp.v)}>
+              {pp.label}
+            </button>
+          ))}
+        </div>
+
+        <div style={{ display: 'flex', gap: '10px 14px', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between' }}>
+          <div style={{ fontSize: '14px', color: 'var(--muted)' }}>
+            {plots ? (
+              <>
+                <strong style={{ color: '#111827' }}>{sorted.length} plot{sorted.length === 1 ? '' : 's'}</strong>
+                {sizeRange ? ` · ${sizeRange}` : ''}
+                {priced.length > 0 ? ` · ${formatLac(Math.min(...priced))} to ${formatLac(Math.max(...priced))}` : ''}
+              </>
+            ) : (
+              'Loading…'
+            )}
+            {city && (
+              <button onClick={() => setParam('city', '')} style={{ ...pill(false), marginLeft: '8px', minHeight: '28px', padding: '2px 10px', fontSize: '12px' }}>
+                {city} ✕
+              </button>
+            )}
+            {anyFilter && (
+              <button
+                onClick={() => {
+                  setQuery('');
+                  router.push('/plots');
+                }}
+                style={{ background: 'none', border: 'none', color: '#1a56db', fontWeight: 700, fontSize: '13px', cursor: 'pointer', marginLeft: '8px' }}
+              >
+                Clear all
+              </button>
+            )}
+          </div>
+          <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+            <button onClick={() => setAlertOpen((o) => !o)} style={{ ...pill(alertOpen), minHeight: '36px' }}>
+              🔔 Alerts
+            </button>
+            <select aria-label="Sort" value={sort} onChange={(e) => setSort(e.target.value as SortKey)} style={controlStyle}>
+              <option value="newest">Recently confirmed</option>
+              <option value="price_asc">Price: low to high</option>
+              <option value="price_desc">Price: high to low</option>
+              <option value="ppm_asc">Per marla: low to high</option>
+            </select>
+          </div>
+        </div>
+
+        {alertOpen && <AlertPanel city={city} societyKey={societyId} maxPrice={maxPrice} />}
 
         {error && (
           <div style={{ padding: '12px 16px', background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 'var(--radius)', color: 'var(--error)', fontSize: '14px' }}>
@@ -285,57 +351,69 @@ function PlotsView() {
           <Spinner label="Loading plots…" />
         ) : plots && sorted.length === 0 ? (
           <p style={{ color: 'var(--muted)', fontSize: '14px' }}>
-            No plots match these filters right now. Listings are refreshed daily — set an alert above, or{' '}
+            No plots match these filters right now. Listings are refreshed daily. Try clearing a filter, set an alert, or{' '}
             <Link href="/browse" style={{ color: '#2563eb', fontWeight: 600 }}>browse verified societies</Link>.
           </p>
         ) : (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '26px', opacity: loading ? 0.5 : 1, transition: 'opacity 0.15s' }}>
-            {groups.map((g) => (
-              <section key={g.key} style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                <h2 style={{ fontSize: '17px', fontWeight: 800 }}>
-                  {g.ref ? <Link href={`/society/${g.ref}`} style={{ color: 'inherit' }}>{g.name} →</Link> : g.name}{' '}
-                  <span style={{ fontWeight: 600, color: 'var(--muted)', fontSize: '13px' }}>({g.count})</span>
-                </h2>
-                {(() => {
-                  const missing = g.blocks
-                    .map(([b]) => b)
-                    .filter((b) => b && !ground[g.key]?.blocks.find((x) => x.block === b.toUpperCase()));
-                  if (missing.length === 0) return null;
-                  return (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '24px', opacity: loading ? 0.5 : 1, transition: 'opacity 0.15s' }}>
+            {groups.map((g) => {
+              const missing = g.blocks
+                .map(([b]) => b)
+                .filter((b) => b && !ground[g.key]?.blocks.find((x) => x.block === b.toUpperCase()));
+              return (
+                <section key={g.key} style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                  <h2 style={{ fontSize: '19px', fontWeight: 800 }}>
+                    {g.ref ? <Link href={`/society/${g.ref}`} style={{ color: 'inherit' }}>{g.name} →</Link> : g.name}{' '}
+                    <span style={{ fontWeight: 600, color: 'var(--muted)', fontSize: '14px' }}>({g.count})</span>
+                  </h2>
+                  {missing.length > 0 && (
                     <p style={{ fontSize: '13px', color: 'var(--muted)' }}>
                       No ground reports yet for {missing.length === 1 ? 'block' : 'blocks'} {missing.map((b) => b.toUpperCase()).join(', ')}.{' '}
                       <Link href={`/report-ground?society=${encodeURIComponent(g.name)}`} style={{ color: '#1a56db', fontWeight: 600 }}>
                         Built here? Report what you found →
                       </Link>
                     </p>
-                  );
-                })()}
-                {g.blocks.map(([block, items]) => (
-                  <div key={block} style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                    <h3 style={{ fontSize: '12px', fontWeight: 800, letterSpacing: '0.04em', color: 'var(--muted)' }}>
-                      {block ? `BLOCK ${block.toUpperCase()}` : 'BLOCK NOT STATED'} · {items.length}
-                    </h3>
-                    {block && (
-                      <GroundChip
-                        summary={ground[g.key]?.blocks.find((b) => b.block === block.toUpperCase())}
-                        societyName={g.name}
-                        block={block}
-                      />
-                    )}
-                    {items.map((p) => (
-                      <PlotGroupCard key={p.key} plot={p} />
-                    ))}
-                  </div>
-                ))}
-              </section>
-            ))}
+                  )}
+                  {g.blocks.map(([block, items]) => {
+                    const ps = items.map((i) => i.min_price_lac).filter((x): x is number => x !== null);
+                    return (
+                      <details key={block} open className="pl-block">
+                        <summary>
+                          <span style={{ fontWeight: 800, fontSize: '14px', letterSpacing: '0.03em' }}>
+                            {block ? `BLOCK ${block.toUpperCase()}` : 'BLOCK NOT STATED'}
+                          </span>
+                          <span style={{ color: 'var(--muted)', fontSize: '13px' }}>
+                            {items.length} plot{items.length === 1 ? '' : 's'}
+                            {ps.length > 0 ? ` · ${formatLac(Math.min(...ps))}${Math.min(...ps) === Math.max(...ps) ? '' : ` to ${formatLac(Math.max(...ps))}`}` : ''}
+                          </span>
+                        </summary>
+                        {block && (
+                          <div style={{ margin: '8px 0 10px' }}>
+                            <GroundChip
+                              summary={ground[g.key]?.blocks.find((b) => b.block === block.toUpperCase())}
+                              societyName={g.name}
+                              block={block}
+                            />
+                          </div>
+                        )}
+                        <div className="pl-grid">
+                          {items.map((p) => (
+                            <PlotGroupCard key={p.key} plot={p} />
+                          ))}
+                        </div>
+                      </details>
+                    );
+                  })}
+                </section>
+              );
+            })}
           </div>
         )}
 
         {sorted.length > visible && (
           <button
             onClick={() => setVisible((v) => v + PAGE_SIZE)}
-            style={{ alignSelf: 'center', padding: '10px 20px', border: '1px solid var(--border)', borderRadius: 'var(--radius)', background: '#fff', fontWeight: 600, cursor: 'pointer' }}
+            style={{ alignSelf: 'center', padding: '12px 24px', border: '1px solid var(--border)', borderRadius: 'var(--radius)', background: '#fff', fontWeight: 700, cursor: 'pointer' }}
           >
             Show more ({sorted.length - visible} remaining)
           </button>
