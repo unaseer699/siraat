@@ -25,7 +25,7 @@ export function HousePlanImage({
   housePlanId,
   hasImage,
   alt,
-  aspectRatio = '4 / 5',
+  aspectRatio = '1 / 1',
   maxHeight,
 }: {
   housePlanId: string;
@@ -53,9 +53,10 @@ export function HousePlanImage({
   }, [housePlanId, hasImage]);
 
   const showPlaceholder = !hasImage || failed || !url;
-  // Always show the WHOLE picture, centred in the tile; a blurred copy fills the
-  // spare space so every tile is the same size and nothing is cropped.
-  const fit: CSSProperties['objectFit'] = 'contain';
+  // Catalog tiles: one fixed square size, picture fills it edge to edge (cropped
+  // slightly, biased to the top so rooflines stay in). Profile hero: whole
+  // picture, no crop.
+  const fit: CSSProperties['objectFit'] = maxHeight ? 'contain' : 'cover';
 
   const containerStyle: CSSProperties = {
     width: '100%',
@@ -73,23 +74,16 @@ export function HousePlanImage({
   };
 
   return (
-    <div style={{ ...containerStyle, position: 'relative' }}>
+    <div style={containerStyle}>
       {showPlaceholder ? (
         <Home size={32} color="var(--muted)" aria-hidden="true" />
       ) : (
-        <>
-          {(
-            // eslint-disable-next-line @next/next/no-img-element -- decorative blurred backdrop so a tall photo does not sit in a grey box
-            <img
-              src={url}
-              alt=""
-              aria-hidden="true"
-              style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', filter: 'blur(24px) saturate(1.1)', transform: 'scale(1.15)', opacity: 0.55 }}
-            />
-          )}
-          {/* eslint-disable-next-line @next/next/no-img-element -- presigned URL, not a static asset next/image can optimize */}
-          <img src={url} alt={alt} style={{ position: 'relative', width: '100%', height: '100%', objectFit: fit }} />
-        </>
+        // eslint-disable-next-line @next/next/no-img-element -- presigned URL, not a static asset next/image can optimize
+        <img
+          src={url}
+          alt={alt}
+          style={{ width: '100%', height: '100%', objectFit: fit, objectPosition: maxHeight ? 'center' : 'center 30%' }}
+        />
       )}
     </div>
   );
