@@ -151,11 +151,13 @@ export async function fetchRecommendationDetail(id: string): Promise<Recommendat
 
 export async function fetchSocieties(params?: {
   city?: string;
+  q?: string;
   page?: number;
   limit?: number;
 }): Promise<SocietyListResponse> {
   const qs = new URLSearchParams();
   if (params?.city) qs.set('city', params.city);
+  if (params?.q) qs.set('q', params.q);
   if (params?.page) qs.set('page', String(params.page));
   if (params?.limit) qs.set('limit', String(params.limit));
   const suffix = qs.toString() ? `?${qs.toString()}` : '';

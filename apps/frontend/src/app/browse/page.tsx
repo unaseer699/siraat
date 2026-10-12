@@ -40,18 +40,18 @@ function formatRange(range: { min: number | null; max: number | null }): string 
 // society with no claims yet from one with a claim still under review.
 const STATUS_META: Record<
   SocietyBrowseSummary['verification_status'],
-  { color: string; bg: string; border: string; icon: string; label: string }
+  { color: string; bg: string; border: string; icon: string; label: string; hint: string }
 > = {
-  VERIFIED: { color: TRUST_GREEN, bg: '#f0fdf4', border: `${TRUST_GREEN}40`, icon: '✓', label: 'Verified' },
-  DISPUTED: { color: DANGER_RED, bg: '#fef2f2', border: `${DANGER_RED}40`, icon: '⚠', label: 'Disputed' },
+  VERIFIED: { color: TRUST_GREEN, bg: '#f0fdf4', border: `${TRUST_GREEN}40`, icon: '✓', label: 'Verified', hint: 'Approval verified with documents' },
+  DISPUTED: { color: DANGER_RED, bg: '#fef2f2', border: `${DANGER_RED}40`, icon: '⚠', label: 'Disputed', hint: 'Issues have been reported' },
   // EVIDENCE DOCUMENT MODEL Chunk 2 — real CANCELLED treatment (replaces
   // Chunk 1's DANGER_RED placeholder). Its own tone (REVOKED_SLATE, see
   // tokens.ts): DISPUTED is an active, ongoing conflict; CANCELLED is a
   // settled, final absence — visually distinct registers, not just a
   // different icon on the same alarm-red.
-  CANCELLED: { color: REVOKED_SLATE, bg: REVOKED_SLATE_BG, border: REVOKED_SLATE_BORDER, icon: '✕', label: 'Cancelled' },
-  PARTIAL: { color: WARNING_AMBER, bg: '#fffbeb', border: `${WARNING_AMBER}40`, icon: '…', label: 'Partial' },
-  PENDING: { color: NEUTRAL_GRAY, bg: '#f9fafb', border: `${NEUTRAL_GRAY}40`, icon: '○', label: 'Pending' },
+  CANCELLED: { color: REVOKED_SLATE, bg: REVOKED_SLATE_BG, border: REVOKED_SLATE_BORDER, icon: '✕', label: 'Cancelled', hint: 'Approval cancelled' },
+  PARTIAL: { color: WARNING_AMBER, bg: '#fffbeb', border: `${WARNING_AMBER}40`, icon: '…', label: 'Partial', hint: 'Some checks done, not fully verified' },
+  PENDING: { color: NEUTRAL_GRAY, bg: '#f9fafb', border: `${NEUTRAL_GRAY}40`, icon: '○', label: 'Pending', hint: 'Not verified yet' },
 };
 
 function StatusBadge({ status }: { status: SocietyBrowseSummary['verification_status'] }) {
@@ -77,59 +77,76 @@ function StatusBadge({ status }: { status: SocietyBrowseSummary['verification_st
   );
 }
 
+function formatArea(range: { min: number | null; max: number | null }): string | null {
+  const { min, max } = range;
+  if (min === null && max === null) return null;
+  if (min !== null && max !== null && min !== max) return `${Number(min)}–${Number(max)} marla`;
+  return `${Number(min ?? max)} marla`;
+}
+
 function SocietyCard({ society, plotCount }: { society: SocietyBrowseSummary; plotCount: number }) {
+  const meta = STATUS_META[society.verification_status] ?? STATUS_META.PENDING;
+  const price = formatRange(society.price_range);
+  const area = formatArea(society.area_range);
   return (
-    <Link
-      href={`/society/${society.id}`}
-      style={{ display: 'block', textDecoration: 'none', color: 'inherit' }}
-    >
+    <Link href={`/society/${society.id}`} style={{ display: 'block', textDecoration: 'none', color: 'inherit', height: '100%' }}>
       <article
         style={{
           background: '#fff',
           border: '1px solid var(--border)',
+          borderLeft: `4px solid ${meta.color}`,
           borderRadius: RADIUS.md,
-          padding: '20px',
+          padding: '16px 18px',
           height: '100%',
           display: 'flex',
           flexDirection: 'column',
-          gap: '10px',
+          gap: '8px',
           boxShadow: '0 1px 3px rgba(0,0,0,0.08)',
         }}
       >
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '12px' }}>
-          <h3 style={{ fontSize: '16px', fontWeight: 700, color: 'var(--text)' }}>{society.name}</h3>
-          <StatusBadge status={society.verification_status} />
+        <div>
+          <h3 style={{ fontSize: '16px', fontWeight: 700, color: 'var(--text)', margin: 0 }}>{society.name}</h3>
+          <p style={{ fontSize: '13px', color: 'var(--muted)', margin: '2px 0 0' }}>{society.city}</p>
         </div>
-        <p style={{ fontSize: '13px', color: 'var(--muted)' }}>{society.city}</p>
-        <p style={{ fontSize: '15px', fontWeight: 600, color: 'var(--text)' }}>
-          {formatRange(society.price_range)}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+          <StatusBadge status={society.verification_status} />
+          <span style={{ fontSize: '12px', color: 'var(--muted)' }}>{meta.hint}</span>
+        </div>
+        <p style={{ fontSize: '13px', color: 'var(--text)', margin: 0 }}>
+          {price === '—' ? <span style={{ color: 'var(--muted)' }}>Price not listed</span> : <strong>{price}</strong>}
+          {area && <span style={{ color: 'var(--muted)' }}> · {area}</span>}
         </p>
-        {plotCount > 0 && (
-          <span
-            style={{
-              alignSelf: 'flex-start',
-              fontSize: '12px',
-              fontWeight: 700,
-              color: '#1a56db',
-              background: '#eff6ff',
-              border: '1px solid #bfdbfe',
-              borderRadius: '99px',
-              padding: '4px 10px',
-            }}
-          >
-            {plotCount} plot{plotCount === 1 ? '' : 's'} available
-          </span>
-        )}
+        <div style={{ marginTop: 'auto', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '8px', paddingTop: '4px' }}>
+          {plotCount > 0 ? (
+            <span
+              style={{
+                fontSize: '12px',
+                fontWeight: 700,
+                color: '#1a56db',
+                background: '#eff6ff',
+                border: '1px solid #bfdbfe',
+                borderRadius: '99px',
+                padding: '3px 10px',
+              }}
+            >
+              {plotCount} plot{plotCount === 1 ? '' : 's'} for sale
+            </span>
+          ) : (
+            <span />
+          )}
+          <span style={{ fontSize: '13px', fontWeight: 600, color: '#2563eb' }}>View details →</span>
+        </div>
       </article>
     </Link>
   );
 }
 
-
 function BrowseView() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const city = searchParams.get('city') ?? '';
+  const q = searchParams.get('q') ?? '';
+  const [search, setSearch] = useState(q);
   const page = Number(searchParams.get('page') ?? '1') || 1;
 
   const [data, setData] = useState<SocietyListResponse | null>(null);
@@ -157,7 +174,7 @@ function BrowseView() {
     let cancelled = false;
     setLoading(true);
     setError(null);
-    fetchSocieties({ city: city || undefined, page, limit: PAGE_SIZE })
+    fetchSocieties({ city: city || undefined, q: q || undefined, page, limit: PAGE_SIZE })
       .then((result) => {
         if (!cancelled) setData(result);
       })
@@ -170,7 +187,15 @@ function BrowseView() {
     return () => {
       cancelled = true;
     };
-  }, [city, page]);
+  }, [city, q, page]);
+
+  // Debounced search: typing updates the URL (?q=) after a short pause.
+  useEffect(() => {
+    if (search.trim() === q) return;
+    const t = setTimeout(() => updateParams({ q: search.trim(), page: 1 }), 350);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [search]);
 
   // UI REVIEW finding — Prev/Next previously left the scroll position
   // wherever it was on the old page's content, so on a long list the user
@@ -182,11 +207,15 @@ function BrowseView() {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }, [page]);
 
-  function updateParams(next: { city?: string; page?: number }) {
+  function updateParams(next: { city?: string; q?: string; page?: number }) {
     const params = new URLSearchParams(searchParams.toString());
     if (next.city !== undefined) {
       if (next.city) params.set('city', next.city);
       else params.delete('city');
+    }
+    if (next.q !== undefined) {
+      if (next.q) params.set('q', next.q);
+      else params.delete('q');
     }
     if (next.page !== undefined) {
       if (next.page > 1) params.set('page', String(next.page));
@@ -213,9 +242,9 @@ function BrowseView() {
           <p style={{ fontSize: '12px', color: 'var(--muted)', fontWeight: 600, marginBottom: '4px' }}>
             BROWSE
           </p>
-          <h1 style={{ fontSize: '26px', fontWeight: 800 }}>Verified Societies</h1>
+          <h1 style={{ fontSize: '26px', fontWeight: 800 }}>Housing societies</h1>
           <p style={{ fontSize: '13px', color: 'var(--muted)', marginTop: '4px' }}>
-            {data ? `${data.total_count} societ${data.total_count === 1 ? 'y' : 'ies'} on record` : 'Loading…'}
+            {data ? `${data.total_count} societ${data.total_count === 1 ? 'y' : 'ies'}${q || city ? ' found' : ' on record'} · check approval status before you buy` : 'Loading…'}
           </p>
           <Link
             href="/plots"
@@ -226,12 +255,28 @@ function BrowseView() {
         </div>
 
         <div style={{ display: 'flex', gap: '12px', alignItems: 'center', flexWrap: 'wrap' }}>
-          <label style={{ fontSize: '13px', fontWeight: 600 }}>City</label>
+          <input
+            type="search"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search by society name…"
+            aria-label="Search societies by name"
+            style={{
+              flex: '1 1 240px',
+              minWidth: 0,
+              padding: '10px 12px',
+              border: '1px solid var(--border)',
+              borderRadius: 'var(--radius)',
+              fontSize: '14px',
+              background: '#fff',
+            }}
+          />
           <select
+            aria-label="City"
             value={city}
             onChange={(e) => updateParams({ city: e.target.value, page: 1 })}
             style={{
-              padding: '8px 12px',
+              padding: '10px 12px',
               border: '1px solid var(--border)',
               borderRadius: 'var(--radius)',
               fontSize: '14px',
@@ -266,7 +311,7 @@ function BrowseView() {
           <Spinner label="Loading societies…" />
         ) : data && data.societies.length === 0 ? (
           <p style={{ color: 'var(--muted)', fontSize: '14px' }}>
-            {city ? `No societies found in ${city}.` : 'No societies on record yet.'}
+            {q || city ? `No societies match${q ? ` “${q}”` : ''}${city ? ` in ${city}` : ''}.` : 'No societies on record yet.'}
           </p>
         ) : data ? (
           // UI REVIEW finding — a page change previously swapped the whole

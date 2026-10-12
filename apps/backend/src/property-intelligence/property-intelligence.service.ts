@@ -608,6 +608,7 @@ export class PropertyIntelligenceService {
   // derived from Trust claims (Law 9: cross-module call, no reach into Trust's schema).
   async listSocieties(params: {
     city?: string;
+    q?: string;
     page?: number;
     limit?: number;
   }): Promise<SocietyListResponse> {
@@ -617,6 +618,11 @@ export class PropertyIntelligenceService {
     const qb = this.societyRepo.createQueryBuilder('s');
     if (params.city) {
       qb.andWhere('LOWER(s.city) = LOWER(:city)', { city: params.city });
+    }
+    // Optional name search. Ignores spaces, hyphens and commas so "b17" finds "B-17".
+    const needle = (params.q ?? '').toLowerCase().replace(/[^a-z0-9]/g, '');
+    if (needle) {
+      qb.andWhere("regexp_replace(LOWER(s.name), '[^a-z0-9]', '', 'g') LIKE :needle", { needle: `%${needle}%` });
     }
 
     const [entities, total_count] = await qb
