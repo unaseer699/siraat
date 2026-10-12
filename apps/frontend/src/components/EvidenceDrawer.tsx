@@ -228,7 +228,10 @@ export function EvidenceDrawer({ evidence, triggerLabel = 'View all evidence' }:
                         </span>
                       </div>
 
-                      <p style={{ fontSize: '12px', color: 'var(--muted)', margin: 0 }}>{item.source_ref}</p>
+                      <p style={{ fontSize: '12px', color: 'var(--muted)', margin: 0 }}>
+                        {item.source_ref}
+                        {/^https:\/\/(www\.)?cda\.gov\.pk\//i.test(item.file_ref) && ' · Opens on the official CDA portal'}
+                      </p>
 
                       {errors[item.id] && (
                         <p style={{ fontSize: '11px', color: 'var(--error)', margin: 0 }}>

@@ -94,9 +94,12 @@ export function EvidenceEditor({
               type="text"
               value={item.file_ref}
               onChange={(e) => updateItem(i, { file_ref: e.target.value })}
-              placeholder="e.g. trust/society/noc.pdf"
+              placeholder="trust/society/noc.pdf  or  https://www.cda.gov.pk/storage/…pdf"
               style={inputStyle}
             />
+            <p style={{ fontSize: '12px', color: 'var(--muted)', margin: 0 }}>
+              A storage key, or paste a direct https link from cda.gov.pk — users will open it straight from the CDA portal.
+            </p>
           </div>
 
           <div style={fieldGroupStyle}>

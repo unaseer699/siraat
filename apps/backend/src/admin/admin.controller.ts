@@ -18,6 +18,7 @@ import { ZodValidationPipe } from '../common/zod-validation.pipe';
 import type { WhatsappDraftExpenseStatus } from '../whatsapp/entities/whatsapp-draft-expense.entity';
 import type { WhatsappDraftListingStatus } from '../whatsapp/entities/whatsapp-draft-listing.entity';
 import { AdminService } from './admin.service';
+import { looksLikeUrl, officialDocumentUrl } from '../common/official-document-url';
 
 // --- Shared sub-schemas ---
 
@@ -67,9 +68,19 @@ const EVIDENCE_TYPES = ['document', 'photo', 'receipt', 'inspection_report'] as 
 // optional/nullable: existing evidence-creation calls that only ever sent
 // type/file_ref/source_ref (from before EvidenceEditor.tsx collected these,
 // Chunk 2) must keep validating identically.
+// file_ref is a storage key, or a direct https link to an allow-listed
+// official portal (e.g. cda.gov.pk). Any other URL is rejected.
+const FileRefSchema = z
+  .string()
+  .trim()
+  .min(1)
+  .refine((v) => !looksLikeUrl(v) || officialDocumentUrl(v) !== null, {
+    message: 'Links must be https and on an official portal (cda.gov.pk). Otherwise use a storage key.',
+  });
+
 const EvidenceItemSchema = z.object({
   type: z.enum(EVIDENCE_TYPES),
-  file_ref: z.string().min(1),
+  file_ref: FileRefSchema,
   source_ref: z.string().min(1),
   document_date: z.string().nullable().default(null),
   document_type: DocumentTypeSchema.nullable().default(null),
@@ -123,7 +134,7 @@ type AddClaimBody = z.infer<typeof AddClaimBodySchema>;
 
 const CreateEvidenceBodySchema = z.object({
   type: z.enum(EVIDENCE_TYPES),
-  file_ref: z.string().min(1),
+  file_ref: FileRefSchema,
   source_ref: z.string().min(1),
   document_date: z.string().nullable().default(null),
   document_type: DocumentTypeSchema.nullable().default(null),

@@ -5,6 +5,7 @@ import { ZodValidationPipe } from '../common/zod-validation.pipe';
 import { EvidenceSubmissionRequestSchema, type EvidenceSubmissionRequest } from '@siraat/shared-types';
 import { TrustService, type VerificationResult } from './trust.service';
 import { StorageService } from './storage.service';
+import { officialDocumentUrl } from '../common/official-document-url';
 import type { EvidenceEntity } from './entities/evidence.entity';
 
 function serializeEvidence(e: EvidenceEntity) {
@@ -87,6 +88,9 @@ export class TrustController {
   async getEvidenceDownloadUrl(@Param('id') id: string) {
     const evidence = await this.trustSvc.getEvidenceById(id);
     if (!evidence) throw new NotFoundException(`Evidence ${id} not found`);
+    // Direct link to an official portal document (e.g. CDA) — no storage hop.
+    const official = officialDocumentUrl(evidence.file_ref);
+    if (official) return { url: official, expires_in_seconds: 900 };
     const url = await this.storageSvc.getPresignedDownloadUrl(evidence.file_ref);
     return { url, expires_in_seconds: 900 };
   }
