@@ -29,6 +29,7 @@ const TYPE_LABEL: Record<EvidenceItem['type'], string> = {
 const DOCUMENT_TYPE_LABEL: Record<DocumentType, string> = {
   LOP_APPROVAL: 'LOP Approval',
   LOP_LETTER: 'LOP Letter',
+  LOP_CANCELLATION: 'Cancellation of LOP',
   NOC: 'NOC',
   NOC_CANCELLATION: 'NOC Cancellation',
   SHOW_CAUSE_NOTICE: 'Show Cause Notice',

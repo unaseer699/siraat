@@ -32,6 +32,7 @@ export const EVIDENCE_TYPE_OPTIONS: { value: EvidenceType; label: string }[] = [
 export const DOCUMENT_TYPE_OPTIONS: { value: DocumentType; label: string }[] = [
   { value: 'LOP_APPROVAL', label: 'LOP Approval' },
   { value: 'LOP_LETTER', label: 'LOP Letter' },
+  { value: 'LOP_CANCELLATION', label: 'Cancellation of LOP' },
   { value: 'NOC', label: 'NOC' },
   { value: 'NOC_CANCELLATION', label: 'NOC Cancellation' },
   { value: 'SHOW_CAUSE_NOTICE', label: 'Show Cause Notice' },

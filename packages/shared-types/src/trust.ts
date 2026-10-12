@@ -19,6 +19,7 @@ export interface EvidenceSubmissionResponse {
 export const DocumentTypeSchema = z.enum([
   'LOP_APPROVAL',
   'LOP_LETTER',
+  'LOP_CANCELLATION',
   'NOC',
   'NOC_CANCELLATION',
   'SHOW_CAUSE_NOTICE',

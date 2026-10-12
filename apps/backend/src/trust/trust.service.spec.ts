@@ -1146,6 +1146,7 @@ describe('DocumentTypeSchema (shared-types)', () => {
   const VALID_DOCUMENT_TYPES = [
     'LOP_APPROVAL',
     'LOP_LETTER',
+    'LOP_CANCELLATION',
     'NOC',
     'NOC_CANCELLATION',
     'SHOW_CAUSE_NOTICE',
