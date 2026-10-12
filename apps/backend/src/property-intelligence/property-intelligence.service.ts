@@ -91,6 +91,16 @@ export interface SocietyResult {
   staleness_threshold_days: number;
   record_type: 'FACT' | 'GENERATED';
   developer_id: string | null;
+  // Registration details — optional so existing callers/mocks are unaffected.
+  zone?: string | null;
+  road?: string | null;
+  area_kanal?: number | string | null;
+  owner_name?: string | null;
+  address?: string | null;
+  contact_phones?: string[];
+  email?: string | null;
+  website?: string | null;
+  details_source_url?: string | null;
 }
 
 function toSocietyResult(e: SocietyEntity): SocietyResult {
@@ -113,6 +123,15 @@ function toSocietyResult(e: SocietyEntity): SocietyResult {
     staleness_threshold_days: e.staleness_threshold_days,
     record_type: e.record_type,
     developer_id: e.developer_id,
+    zone: e.zone ?? null,
+    road: e.road ?? null,
+    area_kanal: e.area_kanal === null || e.area_kanal === undefined ? null : Number(e.area_kanal),
+    owner_name: e.owner_name ?? null,
+    address: e.address ?? null,
+    contact_phones: e.contact_phones ?? [],
+    email: e.email ?? null,
+    website: e.website ?? null,
+    details_source_url: e.details_source_url ?? null,
   };
 }
 
@@ -515,6 +534,15 @@ export class PropertyIntelligenceService {
       noc_approved: boolean;
       noc_summary: string | null;
       developer_id: string | null;
+      zone: string | null;
+      road: string | null;
+      area_kanal: number | null;
+      owner_name: string | null;
+      address: string | null;
+      contact_phones: string[];
+      email: string | null;
+      website: string | null;
+      details_source_url: string | null;
     }>,
   ): Promise<SocietyResult | null> {
     const entity = await this.societyRepo.findOneBy({ id });
@@ -549,7 +577,7 @@ export class PropertyIntelligenceService {
       const before = norm(record[field]);
       const after = norm(value);
       const same =
-        field.endsWith('price') || field.endsWith('marla')
+        field.endsWith('price') || field.endsWith('marla') || field.endsWith('kanal')
           ? (before === null ? null : Number(before)) === (after === null ? null : Number(after))
           : before === after;
       if (same) continue;

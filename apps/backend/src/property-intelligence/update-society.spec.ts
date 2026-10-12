@@ -7,7 +7,7 @@ function makeSvc(existing: Record<string, unknown> | null, clash: { id: string }
   const save = jest.fn(async (e: unknown) => e);
   bag['societyRepo'] = { findOneBy: jest.fn(async () => existing), save };
   bag['findSocietyByNameAndCity'] = jest.fn(async () => clash);
-  const logObservation = jest.fn(async () => undefined);
+  const logObservation = jest.fn(async (_o: { source_ref: string }) => undefined);
   bag['logObservation'] = logObservation;
   return { svc, save, logObservation };
 }
@@ -44,5 +44,12 @@ describe('PropertyIntelligenceService.updateSociety', () => {
   it('rejects min greater than max', async () => {
     const { svc } = makeSvc(base());
     await expect(svc.updateSociety('s1', { min_price: 9, max_price: 1 })).rejects.toBeInstanceOf(BadRequestException);
+  });
+  it('saves registration details and logs each changed one (arrays and numbers compared by value)', async () => {
+    const { svc, save, logObservation } = makeSvc({ ...base(), zone: null, area_kanal: '1114.14', contact_phones: ['0333'] });
+    await svc.updateSociety('s1', { zone: 'Zone 5', area_kanal: 1114.14, contact_phones: ['0333', '0334'] });
+    expect(save).toHaveBeenCalledTimes(1);
+    const fields = logObservation.mock.calls.map((c) => c[0].source_ref);
+    expect(fields).toEqual(['Edited society s1 (zone)', 'Edited society s1 (contact_phones)']);
   });
 });

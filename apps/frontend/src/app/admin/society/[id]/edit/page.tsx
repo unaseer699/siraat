@@ -29,6 +29,15 @@ export default function EditSocietyPage() {
   const [noc, setNoc] = useState(false);
   const [nocSummary, setNocSummary] = useState('');
   const [developerId, setDeveloperId] = useState('');
+  const [zone, setZone] = useState('');
+  const [road, setRoad] = useState('');
+  const [areaKanal, setAreaKanal] = useState('');
+  const [ownerName, setOwnerName] = useState('');
+  const [address, setAddress] = useState('');
+  const [phones, setPhones] = useState('');
+  const [email, setEmail] = useState('');
+  const [website, setWebsite] = useState('');
+  const [sourceUrl, setSourceUrl] = useState('');
 
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -46,6 +55,15 @@ export default function EditSocietyPage() {
     setNoc(s.noc_approved);
     setNocSummary(s.noc_summary ?? '');
     setDeveloperId(s.developer_id ?? '');
+    setZone(s.zone ?? '');
+    setRoad(s.road ?? '');
+    setAreaKanal(str(s.area_kanal ?? null));
+    setOwnerName(s.owner_name ?? '');
+    setAddress(s.address ?? '');
+    setPhones((s.contact_phones ?? []).join(', '));
+    setEmail(s.email ?? '');
+    setWebsite(s.website ?? '');
+    setSourceUrl(s.details_source_url ?? '');
   }
 
   useEffect(() => {
@@ -73,6 +91,15 @@ export default function EditSocietyPage() {
         noc_approved: noc,
         noc_summary: nocSummary.trim() || null,
         developer_id: developerId.trim() || null,
+        zone: zone.trim() || null,
+        road: road.trim() || null,
+        area_kanal: numOrNull(areaKanal),
+        owner_name: ownerName.trim() || null,
+        address: address.trim() || null,
+        contact_phones: phones.split(/[,\n]/).map((p) => p.trim()).filter(Boolean),
+        email: email.trim() || null,
+        website: website.trim() || null,
+        details_source_url: sourceUrl.trim() || null,
       });
       apply(res);
       setSaved(true);
@@ -160,6 +187,57 @@ export default function EditSocietyPage() {
               <input value={developerId} onChange={(e) => setDeveloperId(e.target.value)} placeholder="Developer UUID, blank to unlink" style={inputStyle} />
               {!devOk && <p style={{ fontSize: '12px', color: 'var(--error)' }}>Must be a valid UUID.</p>}
             </div>
+
+            <fieldset style={{ border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '16px', display: 'flex', flexDirection: 'column', gap: '14px' }}>
+              <legend style={{ fontSize: '12px', fontWeight: 700, color: 'var(--muted)', padding: '0 6px' }}>
+                Registration details (shown on the public page)
+              </legend>
+              <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
+                <div style={{ ...fieldGroupStyle, flex: 1, minWidth: '140px' }}>
+                  <label style={labelStyle}>Zone</label>
+                  <input value={zone} onChange={(e) => setZone(e.target.value)} placeholder="Zone 5" style={inputStyle} />
+                </div>
+                <div style={{ ...fieldGroupStyle, flex: 1, minWidth: '140px' }}>
+                  <label style={labelStyle}>Area (kanal)</label>
+                  <input type="number" step="0.01" value={areaKanal} onChange={(e) => setAreaKanal(e.target.value)} placeholder="1114.14" style={inputStyle} />
+                </div>
+              </div>
+              <div style={fieldGroupStyle}>
+                <label style={labelStyle}>Road</label>
+                <input value={road} onChange={(e) => setRoad(e.target.value)} placeholder="IHW/Soan Garden" style={inputStyle} />
+              </div>
+              <div style={fieldGroupStyle}>
+                <label style={labelStyle}>Owner / registered society</label>
+                <input value={ownerName} onChange={(e) => setOwnerName(e.target.value)} style={inputStyle} />
+              </div>
+              <div style={fieldGroupStyle}>
+                <label style={labelStyle}>Address</label>
+                <textarea value={address} onChange={(e) => setAddress(e.target.value)} rows={3} style={{ ...inputStyle, resize: 'vertical' }} />
+                <p style={{ fontSize: '12px', color: 'var(--muted)', margin: 0 }}>
+                  Prefer the society office address. Avoid personal names of individuals.
+                </p>
+              </div>
+              <div style={fieldGroupStyle}>
+                <label style={labelStyle}>Office contact numbers</label>
+                <input value={phones} onChange={(e) => setPhones(e.target.value)} placeholder="03339119202, 03345644446" style={inputStyle} />
+                <p style={{ fontSize: '12px', color: 'var(--muted)', margin: 0 }}>Separate several numbers with commas.</p>
+              </div>
+              <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
+                <div style={{ ...fieldGroupStyle, flex: 1, minWidth: '180px' }}>
+                  <label style={labelStyle}>Email</label>
+                  <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} style={inputStyle} />
+                </div>
+                <div style={{ ...fieldGroupStyle, flex: 1, minWidth: '180px' }}>
+                  <label style={labelStyle}>Website</label>
+                  <input value={website} onChange={(e) => setWebsite(e.target.value)} placeholder="https://" style={inputStyle} />
+                </div>
+              </div>
+              <div style={fieldGroupStyle}>
+                <label style={labelStyle}>Source link</label>
+                <input value={sourceUrl} onChange={(e) => setSourceUrl(e.target.value)} placeholder="https://www.cda.gov.pk/…" style={inputStyle} />
+                <p style={{ fontSize: '12px', color: 'var(--muted)', margin: 0 }}>Where these details were taken from. Shown as &quot;Source&quot; on the page.</p>
+              </div>
+            </fieldset>
 
             {error && (
               <div style={{ padding: '12px 16px', background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 'var(--radius)', color: 'var(--error)', fontSize: '13px' }}>

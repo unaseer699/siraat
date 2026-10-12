@@ -1,6 +1,6 @@
 import { notFound } from 'next/navigation';
 import Link from 'next/link';
-import { fetchSocietyVerifications, fetchSocietyScore, fetchPropertyListings } from '@/lib/api';
+import { fetchSocietyVerifications, fetchSocietyScore, fetchPropertyListings, fetchSocietyDetails, type SocietyDetails } from '@/lib/api';
 import { PlotGroupCard, ListingDisclaimer } from '@/components/PlotListings';
 import { EvidenceDrawer } from '@/components/EvidenceDrawer';
 import { CopyLinkButton } from '@/components/CopyLinkButton';
@@ -115,6 +115,51 @@ function ClaimRow({ claim, isAdverse }: { claim: VerificationResponse; isAdverse
   );
 }
 
+function DetailsCard({ d }: { d: SocietyDetails }) {
+  const rows: { label: string; value: React.ReactNode }[] = [];
+  if (d.zone) rows.push({ label: 'Zone', value: d.zone });
+  if (d.road) rows.push({ label: 'Road', value: d.road });
+  if (d.area_kanal !== null) rows.push({ label: 'Area', value: `${Number(d.area_kanal).toLocaleString('en-PK', { maximumFractionDigits: 2 })} kanal` });
+  if (d.owner_name) rows.push({ label: 'Registered society', value: d.owner_name });
+  if (d.address) rows.push({ label: 'Office address', value: d.address });
+  if (d.contact_phones.length > 0) {
+    rows.push({
+      label: 'Office contact',
+      value: d.contact_phones.map((p, i) => (
+        <span key={p}>
+          {i > 0 && ', '}
+          <a href={`tel:${p.replace(/[^0-9+]/g, '')}`} style={{ color: '#2563eb' }}>{p}</a>
+        </span>
+      )),
+    });
+  }
+  if (d.email) rows.push({ label: 'Email', value: <a href={`mailto:${d.email}`} style={{ color: '#2563eb' }}>{d.email}</a> });
+  if (d.website) rows.push({ label: 'Website', value: <a href={d.website} target="_blank" rel="noopener noreferrer" style={{ color: '#2563eb', wordBreak: 'break-all' }}>{d.website}</a> });
+  if (rows.length === 0) return null;
+
+  return (
+    <section style={{ background: '#fff', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '18px 20px' }}>
+      <h2 style={{ fontSize: '16px', fontWeight: 800, margin: '0 0 12px' }}>Society details</h2>
+      <dl style={{ margin: 0, display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '14px 28px' }}>
+        {rows.map((r) => (
+          <div key={r.label}>
+            <dt style={{ fontSize: '11px', fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{r.label}</dt>
+            <dd style={{ margin: '2px 0 0', fontSize: '14px', color: 'var(--text)' }}>{r.value}</dd>
+          </div>
+        ))}
+      </dl>
+      {d.details_source_url && (
+        <p style={{ fontSize: '12px', color: 'var(--muted)', margin: '14px 0 0' }}>
+          Source:{' '}
+          <a href={d.details_source_url} target="_blank" rel="noopener noreferrer" style={{ color: '#2563eb' }}>
+            published listing
+          </a>
+        </p>
+      )}
+    </section>
+  );
+}
+
 export default async function SocietyProfilePage({ params }: Props) {
   let claims: VerificationResponse[];
   try {
@@ -141,6 +186,14 @@ export default async function SocietyProfilePage({ params }: Props) {
     listings = (await fetchPropertyListings({ society_id: params.id })).plots;
   } catch {
     listings = [];
+  }
+
+  // Registration details are an enrichment — never let their failure break the profile.
+  let details: SocietyDetails | null = null;
+  try {
+    details = await fetchSocietyDetails(params.id);
+  } catch {
+    details = null;
   }
 
   const primaryClaims = claims.filter((c) => c.status !== 'DISPUTED');
@@ -226,6 +279,8 @@ export default async function SocietyProfilePage({ params }: Props) {
             )}
           </div>
         )}
+
+        {details && <DetailsCard d={details} />}
 
         {/* Available plots (WhatsApp listing ingestion) */}
         {listings.length > 0 && (

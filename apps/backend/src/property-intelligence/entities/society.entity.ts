@@ -68,6 +68,35 @@ export class SocietyEntity {
   @Column({ type: 'uuid', nullable: true })
   developer_id: string | null;
 
+  // Published registration details (e.g. from the regulator's portal). All
+  // optional — shown on the public society page only when present.
+  @Column({ type: 'varchar', length: 50, nullable: true })
+  zone: string | null;
+
+  @Column({ type: 'varchar', length: 255, nullable: true })
+  road: string | null;
+
+  @Column({ type: 'decimal', precision: 10, scale: 2, nullable: true })
+  area_kanal: number | null;
+
+  @Column({ type: 'varchar', length: 255, nullable: true })
+  owner_name: string | null;
+
+  @Column({ type: 'text', nullable: true })
+  address: string | null;
+
+  @Column({ type: 'text', array: true, default: '{}' })
+  contact_phones: string[];
+
+  @Column({ type: 'varchar', length: 255, nullable: true })
+  email: string | null;
+
+  @Column({ type: 'varchar', length: 255, nullable: true })
+  website: string | null;
+
+  @Column({ type: 'text', nullable: true })
+  details_source_url: string | null;
+
   @CreateDateColumn()
   created_at: Date;
 

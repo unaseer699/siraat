@@ -120,6 +120,20 @@ type CreateSocietyBody = z.infer<typeof CreateSocietyBodySchema>;
 
 // --- PATCH /v1/admin/societies/:id ---
 // Confidence, affiliation and staleness are intentionally absent.
+// '' (or whitespace) clears an optional text field to null.
+const optionalText = (max: number) =>
+  z
+    .string()
+    .trim()
+    .max(max)
+    .nullable()
+    .optional()
+    .transform((v) => (v === '' ? null : v));
+const httpUrl = (max: number) =>
+  optionalText(max).refine((v) => v == null || /^https?:\/\/\S+$/i.test(v), {
+    message: 'Must start with http:// or https://',
+  });
+
 const UpdateSocietyBodySchema = z.object({
   name: z.string().trim().min(1).max(255).optional(),
   city: z.string().trim().min(1).max(100).optional(),
@@ -136,6 +150,16 @@ const UpdateSocietyBodySchema = z.object({
     .optional()
     .transform((v) => (v === '' ? null : v)),
   developer_id: z.string().uuid().nullable().optional(),
+  // Published registration details
+  zone: optionalText(50),
+  road: optionalText(255),
+  area_kanal: z.number().nonnegative().nullable().optional(),
+  owner_name: optionalText(255),
+  address: optionalText(1000),
+  contact_phones: z.array(z.string().trim().min(1).max(30)).max(10).optional(),
+  email: optionalText(255).refine((v) => v == null || /^\S+@\S+\.\S+$/.test(v), { message: 'Invalid email' }),
+  website: httpUrl(255),
+  details_source_url: httpUrl(1000),
 });
 type UpdateSocietyBody = z.infer<typeof UpdateSocietyBodySchema>;
 

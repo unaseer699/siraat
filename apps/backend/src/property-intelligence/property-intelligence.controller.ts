@@ -87,6 +87,27 @@ export class PropertyIntelligenceController {
     });
   }
 
+  // Published registration details for the society page (zone, road, area,
+  // owner, address, office contacts, source link). Public, read-only; any
+  // field may be null / empty.
+  @Get('societies/:id/details')
+  async getSocietyDetails(@Param('id') id: string) {
+    const s = await this.piSvc.findSocietyById(id);
+    if (!s) throw new NotFoundException(`Society ${id} not found`);
+    return {
+      society_id: s.id,
+      zone: s.zone ?? null,
+      road: s.road ?? null,
+      area_kanal: s.area_kanal === null || s.area_kanal === undefined ? null : Number(s.area_kanal),
+      owner_name: s.owner_name ?? null,
+      address: s.address ?? null,
+      contact_phones: s.contact_phones ?? [],
+      email: s.email ?? null,
+      website: s.website ?? null,
+      details_source_url: s.details_source_url ?? null,
+    };
+  }
+
   // Watchlist Chunk 1 — session-based watchlist lives in the browser; this reports
   // what changed for a browser-supplied batch of society IDs since a given date.
   @Post('societies/changes')

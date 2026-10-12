@@ -558,6 +558,15 @@ export interface AdminSociety {
   noc_approved: boolean;
   noc_summary: string | null;
   developer_id: string | null;
+  zone?: string | null;
+  road?: string | null;
+  area_kanal?: number | string | null;
+  owner_name?: string | null;
+  address?: string | null;
+  contact_phones?: string[];
+  email?: string | null;
+  website?: string | null;
+  details_source_url?: string | null;
 }
 
 export interface UpdateSocietyBody {
@@ -571,6 +580,32 @@ export interface UpdateSocietyBody {
   noc_approved?: boolean;
   noc_summary?: string | null;
   developer_id?: string | null;
+  zone?: string | null;
+  road?: string | null;
+  area_kanal?: number | null;
+  owner_name?: string | null;
+  address?: string | null;
+  contact_phones?: string[];
+  email?: string | null;
+  website?: string | null;
+  details_source_url?: string | null;
+}
+
+export interface SocietyDetails {
+  society_id: string;
+  zone: string | null;
+  road: string | null;
+  area_kanal: number | null;
+  owner_name: string | null;
+  address: string | null;
+  contact_phones: string[];
+  email: string | null;
+  website: string | null;
+  details_source_url: string | null;
+}
+
+export async function fetchSocietyDetails(societyId: string): Promise<SocietyDetails> {
+  return apiFetch(`/v1/property-intelligence/societies/${societyId}/details`);
 }
 
 export async function fetchAdminSociety(id: string): Promise<AdminSociety> {
