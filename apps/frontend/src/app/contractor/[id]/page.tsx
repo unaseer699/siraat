@@ -1,5 +1,6 @@
 import { notFound } from 'next/navigation';
-import { fetchContractor, fetchContractorVerifications } from '@/lib/api';
+import { fetchContractor, fetchContractorVerifications, fetchContractorPortfolio, type ContractorProject } from '@/lib/api';
+import { ContractorPortfolio } from '@/components/ContractorPortfolio';
 import { EvidenceDrawer } from '@/components/EvidenceDrawer';
 import { CopyLinkButton } from '@/components/CopyLinkButton';
 import { BackLink } from '@/components/BackLink';
@@ -183,6 +184,14 @@ export default async function ContractorProfilePage({ params }: Props) {
     claims = [];
   }
 
+  // Portfolio is optional: the profile renders fine without it.
+  let portfolio: ContractorProject[] = [];
+  try {
+    portfolio = await fetchContractorPortfolio(params.id);
+  } catch {
+    portfolio = [];
+  }
+
   const primaryClaims = claims.filter((c) => c.status !== 'DISPUTED');
   const adverseClaims = claims.filter((c) => c.status === 'DISPUTED');
 
@@ -304,6 +313,8 @@ export default async function ContractorProfilePage({ params }: Props) {
             </div>
           </div>
         </div>
+
+        <ContractorPortfolio projects={portfolio} />
 
         {/* Primary claims */}
         {primaryClaims.map((claim, i) => (

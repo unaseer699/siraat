@@ -38,7 +38,10 @@ import type {
   GroundConditionsResponse,
   HousePlanImageListResponse,
   DocumentType,
+  ContractorProject,
 } from '@siraat/shared-types';
+
+export type { ContractorProject };
 
 export type { DocumentType, VerificationResponse };
 
@@ -1820,4 +1823,71 @@ export async function saveMarketRateBaseline(key: string, rate: number): Promise
 // builds only. Never 404s: NOT_COVERED when nothing is shared yet.
 export async function fetchPublicBuilds(): Promise<PublicBuildsResponse> {
   return apiFetch('/v1/construction-intelligence/public-builds');
+}
+
+
+// ─── CONTRACTOR PORTFOLIO ───────────────────────────────────────────────────
+
+export interface ProjectFieldsInput {
+  title: string;
+  society_name: string | null;
+  city: string | null;
+  plot_size: string | null;
+  completed_year: number | null;
+  description: string | null;
+  photo_keys: string[];
+}
+
+export interface PhotoUploadUrl {
+  key: string;
+  upload_url: string;
+  max_bytes: number;
+}
+
+const json = (body: unknown) => ({ method: 'POST', body: JSON.stringify(body) });
+
+// Public
+export async function fetchContractorPortfolio(contractorId: string): Promise<ContractorProject[]> {
+  const r = await apiFetch<{ projects: ContractorProject[] }>(`/v1/contractor-portfolio/contractors/${contractorId}/projects`);
+  return r.projects;
+}
+export async function fetchUploadLink(token: string): Promise<{ contractor_id: string; contractor_name: string }> {
+  return apiFetch(`/v1/contractor-portfolio/links/${encodeURIComponent(token)}`);
+}
+export async function requestLinkPhotoUploadUrl(token: string, contentType: string): Promise<PhotoUploadUrl> {
+  return apiFetch(`/v1/contractor-portfolio/links/${encodeURIComponent(token)}/upload-url`, json({ content_type: contentType }));
+}
+export async function submitLinkProject(token: string, data: ProjectFieldsInput): Promise<{ id: string; status: string }> {
+  return apiFetch(`/v1/contractor-portfolio/links/${encodeURIComponent(token)}/projects`, json(data));
+}
+
+// Admin
+export async function fetchAdminContractorProjects(contractorId: string): Promise<ContractorProject[]> {
+  const r = await apiFetch<{ projects: ContractorProject[] }>(`/v1/admin/contractor-portfolio/contractors/${contractorId}/projects`);
+  return r.projects;
+}
+export async function fetchPendingProjects(): Promise<ContractorProject[]> {
+  const r = await apiFetch<{ projects: ContractorProject[] }>('/v1/admin/contractor-portfolio/pending');
+  return r.projects;
+}
+export async function requestAdminPhotoUploadUrl(contractorId: string, contentType: string): Promise<PhotoUploadUrl> {
+  return apiFetch(`/v1/admin/contractor-portfolio/contractors/${contractorId}/upload-url`, json({ content_type: contentType }));
+}
+export async function createAdminProject(contractorId: string, data: ProjectFieldsInput): Promise<ContractorProject> {
+  return apiFetch(`/v1/admin/contractor-portfolio/contractors/${contractorId}/projects`, json(data));
+}
+export async function addProjectPhotos(projectId: string, photoKeys: string[]): Promise<ContractorProject> {
+  return apiFetch(`/v1/admin/contractor-portfolio/projects/${projectId}/photos`, json({ photo_keys: photoKeys }));
+}
+export async function removeProjectPhoto(projectId: string, key: string): Promise<void> {
+  return apiFetch(`/v1/admin/contractor-portfolio/projects/${projectId}/photos?key=${encodeURIComponent(key)}`, { method: 'DELETE' });
+}
+export async function setProjectStatus(projectId: string, status: 'PUBLISHED' | 'REJECTED'): Promise<ContractorProject> {
+  return apiFetch(`/v1/admin/contractor-portfolio/projects/${projectId}/status`, json({ status }));
+}
+export async function deleteProject(projectId: string): Promise<void> {
+  return apiFetch(`/v1/admin/contractor-portfolio/projects/${projectId}`, { method: 'DELETE' });
+}
+export async function createContractorUploadLink(contractorId: string): Promise<{ token: string }> {
+  return apiFetch(`/v1/admin/contractor-portfolio/contractors/${contractorId}/upload-link`, json({}));
 }

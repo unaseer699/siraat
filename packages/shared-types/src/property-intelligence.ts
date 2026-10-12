@@ -546,3 +546,33 @@ export interface GroundConditionsResponse {
   society_key: string;
   blocks: GroundBlockSummary[];
 }
+
+// ─── CONTRACTOR PORTFOLIO ───────────────────────────────────────────────────
+// Past projects a contractor shows with photos. NOT verified by Siraat: the
+// public page labels them by `source`. Photos submitted through a contractor's
+// own upload link are UNTRUSTED_DATA until an admin publishes them (Law 8).
+
+export type ContractorProjectStatus = 'PENDING_REVIEW' | 'PUBLISHED' | 'REJECTED';
+export type ContractorProjectSource = 'ADMIN' | 'CONTRACTOR';
+
+export interface ContractorProjectPhoto {
+  url: string; // short-lived signed link
+  content_type: string;
+  key?: string; // admin views only (needed to remove a photo)
+}
+
+export interface ContractorProject {
+  id: string;
+  contractor_id: string;
+  contractor_name?: string; // admin review queue only
+  title: string;
+  society_name: string | null;
+  city: string | null;
+  plot_size: string | null;
+  completed_year: number | null;
+  description: string | null;
+  status: ContractorProjectStatus;
+  source: ContractorProjectSource;
+  created_at: string;
+  photos: ContractorProjectPhoto[];
+}

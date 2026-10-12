@@ -24,7 +24,7 @@ const SECTIONS: { key: AdminSection; href: string; label: string }[] = [
   // CONTRACTOR DIRECTORY Chunk 2b — no standalone list page yet, so the tab
   // opens straight into the onboarding form (same as Material Rates doubling
   // as both list and create).
-  { key: 'contractors', href: '/admin/new-contractor', label: 'Contractors' },
+  { key: 'contractors', href: '/admin/contractors', label: 'Contractors' },
   // SUPPLIER DIRECTORY Chunk 2b — same no-standalone-list-page pattern as Contractors.
   { key: 'suppliers', href: '/admin/new-supplier', label: 'Suppliers' },
   // ADMIN CRUD PHASE 1 Chunk 2 — House Plans now has a real list page

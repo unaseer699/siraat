@@ -197,6 +197,9 @@ function NewContractorForm() {
               Contractor ID: {result.contractor_id}
             </p>
             <div style={{ display: 'flex', gap: '12px', fontWeight: 600 }}>
+              <Link href={`/admin/contractor/${result.contractor_id}/portfolio`} style={{ fontSize: '13px' }}>
+                Add portfolio projects →
+              </Link>
               <Link href={`/admin/contractor/${result.contractor_id}/add-claim`} style={{ fontSize: '13px' }}>
                 Add verification →
               </Link>

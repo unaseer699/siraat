@@ -9,6 +9,7 @@ import { ConstructionIntelligenceModule } from './construction-intelligence/cons
 import { AdminModule } from './admin/admin.module';
 import { WhatsappModule } from './whatsapp/whatsapp.module';
 import { GroundReportsModule } from './ground-reports/ground-reports.module';
+import { ContractorPortfolioModule } from './contractor-portfolio/contractor-portfolio.module';
 import { HealthController } from './health.controller';
 
 @Module({
@@ -43,6 +44,7 @@ import { HealthController } from './health.controller';
     // admin routes (module singleton — no duplicate provider instances).
     WhatsappModule,
     GroundReportsModule,
+    ContractorPortfolioModule,
   ],
 })
 export class AppModule {}
