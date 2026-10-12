@@ -6,17 +6,12 @@ import { useSearchParams } from 'next/navigation';
 import { Spinner } from '@/components/Spinner';
 import type { TradeCategory } from '@siraat/shared-types';
 import {
-  addClaimToContractor,
   createContractor,
   fetchPlatformStats,
-  type AdminEvidenceItem,
-  type ClaimType,
 } from '@/lib/api';
-import { EvidenceEditor } from '../EvidenceEditor';
 import { AdminNav } from '../AdminNav';
 import {
   CANONICAL_CITY_OPTIONS,
-  CLAIM_TYPE_OPTIONS,
   TRADE_CATEGORY_OPTIONS,
   fieldGroupStyle,
   inputStyle,
@@ -128,30 +123,20 @@ function NewContractorForm() {
   const [contactPhone, setContactPhone] = useState('');
   const [contactWhatsapp, setContactWhatsapp] = useState('');
   const [isAffiliated, setIsAffiliated] = useState(false);
-  const [claim, setClaim] = useState('');
-  const [claimType, setClaimType] = useState<ClaimType>('OTHER');
-  const [targetStatus, setTargetStatus] = useState<'VERIFIED' | 'PENDING'>('PENDING');
-  const [evidence, setEvidence] = useState<AdminEvidenceItem[]>([]);
 
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [result, setResult] = useState<{
-    contractor_id: string;
-    verification_id: string;
-  } | null>(null);
+  const [result, setResult] = useState<{ contractor_id: string } | null>(null);
 
   function toggleTrade(t: TradeCategory) {
     setTradeCategories((prev) => (prev.includes(t) ? prev.filter((x) => x !== t) : [...prev, t]));
   }
 
-  const evidenceOk = targetStatus !== 'VERIFIED' || evidence.length > 0;
   const canSubmit =
     name.trim().length > 0 &&
     tradeCategories.length > 0 &&
     serviceCities.length > 0 &&
-    contactPhone.trim().length > 0 &&
-    claim.trim().length > 0 &&
-    evidenceOk;
+    contactPhone.trim().length > 0;
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
@@ -167,13 +152,7 @@ function NewContractorForm() {
         contact_whatsapp: contactWhatsapp.trim() || null,
         is_siraat_affiliated: isAffiliated,
       });
-      const claimResult = await addClaimToContractor(contractor.id, {
-        claim: claim.trim(),
-        claim_type: claimType,
-        target_status: targetStatus,
-        evidence,
-      });
-      setResult({ contractor_id: contractor.id, verification_id: claimResult.verification_id });
+      setResult({ contractor_id: contractor.id });
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Submission failed');
     } finally {
@@ -194,7 +173,7 @@ function NewContractorForm() {
           </p>
           <h1 style={{ fontSize: '24px', fontWeight: 800 }}>Onboard Contractor</h1>
           <p style={{ fontSize: '14px', color: 'var(--muted)', marginTop: '6px' }}>
-            Creates one Contractor plus its first Verification claim (and Evidence, if any).
+            Adds a contractor to the directory. Verification can be added later, once there is proof.
           </p>
         </div>
 
@@ -216,12 +195,10 @@ function NewContractorForm() {
             Contractor onboarded
             <p style={{ fontSize: '13px', fontWeight: 400, color: '#166534' }}>
               Contractor ID: {result.contractor_id}
-              <br />
-              Verification ID: {result.verification_id}
             </p>
             <div style={{ display: 'flex', gap: '12px', fontWeight: 600 }}>
               <Link href={`/admin/contractor/${result.contractor_id}/add-claim`} style={{ fontSize: '13px' }}>
-                Add another claim →
+                Add verification →
               </Link>
             </div>
           </div>
@@ -281,52 +258,6 @@ function NewContractorForm() {
                 <input type="checkbox" checked={isAffiliated} onChange={(e) => setIsAffiliated(e.target.checked)} />
                 Siraat-affiliated
               </label>
-            </fieldset>
-
-            <fieldset style={fieldsetStyle}>
-              <legend style={legendStyle}>First claim</legend>
-
-              <div style={fieldGroupStyle}>
-                <label style={labelStyle}>Claim type</label>
-                <select value={claimType} onChange={(e) => setClaimType(e.target.value as ClaimType)} style={inputStyle}>
-                  {CLAIM_TYPE_OPTIONS.map((o) => (
-                    <option key={o.value} value={o.value}>
-                      {o.label}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div style={fieldGroupStyle}>
-                <label style={labelStyle}>Claim text</label>
-                <input
-                  type="text"
-                  value={claim}
-                  onChange={(e) => setClaim(e.target.value)}
-                  placeholder='e.g. "PEC Licensed Contractor"'
-                  required
-                  style={inputStyle}
-                />
-              </div>
-
-              <div style={fieldGroupStyle}>
-                <label style={labelStyle}>Verification status</label>
-                <select
-                  value={targetStatus}
-                  onChange={(e) => setTargetStatus(e.target.value as 'VERIFIED' | 'PENDING')}
-                  style={inputStyle}
-                >
-                  <option value="PENDING">PENDING</option>
-                  <option value="VERIFIED">VERIFIED</option>
-                </select>
-              </div>
-
-              <EvidenceEditor items={evidence} onChange={setEvidence} required={targetStatus === 'VERIFIED'} />
-              {!evidenceOk && (
-                <p style={{ fontSize: '12px', color: 'var(--error)' }}>
-                  VERIFIED status requires at least one evidence item.
-                </p>
-              )}
             </fieldset>
 
             {error && (
