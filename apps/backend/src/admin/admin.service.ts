@@ -422,6 +422,20 @@ export class AdminService {
     return match ? [{ id: match.id, name: match.name, city: match.city }] : [];
   }
 
+  // ADMIN EDIT SOCIETY — GET/PATCH /v1/admin/societies/:id, find-or-404
+  // delegation like updateHousePlan above.
+  async getSociety(id: string) {
+    const society = await this.piSvc.findSocietyById(id);
+    if (!society) throw new NotFoundException(`Society ${id} not found`);
+    return society;
+  }
+
+  async updateSociety(id: string, data: Parameters<PropertyIntelligenceService['updateSociety']>[1]) {
+    const updated = await this.piSvc.updateSociety(id, data);
+    if (!updated) throw new NotFoundException(`Society ${id} not found`);
+    return updated;
+  }
+
   // CONTRACTOR DIRECTORY Chunk 2 — POST /v1/admin/contractors
   async createContractor(data: CreateContractorInput): Promise<ContractorSummary> {
     return this.piSvc.createContractor(data);

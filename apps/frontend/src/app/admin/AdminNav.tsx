@@ -4,6 +4,7 @@ import { AdminLogoutButton } from './AdminLogoutButton';
 
 type AdminSection =
   | 'candidates'
+  | 'societies'
   | 'material-rates'
   | 'daily-rates'
   | 'contractors'
@@ -16,6 +17,7 @@ type AdminSection =
 
 const SECTIONS: { key: AdminSection; href: string; label: string }[] = [
   { key: 'candidates', href: '/admin/candidates', label: 'Candidate Societies' },
+  { key: 'societies', href: '/admin/societies', label: 'Societies' },
   { key: 'material-rates', href: '/admin/material-rates', label: 'Material Rates' },
   // Daily market rates (WhatsApp template or manual entry) that price the forecast.
   { key: 'daily-rates', href: '/admin/daily-rates', label: 'Daily Rates' },

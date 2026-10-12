@@ -495,6 +495,82 @@ export class PropertyIntelligenceService {
     return entity ? toSocietyResult(entity) : null;
   }
 
+  // ADMIN EDIT SOCIETY — PATCH /v1/admin/societies/:id. Editable: name, city,
+  // price/area ranges, property types, NOC flag + summary, developer link.
+  // Deliberately NOT editable here: confidence, affiliation, staleness (they
+  // feed scoring/disclosure and must not change casually). Returns null on a
+  // bad id so the 404 stays with the caller. A rename that would collide with
+  // another society is blocked (same rule as createSociety). Every changed
+  // field is logged as an append-only Observation (old -> new).
+  async updateSociety(
+    id: string,
+    data: Partial<{
+      name: string;
+      city: string;
+      min_price: number | null;
+      max_price: number | null;
+      min_area_marla: number | null;
+      max_area_marla: number | null;
+      property_types: string[];
+      noc_approved: boolean;
+      noc_summary: string | null;
+      developer_id: string | null;
+    }>,
+  ): Promise<SocietyResult | null> {
+    const entity = await this.societyRepo.findOneBy({ id });
+    if (!entity) return null;
+
+    const nextName = data.name ?? entity.name;
+    const nextCity = data.city ?? entity.city;
+    if (nextName !== entity.name || nextCity !== entity.city) {
+      const clash = await this.findSocietyByNameAndCity(nextName, nextCity);
+      if (clash && clash.id !== id) {
+        throw new BadRequestException(
+          `A society named "${nextName}" already exists in ${nextCity} (id: ${clash.id}).`,
+        );
+      }
+    }
+    if (data.min_price != null && data.max_price != null && data.min_price > data.max_price) {
+      throw new BadRequestException('Min price cannot be greater than max price');
+    }
+    if (data.min_area_marla != null && data.max_area_marla != null && data.min_area_marla > data.max_area_marla) {
+      throw new BadRequestException('Min area cannot be greater than max area');
+    }
+
+    const norm = (v: unknown): string | null => {
+      if (v === null || v === undefined) return null;
+      if (Array.isArray(v)) return v.join(',');
+      return String(v);
+    };
+    const changes: { field: string; old: string | null; new: string | null }[] = [];
+    const record = entity as unknown as Record<string, unknown>;
+    for (const [field, value] of Object.entries(data)) {
+      if (value === undefined) continue;
+      const before = norm(record[field]);
+      const after = norm(value);
+      const same =
+        field.endsWith('price') || field.endsWith('marla')
+          ? (before === null ? null : Number(before)) === (after === null ? null : Number(after))
+          : before === after;
+      if (same) continue;
+      changes.push({ field, old: before, new: after });
+      record[field] = value;
+    }
+    if (changes.length === 0) return toSocietyResult(entity);
+
+    const saved = await this.societyRepo.save(entity);
+    for (const c of changes) {
+      void this.logObservation({
+        entity_ref: id,
+        metric: 'society_edit',
+        old_value: c.old,
+        new_value: c.new ?? '',
+        source_ref: `Edited society ${id} (${c.field})`,
+      });
+    }
+    return toSocietyResult(saved);
+  }
+
   // DEVELOPER-SOCIETY LINK Chunk 1 — powers linked_societies on the Developer
   // Profile endpoint (getDeveloperStats below).
   async findSocietiesByDeveloperId(developerId: string): Promise<SocietyResult[]> {

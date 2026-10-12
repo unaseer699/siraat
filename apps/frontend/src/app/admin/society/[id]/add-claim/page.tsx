@@ -87,7 +87,8 @@ export default function AddClaimPage() {
           </p>
           <h1 style={{ fontSize: '24px', fontWeight: 800 }}>Add Claim</h1>
           <p style={{ fontSize: '14px', color: 'var(--muted)', marginTop: '6px' }}>
-            Adds an additional verification claim to society <code>{societyId}</code>.
+            Adds an additional verification claim to society <code>{societyId}</code>.{' '}
+            <Link href={`/admin/society/${societyId}/edit`} style={{ fontWeight: 600 }}>Edit society details →</Link>
           </p>
         </div>
 

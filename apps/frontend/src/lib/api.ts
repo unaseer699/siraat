@@ -534,6 +534,41 @@ export async function createSociety(
   });
 }
 
+export interface AdminSociety {
+  id: string;
+  name: string;
+  city: string;
+  min_price: number | string | null;
+  max_price: number | string | null;
+  min_area_marla: number | string | null;
+  max_area_marla: number | string | null;
+  property_types: string[];
+  noc_approved: boolean;
+  noc_summary: string | null;
+  developer_id: string | null;
+}
+
+export interface UpdateSocietyBody {
+  name?: string;
+  city?: string;
+  min_price?: number | null;
+  max_price?: number | null;
+  min_area_marla?: number | null;
+  max_area_marla?: number | null;
+  property_types?: string[];
+  noc_approved?: boolean;
+  noc_summary?: string | null;
+  developer_id?: string | null;
+}
+
+export async function fetchAdminSociety(id: string): Promise<AdminSociety> {
+  return apiFetch(`/v1/admin/societies/${id}`);
+}
+
+export async function updateSociety(id: string, data: UpdateSocietyBody): Promise<AdminSociety> {
+  return apiFetch(`/v1/admin/societies/${id}`, { method: 'PATCH', body: JSON.stringify(data) });
+}
+
 export async function addClaimToSociety(
   societyId: string,
   data: AddClaimBody,

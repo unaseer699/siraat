@@ -118,6 +118,27 @@ const CreateSocietyBodySchema = z.object({
 });
 type CreateSocietyBody = z.infer<typeof CreateSocietyBodySchema>;
 
+// --- PATCH /v1/admin/societies/:id ---
+// Confidence, affiliation and staleness are intentionally absent.
+const UpdateSocietyBodySchema = z.object({
+  name: z.string().trim().min(1).max(255).optional(),
+  city: z.string().trim().min(1).max(100).optional(),
+  min_price: z.number().nonnegative().nullable().optional(),
+  max_price: z.number().nonnegative().nullable().optional(),
+  min_area_marla: z.number().nonnegative().nullable().optional(),
+  max_area_marla: z.number().nonnegative().nullable().optional(),
+  property_types: z.array(z.string()).min(1).optional(),
+  noc_approved: z.boolean().optional(),
+  noc_summary: z
+    .string()
+    .trim()
+    .nullable()
+    .optional()
+    .transform((v) => (v === '' ? null : v)),
+  developer_id: z.string().uuid().nullable().optional(),
+});
+type UpdateSocietyBody = z.infer<typeof UpdateSocietyBodySchema>;
+
 // --- POST /v1/admin/societies/:id/claims ---
 
 const AddClaimBodySchema = z.object({
@@ -603,6 +624,19 @@ export class AdminController {
     @Body(new ZodValidationPipe(CreateSocietyBodySchema)) body: CreateSocietyBody,
   ) {
     return this.adminSvc.createSocietyWithFirstClaim(body);
+  }
+
+  @Get('societies/:id')
+  getSociety(@Param('id') id: string) {
+    return this.adminSvc.getSociety(id);
+  }
+
+  @Patch('societies/:id')
+  updateSociety(
+    @Param('id') id: string,
+    @Body(new ZodValidationPipe(UpdateSocietyBodySchema)) body: UpdateSocietyBody,
+  ) {
+    return this.adminSvc.updateSociety(id, body);
   }
 
   @Post('societies/:id/claims')
