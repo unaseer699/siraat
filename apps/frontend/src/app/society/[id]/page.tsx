@@ -6,9 +6,8 @@ import { EvidenceDrawer } from '@/components/EvidenceDrawer';
 import { CopyLinkButton } from '@/components/CopyLinkButton';
 import { WatchButton } from '@/components/WatchButton';
 import { BackLink } from '@/components/BackLink';
-import StatCard from '@/components/StatCard';
 import { ConfidenceGauge } from '@/components/ConfidenceGauge';
-import { ScoreBreakdown } from '@/components/ScoreBreakdown';
+import { ScoreBreakdown, toneColor, toneIcon } from '@/components/ScoreBreakdown';
 import { TRUST_GREEN, WARNING_AMBER, DANGER_RED, REVOKED_SLATE, REVOKED_SLATE_BG, REVOKED_SLATE_BORDER } from '@/styles/tokens';
 import type { VerificationResponse, SocietyScoreResponse, PropertyPlotGroup } from '@siraat/shared-types';
 
@@ -60,80 +59,57 @@ function StatusBadge({ status }: { status: 'VERIFIED' | 'DISPUTED' | 'PENDING' |
   );
 }
 
-function ClaimCard({
-  claim,
-  societyId,
-  isAdverse,
-}: {
-  claim: VerificationResponse;
-  societyId: string;
-  isAdverse: boolean;
-}) {
-  const meta = STATUS_META[claim.status] ?? STATUS_META.PENDING;
-  const verifiedDateLabel = claim.verified_at
-    ? new Date(claim.verified_at).toLocaleDateString('en-PK', {
-        day: 'numeric',
-        month: 'short',
-        year: 'numeric',
-      })
-    : 'Pending';
+const CLAIM_TYPE_LABEL: Record<string, string> = {
+  NOC: 'NOC',
+  PLANNING_APPROVAL: 'Planning approval',
+  COMPLETION_CERTIFICATE: 'Completion certificate',
+  SHOW_CAUSE_NOTICE: 'Show cause notice',
+  ILLEGAL_SCHEME_NOTICE: 'Illegal scheme notice',
+  TRANSFER_DEED: 'Transfer deed',
+  MORTGAGE_DEED: 'Mortgage deed',
+};
 
-  const evidenceTone =
-    claim.evidence.length >= 2 ? 'success' : claim.evidence.length >= 1 ? 'neutral' : 'warning';
+function shortDate(iso: string): string {
+  return new Date(iso).toLocaleDateString('en-PK', { day: 'numeric', month: 'short', year: 'numeric' });
+}
+
+// One compact row per claim: what it is, its status, and the papers behind it.
+function ClaimRow({ claim, isAdverse }: { claim: VerificationResponse; isAdverse: boolean }) {
+  const typeLabel = CLAIM_TYPE_LABEL[claim.claim_type];
+  const docs = claim.evidence.length;
+  const detail = [
+    docs > 0 ? `${docs} document${docs === 1 ? '' : 's'}` : 'No documents attached yet',
+    claim.status === 'VERIFIED' && claim.verified_at ? `Verified ${shortDate(claim.verified_at)}` : null,
+  ]
+    .filter(Boolean)
+    .join(' · ');
 
   return (
     <div
       style={{
         background: isAdverse ? '#fff8f8' : '#fff',
-        border: `1px solid ${isAdverse ? DANGER_RED + '60' : 'var(--border)'}`,
-        borderLeft: isAdverse ? `4px solid ${DANGER_RED}` : `1px solid var(--border)`,
+        border: `1px solid ${isAdverse ? DANGER_RED + '40' : 'var(--border)'}`,
         borderRadius: 'var(--radius)',
-        padding: '20px',
+        padding: '14px 16px',
         display: 'flex',
         flexDirection: 'column',
-        gap: '16px',
+        gap: '8px',
       }}
     >
-      <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
-        <h2 style={{ fontSize: '15px', fontWeight: 700, margin: 0 }}>{claim.claim}</h2>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '10px', flexWrap: 'wrap' }}>
+        <div style={{ minWidth: 0 }}>
+          {typeLabel && (
+            <p style={{ fontSize: '11px', fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.05em', margin: 0 }}>
+              {typeLabel}
+            </p>
+          )}
+          <h3 style={{ fontSize: '15px', fontWeight: 700, margin: '2px 0 0' }}>{claim.claim}</h3>
+        </div>
         <StatusBadge status={claim.status} />
       </div>
-
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
-        <StatCard
-          value={claim.evidence.length}
-          label="Evidence items"
-          tone={evidenceTone}
-          icon="📋"
-        />
-        <StatCard
-          value={verifiedDateLabel}
-          label={claim.status === 'VERIFIED' ? 'Verified on' : 'Last updated'}
-          tone={meta.tone}
-          icon={meta.icon}
-        />
-      </div>
-
-      {claim.status === 'PENDING' && (
-        <p style={{ fontSize: '13px', color: '#92400e', margin: 0 }}>
-          Verification is in progress. Evidence has not yet been reviewed.
-        </p>
-      )}
-
-      {isAdverse && (
-        <p style={{ fontSize: '13px', color: '#991b1b', fontWeight: 600, margin: 0 }}>
-          Adverse claim — review all evidence carefully before proceeding.
-        </p>
-      )}
-
       <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
-        {claim.evidence.length > 0 && <EvidenceDrawer evidence={claim.evidence} />}
-        <Link
-          href={`/submit-evidence/${societyId}`}
-          style={{ fontSize: '13px', color: '#2563eb', textDecoration: 'none', fontWeight: 500 }}
-        >
-          Help verify this society →
-        </Link>
+        <span style={{ fontSize: '13px', color: 'var(--muted)' }}>{detail}</span>
+        {docs > 0 && <EvidenceDrawer evidence={claim.evidence} triggerLabel="View documents" />}
       </div>
     </div>
   );
@@ -189,10 +165,7 @@ export default async function SocietyProfilePage({ params }: Props) {
           <p style={{ fontSize: '12px', color: 'var(--muted)', fontWeight: 600, marginBottom: '4px' }}>
             SOCIETY PROFILE
           </p>
-          <h1 style={{ fontSize: '26px', fontWeight: 800 }}>NOC &amp; Trust Status</h1>
-          <p style={{ fontSize: '13px', color: 'var(--muted)', marginTop: '4px' }}>
-            {claims.length} verification claim{claims.length !== 1 ? 's' : ''} on record
-          </p>
+          <h1 style={{ fontSize: '26px', fontWeight: 800 }}>{score?.society_name ?? 'Society profile'}</h1>
           {score?.developer_id && (
             <Link
               href={`/developer/${score.developer_id}`}
@@ -208,7 +181,7 @@ export default async function SocietyProfilePage({ params }: Props) {
           <WatchButton societyId={params.id} societyName={score?.society_name ?? params.id} />
         </div>
 
-        {/* Score breakdown */}
+        {/* At a glance: one headline, the confidence, and the detail on demand */}
         {score && (
           <div
             style={{
@@ -217,15 +190,40 @@ export default async function SocietyProfilePage({ params }: Props) {
               borderRadius: 'var(--radius)',
               padding: '20px',
               display: 'flex',
-              gap: '24px',
-              flexWrap: 'wrap',
-              alignItems: 'flex-start',
+              flexDirection: 'column',
+              gap: '14px',
             }}
           >
-            <ConfidenceGauge score={score.confidence_score} size="lg" />
-            <div style={{ flex: 1, minWidth: '240px' }}>
-              <ScoreBreakdown breakdown={score.breakdown} />
+            <div style={{ display: 'flex', gap: '18px', alignItems: 'center', flexWrap: 'wrap' }}>
+              <ConfidenceGauge score={score.confidence_score} size="sm" />
+              <div style={{ flex: 1, minWidth: '200px' }}>
+                {score.breakdown ? (
+                  <>
+                    <p style={{ fontSize: '12px', color: 'var(--muted)', margin: 0 }}>Approval status</p>
+                    <p style={{ fontSize: '18px', fontWeight: 800, margin: '2px 0', color: toneColor(score.breakdown.regulatory.tone) }}>
+                      {toneIcon(score.breakdown.regulatory.tone)} {score.breakdown.regulatory.label}
+                    </p>
+                    <p style={{ fontSize: '13px', color: 'var(--muted)', margin: 0 }}>
+                      {score.breakdown.evidence_strength.label} · checked {score.breakdown.data_freshness.checked_date}
+                    </p>
+                  </>
+                ) : (
+                  <p style={{ fontSize: '14px', color: 'var(--muted)', margin: 0 }}>
+                    {Math.round(score.confidence_score * 100)}% trust confidence
+                  </p>
+                )}
+              </div>
             </div>
+            {score.breakdown && (
+              <details>
+                <summary style={{ fontSize: '13px', fontWeight: 600, color: '#2563eb', cursor: 'pointer' }}>
+                  How is this worked out?
+                </summary>
+                <div style={{ marginTop: '12px' }}>
+                  <ScoreBreakdown breakdown={score.breakdown} />
+                </div>
+              </details>
+            )}
           </div>
         )}
 
@@ -250,45 +248,29 @@ export default async function SocietyProfilePage({ params }: Props) {
           </section>
         )}
 
-        {/* Primary claims */}
-        {primaryClaims.map((claim, i) => (
-          <ClaimCard key={i} claim={claim} societyId={params.id} isAdverse={false} />
-        ))}
+        {/* What the records say */}
+        <section style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+          <h2 style={{ fontSize: '16px', fontWeight: 800 }}>What the records say</h2>
+          {primaryClaims.map((claim) => (
+            <ClaimRow key={claim.id} claim={claim} isAdverse={false} />
+          ))}
+        </section>
 
-        {/* Adverse claims */}
         {adverseClaims.length > 0 && (
-          <>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-              <div style={{ flex: 1, height: '1px', background: `${DANGER_RED}30` }} />
-              <span
-                style={{ fontSize: '11px', fontWeight: 700, color: DANGER_RED, whiteSpace: 'nowrap' }}
-              >
-                ADVERSE CLAIMS
-              </span>
-              <div style={{ flex: 1, height: '1px', background: `${DANGER_RED}30` }} />
-            </div>
-            {adverseClaims.map((claim, i) => (
-              <ClaimCard key={i} claim={claim} societyId={params.id} isAdverse={true} />
+          <section style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+            <h2 style={{ fontSize: '16px', fontWeight: 800, color: DANGER_RED }}>Reported problems</h2>
+            {adverseClaims.map((claim) => (
+              <ClaimRow key={claim.id} claim={claim} isAdverse={true} />
             ))}
-          </>
+          </section>
         )}
 
-        {/* Possession history placeholder */}
-        <div
-          style={{
-            background: '#fff',
-            border: '1px solid var(--border)',
-            borderRadius: 'var(--radius)',
-            padding: '20px',
-          }}
-        >
-          <h2 style={{ fontSize: '15px', fontWeight: 700, marginBottom: '8px' }}>
-            Possession History
-          </h2>
-          <p style={{ fontSize: '14px', color: 'var(--muted)' }}>
-            Possession history data is collected via the Contribute flow (Capability 4).
-          </p>
-        </div>
+        <p style={{ fontSize: '13px', color: 'var(--muted)' }}>
+          Know something about this society?{' '}
+          <Link href={`/submit-evidence/${params.id}`} style={{ color: '#2563eb', fontWeight: 600 }}>
+            Add information →
+          </Link>
+        </p>
       </article>
     </main>
   );
