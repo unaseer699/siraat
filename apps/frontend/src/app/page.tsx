@@ -126,26 +126,44 @@ function HeroBand() {
           style={{
             display: 'inline-flex',
             alignItems: 'center',
-            gap: '6px',
-            background: '#fff',
-            border: `1px solid ${TRUST_GREEN_BORDER}`,
+            gap: '10px',
+            background: `linear-gradient(135deg, ${TRUST_GREEN} 0%, #15803d 100%)`,
             borderRadius: '99px',
-            padding: '6px 14px',
-            fontSize: '12px',
-            fontWeight: 600,
-            color: TRUST_GREEN_TEXT,
+            padding: '8px 20px 8px 8px',
+            fontSize: '15px',
+            fontWeight: 800,
+            letterSpacing: '0.2px',
+            color: '#fff',
+            boxShadow: '0 3px 10px rgba(22,163,74,0.35)',
+            textAlign: 'left',
           }}
         >
-          <ShieldCheck size={14} color={TRUST_GREEN} aria-hidden="true" />
+          <span
+            style={{
+              width: '30px',
+              height: '30px',
+              flexShrink: 0,
+              borderRadius: '50%',
+              background: '#fff',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}
+          >
+            <ShieldCheck size={18} color={TRUST_GREEN} aria-hidden="true" />
+          </span>
           Evidence-backed real estate intelligence
         </span>
 
         <header style={{ textAlign: 'center', maxWidth: '640px' }}>
-          <h1 style={{ fontSize: '52px', fontWeight: 800, letterSpacing: '-1.5px', lineHeight: 1.1 }}>
+          <h1 style={{ fontSize: '56px', fontWeight: 800, letterSpacing: '-1.5px', lineHeight: 1.05, margin: 0 }}>
             Siraat
           </h1>
-          <p style={{ fontSize: '18px', color: 'var(--muted)', marginTop: '14px' }}>
+          <p style={{ fontSize: '22px', fontWeight: 700, color: 'var(--text)', margin: '12px 0 0' }}>
             Buy with proof, not promises.
+          </p>
+          <p style={{ fontSize: '15px', color: 'var(--muted)', margin: '8px 0 0', lineHeight: 1.5 }}>
+            Check society approvals, builders and costs against official records before you spend.
           </p>
         </header>
 
