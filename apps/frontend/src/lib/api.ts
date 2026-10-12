@@ -1891,3 +1891,11 @@ export async function deleteProject(projectId: string): Promise<void> {
 export async function createContractorUploadLink(contractorId: string): Promise<{ token: string }> {
   return apiFetch(`/v1/admin/contractor-portfolio/contractors/${contractorId}/upload-link`, json({}));
 }
+
+// One-tick "Verified by Siraat" for contractors and suppliers.
+export async function setContractorVerified(id: string, verified: boolean, note?: string): Promise<{ verified: boolean }> {
+  return apiFetch(`/v1/admin/contractors/${id}/verified`, { method: 'POST', body: JSON.stringify({ verified, note }) });
+}
+export async function setSupplierVerified(id: string, verified: boolean, note?: string): Promise<{ verified: boolean }> {
+  return apiFetch(`/v1/admin/suppliers/${id}/verified`, { method: 'POST', body: JSON.stringify({ verified, note }) });
+}

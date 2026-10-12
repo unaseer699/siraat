@@ -6,6 +6,7 @@ import type { ContractorSummary } from '@siraat/shared-types';
 import { fetchContractors, fetchPendingProjects, type ContractorProject } from '@/lib/api';
 import { AdminNav } from '../AdminNav';
 import { AdminProjectCard } from '@/components/AdminProjectCard';
+import { VerifiedToggle } from '@/components/VerifiedToggle';
 import { primaryButtonStyle } from '../buttonStyles';
 
 export default function AdminContractorsPage() {
@@ -56,9 +57,9 @@ export default function AdminContractorsPage() {
                   <Link href={`/contractor/${c.id}`} style={{ fontWeight: 700, fontSize: '15px' }}>{c.name}</Link>
                   <p style={{ fontSize: '12px', color: 'var(--muted)', margin: '2px 0 0' }}>{c.service_cities.join(', ')} · {c.contact_phone}</p>
                 </div>
-                <div style={{ display: 'flex', gap: '14px', fontSize: '13px', fontWeight: 600 }}>
+                <div style={{ display: 'flex', gap: '14px', fontSize: '13px', fontWeight: 600, alignItems: 'center' }}>
                   <Link href={`/admin/contractor/${c.id}/portfolio`}>Portfolio</Link>
-                  <Link href={`/admin/contractor/${c.id}/add-claim`}>Verification</Link>
+                  <VerifiedToggle kind="contractor" id={c.id} initial={c.verification_status === 'VERIFIED'} />
                 </div>
               </li>
             ))}

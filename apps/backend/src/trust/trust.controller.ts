@@ -88,6 +88,8 @@ export class TrustController {
   async getEvidenceDownloadUrl(@Param('id') id: string) {
     const evidence = await this.trustSvc.getEvidenceById(id);
     if (!evidence) throw new NotFoundException(`Evidence ${id} not found`);
+    // An admin's written check has no file behind it.
+    if (evidence.file_ref.startsWith('note:')) throw new NotFoundException('This evidence is a written note, not a file');
     // Direct link to an official portal document (e.g. CDA) — no storage hop.
     const official = officialDocumentUrl(evidence.file_ref);
     if (official) return { url: official, expires_in_seconds: 900 };

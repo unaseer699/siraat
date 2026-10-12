@@ -26,7 +26,7 @@ const SECTIONS: { key: AdminSection; href: string; label: string }[] = [
   // as both list and create).
   { key: 'contractors', href: '/admin/contractors', label: 'Contractors' },
   // SUPPLIER DIRECTORY Chunk 2b — same no-standalone-list-page pattern as Contractors.
-  { key: 'suppliers', href: '/admin/new-supplier', label: 'Suppliers' },
+  { key: 'suppliers', href: '/admin/suppliers', label: 'Suppliers' },
   // ADMIN CRUD PHASE 1 Chunk 2 — House Plans now has a real list page
   // (admin/house-plans/page.tsx), so this tab points there instead of
   // straight into the create form; that form is still reachable via the

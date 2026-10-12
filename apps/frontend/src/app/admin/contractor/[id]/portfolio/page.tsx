@@ -56,8 +56,7 @@ export default function ContractorPortfolioAdminPage() {
           <p style={{ fontSize: '12px', color: 'var(--muted)', fontWeight: 600, marginBottom: '4px' }}>ADMIN — INTERNAL ONLY</p>
           <h1 style={{ fontSize: '24px', fontWeight: 800 }}>{name || 'Contractor'}: portfolio</h1>
           <p style={{ fontSize: '14px', color: 'var(--muted)', marginTop: '6px' }}>
-            Projects you add are published straight away. Projects the contractor sends wait here until you publish them.{' '}
-            <Link href={`/admin/contractor/${id}/add-claim`} style={{ fontWeight: 600 }}>Add verification →</Link>
+            Projects you add are published straight away. Projects the contractor sends wait here until you publish them.
           </p>
         </div>
 

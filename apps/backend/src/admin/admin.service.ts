@@ -121,6 +121,8 @@ export interface CreateSocietyInput {
 // 'SUPPLIER' here (not the full VerificationSubjectType) because those are
 // the only subjects with an admin claim-adding entry point today; DEVELOPER
 // claims are still seeded outside this flow.
+export const SIRAAT_VERIFIED_CLAIM = 'Verified by Siraat';
+
 export interface AddClaimInput {
   subject_type: 'SOCIETY' | 'CONTRACTOR' | 'SUPPLIER';
   subject_id: string;
@@ -379,6 +381,57 @@ export class AdminService {
       document_date: ev.document_date,
       document_type: ev.document_type,
     };
+  }
+
+  // One-tick "Verified" for contractors and suppliers. Under the hood it is
+  // still a Trust verification (so scoring, history and the public profile keep
+  // working), but the admin never has to think about claims. The proof is the
+  // admin's own note of HOW it was checked, stored as an inspection-report
+  // evidence row whose file_ref is the marker "note:" (no file to open).
+  // Unticking cancels the claim, so the history is kept.
+  async setSubjectVerified(
+    subjectType: 'CONTRACTOR' | 'SUPPLIER',
+    id: string,
+    verified: boolean,
+    note?: string,
+  ): Promise<{ verified: boolean }> {
+    const subject = subjectType === 'CONTRACTOR' ? await this.piSvc.findContractorById(id) : await this.piSvc.findSupplierById(id);
+    if (!subject) throw new NotFoundException(`${subjectType === 'CONTRACTOR' ? 'Contractor' : 'Supplier'} ${id} not found`);
+
+    const results = await this.trustSvc.getVerifications(subjectType, id);
+    const existing = results.find((r) => r.verification.claim === SIRAAT_VERIFIED_CLAIM && r.verification.claim_type === 'OTHER');
+    const evidence: EvidenceInput = {
+      type: 'inspection_report',
+      file_ref: 'note:',
+      source_ref: (note ?? '').trim(),
+      document_date: new Date().toISOString().slice(0, 10),
+      document_type: null,
+    };
+
+    if (!verified) {
+      if (existing && existing.verification.status === 'VERIFIED') {
+        await this.trustSvc.setVerificationStatus(existing.verification.id, 'CANCELLED');
+      }
+      return { verified: false };
+    }
+
+    if (!evidence.source_ref) throw new BadRequestException('Say how you verified this (for example: visited a finished house)');
+    if (existing) {
+      await this.trustSvc.addEvidenceToVerification(existing.verification.id, evidence);
+      if (existing.verification.status !== 'VERIFIED') {
+        await this.trustSvc.setVerificationStatus(existing.verification.id, 'VERIFIED');
+      }
+    } else {
+      await this.addClaim({
+        subject_type: subjectType,
+        subject_id: id,
+        claim: SIRAAT_VERIFIED_CLAIM,
+        claim_type: 'OTHER',
+        target_status: 'VERIFIED',
+        evidence: [evidence],
+      });
+    }
+    return { verified: true };
   }
 
   // Claim status buttons on the "Claims & evidence" page.

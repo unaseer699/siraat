@@ -7,9 +7,11 @@ import { Spinner } from '@/components/Spinner';
 import type { TradeCategory } from '@siraat/shared-types';
 import {
   createContractor,
+  setContractorVerified,
   fetchPlatformStats,
 } from '@/lib/api';
 import { AdminNav } from '../AdminNav';
+import { VerifiedField } from '@/components/VerifiedField';
 import {
   CANONICAL_CITY_OPTIONS,
   TRADE_CATEGORY_OPTIONS,
@@ -123,6 +125,8 @@ function NewContractorForm() {
   const [contactPhone, setContactPhone] = useState('');
   const [contactWhatsapp, setContactWhatsapp] = useState('');
   const [isAffiliated, setIsAffiliated] = useState(false);
+  const [verified, setVerified] = useState(false);
+  const [verifiedNote, setVerifiedNote] = useState('');
 
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -136,7 +140,8 @@ function NewContractorForm() {
     name.trim().length > 0 &&
     tradeCategories.length > 0 &&
     serviceCities.length > 0 &&
-    contactPhone.trim().length > 0;
+    contactPhone.trim().length > 0 &&
+    (!verified || verifiedNote.trim().length > 0);
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
@@ -152,6 +157,7 @@ function NewContractorForm() {
         contact_whatsapp: contactWhatsapp.trim() || null,
         is_siraat_affiliated: isAffiliated,
       });
+      if (verified) await setContractorVerified(contractor.id, true, verifiedNote.trim());
       setResult({ contractor_id: contractor.id });
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Submission failed');
@@ -199,9 +205,6 @@ function NewContractorForm() {
             <div style={{ display: 'flex', gap: '12px', fontWeight: 600 }}>
               <Link href={`/admin/contractor/${result.contractor_id}/portfolio`} style={{ fontSize: '13px' }}>
                 Add portfolio projects →
-              </Link>
-              <Link href={`/admin/contractor/${result.contractor_id}/add-claim`} style={{ fontSize: '13px' }}>
-                Add verification →
               </Link>
             </div>
           </div>
@@ -262,6 +265,8 @@ function NewContractorForm() {
                 Siraat-affiliated
               </label>
             </fieldset>
+
+            <VerifiedField verified={verified} note={verifiedNote} onChange={(v) => { setVerified(v.verified); setVerifiedNote(v.note); }} />
 
             {error && (
               <div

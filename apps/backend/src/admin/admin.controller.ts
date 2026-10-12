@@ -186,6 +186,14 @@ const CreateEvidenceBodySchema = z.object({
 });
 type CreateEvidenceBody = z.infer<typeof CreateEvidenceBodySchema>;
 
+// --- POST /v1/admin/{contractors|suppliers}/:id/verified ---
+// One tick for "verified". `note` = how it was checked; required when verifying.
+const SetVerifiedBodySchema = z.object({
+  verified: z.boolean(),
+  note: z.string().trim().max(300).optional(),
+});
+type SetVerifiedBody = z.infer<typeof SetVerifiedBodySchema>;
+
 // --- POST /v1/admin/material-rates ---
 // CreateMaterialRateBodySchema now lives in @siraat/shared-types (SUPPLIER
 // DIRECTORY Chunk 2) — single source of truth, previously duplicated by hand
@@ -682,6 +690,24 @@ export class AdminController {
     @Body(new ZodValidationPipe(AddClaimBodySchema)) body: AddClaimBody,
   ) {
     return this.adminSvc.addClaim({ ...body, subject_type: 'CONTRACTOR', subject_id: id });
+  }
+
+  @Post('contractors/:id/verified')
+  @HttpCode(200)
+  setContractorVerified(
+    @Param('id') id: string,
+    @Body(new ZodValidationPipe(SetVerifiedBodySchema)) body: SetVerifiedBody,
+  ) {
+    return this.adminSvc.setSubjectVerified('CONTRACTOR', id, body.verified, body.note);
+  }
+
+  @Post('suppliers/:id/verified')
+  @HttpCode(200)
+  setSupplierVerified(
+    @Param('id') id: string,
+    @Body(new ZodValidationPipe(SetVerifiedBodySchema)) body: SetVerifiedBody,
+  ) {
+    return this.adminSvc.setSubjectVerified('SUPPLIER', id, body.verified, body.note);
   }
 
   // SUPPLIER DIRECTORY Chunk 2 — same generalized addClaim() flow, just a

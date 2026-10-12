@@ -199,7 +199,10 @@ export function EvidenceDrawer({ evidence, triggerLabel = 'View all evidence' }:
                         <span style={{ fontSize: '13px', color: 'var(--text)' }}>
                           <strong style={{ fontWeight: 700 }}>{typeLabel}</strong>
                           {' — '}
-                          <button
+{item.file_ref.startsWith('note:') ? (
+                            <span style={{ fontSize: '13px', fontWeight: 600 }}>Checked by Siraat</span>
+                          ) : (
+                                                    <button
                             onClick={() => handleViewDocument(item.id)}
                             disabled={loadingId === item.id}
                             style={{
@@ -216,6 +219,7 @@ export function EvidenceDrawer({ evidence, triggerLabel = 'View all evidence' }:
                           >
                             {loadingId === item.id ? 'Loading…' : 'View Document →'}
                           </button>
+                          )}
                         </span>
                         <span
                           style={{
