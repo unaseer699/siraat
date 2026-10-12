@@ -194,13 +194,25 @@ function HeroBand() {
             Steps to build a home: plot to move-in →
           </Link>
 
-          <Link href="/real-builds" style={{ fontSize: '14px', fontWeight: 700, color: ACCENT_BLUE }}>
+          <Link
+            href="/real-builds"
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '8px',
+              fontSize: '15px',
+              fontWeight: 800,
+              color: '#fff',
+              background: ACCENT_BLUE,
+              borderRadius: '99px',
+              padding: '12px 22px',
+              textDecoration: 'none',
+              boxShadow: '0 2px 6px rgba(0,0,0,0.15)',
+              textAlign: 'center',
+            }}
+          >
             See real homes being built: cost vs estimate →
           </Link>
-
-          <a href="#how-we-verify" style={{ fontSize: '13px', fontWeight: 600, color: 'var(--muted)' }}>
-            See how we verify every claim →
-          </a>
         </div>
       </div>
 
