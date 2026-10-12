@@ -159,20 +159,26 @@ describe('ScoringService', () => {
 
   // ─── Capability 5 — Score reuse ───────────────────────────────────────────
 
-  it('returns existing non-stale Score within staleness window without inserting a new row', async () => {
-    const recentScore = savedScore({
-      subject_id: baseSociety.id,
-      subject_type: 'SOCIETY',
-      is_stale: false,
-      computed_at: new Date(), // just computed — within any staleness window
-    });
-    findOneMock.mockResolvedValueOnce(recentScore);
+  it('returns existing Score within the window without inserting when claims/evidence are unchanged', async () => {
+    const first = await svc.computeAndSave(baseSociety);
+    saveMock.mockClear();
+    findOneMock.mockResolvedValueOnce({ ...first, computed_at: new Date() });
 
     const result = await svc.computeAndSave(baseSociety);
 
-    expect(result).toBe(recentScore);
+    expect(Number(result.confidence_score)).toBe(Number(first.confidence_score));
     expect(saveMock).not.toHaveBeenCalled();
-    expect(trustGetVerificationsMock).not.toHaveBeenCalled();
+  });
+
+  it('recomputes immediately (even inside the window) when a claim changes', async () => {
+    const first = await svc.computeAndSave(baseSociety);
+    saveMock.mockClear();
+    findOneMock.mockResolvedValueOnce({ ...first, computed_at: new Date() });
+    trustGetVerificationsMock.mockResolvedValueOnce([MOCK_NOC_RESULT, MOCK_SHOW_CAUSE_DISPUTED]);
+
+    await svc.computeAndSave(baseSociety);
+
+    expect(saveMock).toHaveBeenCalledTimes(1);
   });
 
   it('computes and saves a new Score when no existing Score is found', async () => {
@@ -215,7 +221,7 @@ describe('ScoringService', () => {
     // base=0.90, docBonus=0.06 (3 evidence items), adverse penalty=0.20 → 0.76
     expect(Number(result.confidence_score)).toBeCloseTo(0.76, 2);
     expect(Number(result.confidence_score)).toBeLessThan(0.93); // lower than NOC-only baseline
-    expect(result.reasoning_summary).toMatch(/show-cause notice/i);
+    expect(result.reasoning_summary).toMatch(/active issue/i);
   });
 
   // ─── Capability 7 — Score Breakdown ──────────────────────────────────────────
@@ -286,6 +292,70 @@ describe('ScoringService', () => {
   });
 
   // ─── OBSERVATION LOGGING Chunk 1 ──────────────────────────────────────────
+
+  // ─── Approval-aware scoring ──────────────────────────────────────────────
+
+  const MOCK_NOC_NOT_ISSUED = {
+    verification: { id: 'ver-noc-bad', claim_type: 'NOC' as const, status: 'DISPUTED' as const },
+    evidence: [],
+  };
+
+  it('a disputed NOC claim is an active issue, lowers the score and is capped at 40%', async () => {
+    trustGetVerificationsMock.mockResolvedValueOnce([MOCK_NOC_NOT_ISSUED]);
+    const result = await svc.computeAndSave(baseSociety);
+    const created = createMock.mock.calls[0][0];
+    expect(Number(result.confidence_score)).toBeLessThanOrEqual(0.4);
+    expect(created.breakdown.active_issues.count).toBe(1);
+    expect(created.breakdown.regulatory.tone).toBe('danger');
+    expect(created.breakdown.regulatory.label).toMatch(/not issued/i);
+    expect(result.reasoning_summary).toMatch(/capped at 40%/);
+  });
+
+  it('a cancelled NOC claim is treated the same way', async () => {
+    trustGetVerificationsMock.mockResolvedValueOnce([
+      { ...MOCK_NOC_NOT_ISSUED, verification: { ...MOCK_NOC_NOT_ISSUED.verification, status: 'CANCELLED' as const } },
+    ]);
+    const result = await svc.computeAndSave(baseSociety);
+    expect(Number(result.confidence_score)).toBeLessThanOrEqual(0.4);
+  });
+
+  it('a Cancellation-of-LOP document on a live claim counts as an active issue', async () => {
+    trustGetVerificationsMock.mockResolvedValueOnce([
+      MOCK_NOC_RESULT,
+      {
+        verification: { id: 'ver-lop', claim_type: 'OTHER' as const, status: 'VERIFIED' as const },
+        evidence: [{ id: 'ev-lop', document_type: 'LOP_CANCELLATION' as const }],
+      },
+    ]);
+    const result = await svc.computeAndSave(baseSociety);
+    const created = createMock.mock.calls[0][0];
+    expect(created.breakdown.active_issues.count).toBe(1);
+    expect(created.breakdown.regulatory.tone).toBe('danger');
+    expect(Number(result.confidence_score)).toBeLessThanOrEqual(0.4);
+  });
+
+  it('no claims at all (no verified approval) is capped at 40%', async () => {
+    trustGetVerificationsMock.mockResolvedValueOnce([]);
+    const result = await svc.computeAndSave(baseSociety);
+    expect(Number(result.confidence_score)).toBeLessThanOrEqual(0.4);
+  });
+
+  it('a pending NOC is capped at 40% but shows "Approval pending", not a danger state', async () => {
+    trustGetVerificationsMock.mockResolvedValueOnce([
+      { verification: { id: 'p', claim_type: 'NOC' as const, status: 'PENDING' as const }, evidence: [{ id: 'e1' }] },
+    ]);
+    const result = await svc.computeAndSave({ ...baseSociety, noc_summary: null });
+    const created = createMock.mock.calls[0][0];
+    expect(Number(result.confidence_score)).toBeLessThanOrEqual(0.4);
+    expect(created.breakdown.regulatory.tone).toBe('warning');
+  });
+
+  it('affiliation never changes the capped score (Law 6)', async () => {
+    trustGetVerificationsMock.mockResolvedValue([MOCK_NOC_NOT_ISSUED]);
+    const a = await svc.computeAndSave(baseSociety);
+    const b = await svc.computeAndSave(affiliatedSociety);
+    expect(Number(a.confidence_score)).toBe(Number(b.confidence_score));
+  });
 
   describe('Observation logging', () => {
     it('logs a confidence_score Observation when recomputation produces a genuinely changed value', async () => {
