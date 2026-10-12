@@ -7,6 +7,7 @@ import { Spinner } from '@/components/Spinner';
 import type { SocietyScoreResponse, VerificationResponse } from '@siraat/shared-types';
 import { fetchSocietyScore, fetchSocietyVerifications } from '@/lib/api';
 import { BackLink } from '@/components/BackLink';
+import { ComparePicker } from '@/components/ComparePicker';
 import { ConfidenceGauge } from '@/components/ConfidenceGauge';
 import { SCORE_BREAKDOWN_ROWS, toneColor, toneIcon } from '@/components/ScoreBreakdown';
 import { DANGER_RED, NEUTRAL_GRAY, RADIUS } from '@/styles/tokens';
@@ -132,10 +133,7 @@ function CompareView() {
     return (
       <main style={pageStyle}>
         <BackLink />
-        <p style={{ marginTop: '16px', fontSize: '14px', color: 'var(--text)' }}>
-          Select 2 or 3 societies to compare from the search results using the &ldquo;Add to
-          compare&rdquo; checkbox on each result.
-        </p>
+        <ComparePicker initial={ids} />
       </main>
     );
   }
