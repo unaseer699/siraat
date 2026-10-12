@@ -67,7 +67,7 @@ export default function AdminSocietiesPage() {
                   </span>
                   <span style={{ display: 'flex', gap: '14px', fontSize: '13px', fontWeight: 600 }}>
                     <Link href={`/admin/society/${r.id}/edit`}>Edit details</Link>
-                    <Link href={`/admin/society/${r.id}/add-claim`}>Claims &amp; evidence</Link>
+                    <Link href={`/admin/society/${r.id}/records`}>Records</Link>
                     <Link href={`/society/${r.id}`}>View</Link>
                   </span>
                 </li>

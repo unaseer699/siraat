@@ -329,8 +329,8 @@ function NewSocietyForm() {
               Candidate marked onboarded: {result.candidate_marked_onboarded ? 'Yes' : 'No matching candidate found'}
             </p>
             <div style={{ display: 'flex', gap: '12px', fontWeight: 600 }}>
-              <Link href={`/admin/society/${result.society_id}/add-claim`} style={{ fontSize: '13px' }}>
-                Add another claim →
+              <Link href={`/admin/society/${result.society_id}/records`} style={{ fontSize: '13px' }}>
+                Add documents →
               </Link>
               <Link href={`/society/${result.society_id}`} style={{ fontSize: '13px' }}>
                 View society profile →
@@ -384,8 +384,8 @@ function NewSocietyForm() {
                   <span>
                     ⚠ A society named &ldquo;{duplicateMatch.name}&rdquo; already exists in {duplicateMatch.city}.
                   </span>
-                  <Link href={`/admin/society/${duplicateMatch.id}/add-claim`} style={{ fontWeight: 600, color: '#92400e' }}>
-                    Add a claim to it instead →
+                  <Link href={`/admin/society/${duplicateMatch.id}/records`} style={{ fontWeight: 600, color: '#92400e' }}>
+                    Add documents to it instead →
                   </Link>
                 </div>
               )}

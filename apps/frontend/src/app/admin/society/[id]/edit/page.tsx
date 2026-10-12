@@ -119,7 +119,7 @@ export default function EditSocietyPage() {
           <h1 style={{ fontSize: '24px', fontWeight: 800 }}>Edit society</h1>
           <p style={{ fontSize: '13px', color: 'var(--muted)', marginTop: '6px' }}>
             Every change is logged. Confidence and affiliation can&apos;t be changed here. Claims and documents are managed under{' '}
-            <Link href={`/admin/society/${societyId}/add-claim`} style={{ fontWeight: 600 }}>Claims &amp; evidence</Link>.
+            <Link href={`/admin/society/${societyId}/records`} style={{ fontWeight: 600 }}>Records</Link>.
           </p>
         </div>
 

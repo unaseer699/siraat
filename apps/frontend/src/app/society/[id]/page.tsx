@@ -2,7 +2,8 @@ import { notFound } from 'next/navigation';
 import Link from 'next/link';
 import { fetchSocietyVerifications, fetchSocietyScore, fetchPropertyListings, fetchSocietyDetails, type SocietyDetails } from '@/lib/api';
 import { PlotGroupCard, ListingDisclaimer } from '@/components/PlotListings';
-import { EvidenceDrawer } from '@/components/EvidenceDrawer';
+import { EvidenceLink } from '@/components/EvidenceLink';
+import { STATUS_WORD, docTime, topicOf } from '@/lib/societyRecords';
 import { CopyLinkButton } from '@/components/CopyLinkButton';
 import { WatchButton } from '@/components/WatchButton';
 import { BackLink } from '@/components/BackLink';
@@ -59,57 +60,55 @@ function StatusBadge({ status }: { status: 'VERIFIED' | 'DISPUTED' | 'PENDING' |
   );
 }
 
-const CLAIM_TYPE_LABEL: Record<string, string> = {
-  NOC: 'NOC',
-  PLANNING_APPROVAL: 'Planning approval',
-  COMPLETION_CERTIFICATE: 'Completion certificate',
-  SHOW_CAUSE_NOTICE: 'Show cause notice',
-  ILLEGAL_SCHEME_NOTICE: 'Illegal scheme notice',
-  TRANSFER_DEED: 'Transfer deed',
-  MORTGAGE_DEED: 'Mortgage deed',
-};
-
 function shortDate(iso: string): string {
   return new Date(iso).toLocaleDateString('en-PK', { day: 'numeric', month: 'short', year: 'numeric' });
 }
 
-// One compact row per claim: what it is, its status, and the papers behind it.
-function ClaimRow({ claim, isAdverse }: { claim: VerificationResponse; isAdverse: boolean }) {
-  const typeLabel = CLAIM_TYPE_LABEL[claim.claim_type];
-  const docs = claim.evidence.length;
-  const detail = [
-    docs > 0 ? `${docs} document${docs === 1 ? '' : 's'}` : 'No documents attached yet',
-    claim.status === 'VERIFIED' && claim.verified_at ? `Verified ${shortDate(claim.verified_at)}` : null,
-  ]
-    .filter(Boolean)
-    .join(' · ');
+const DOC_NAME: Record<string, string> = {
+  LOP_APPROVAL: 'Approved LOP',
+  LOP_LETTER: 'LOP Letter',
+  LOP_CANCELLATION: 'Cancellation of LOP',
+  NOC: 'NOC',
+  NOC_CANCELLATION: 'Cancellation of NOC',
+  SHOW_CAUSE_NOTICE: 'Show Cause Notice',
+  MORTGAGE_DEED: 'Mortgage Deed',
+  TRANSFER_DEED: 'Transfer Deed',
+  OTHER: 'Document',
+};
 
+function DocRow({ e, label }: { e: VerificationResponse['evidence'][number]; label?: string }) {
   return (
-    <div
-      style={{
-        background: isAdverse ? '#fff8f8' : '#fff',
-        border: `1px solid ${isAdverse ? DANGER_RED + '40' : 'var(--border)'}`,
-        borderRadius: 'var(--radius)',
-        padding: '14px 16px',
-        display: 'flex',
-        flexDirection: 'column',
-        gap: '8px',
-      }}
-    >
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '10px', flexWrap: 'wrap' }}>
-        <div style={{ minWidth: 0 }}>
-          {typeLabel && (
-            <p style={{ fontSize: '11px', fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.05em', margin: 0 }}>
-              {typeLabel}
-            </p>
-          )}
-          <h3 style={{ fontSize: '15px', fontWeight: 700, margin: '2px 0 0' }}>{claim.claim}</h3>
+    <div style={{ display: 'flex', justifyContent: 'space-between', gap: '10px', padding: '10px 14px', borderTop: '1px solid var(--border)', fontSize: '14px', flexWrap: 'wrap' }}>
+      <span>
+        {label ?? (e.document_type ? DOC_NAME[e.document_type] : 'Document')} — <EvidenceLink id={e.id} />
+      </span>
+      <span style={{ color: 'var(--muted)', whiteSpace: 'nowrap' }}>{shortDate(e.document_date ?? e.created_at)}</span>
+    </div>
+  );
+}
+
+const sortDocs = (c: VerificationResponse) => [...c.evidence].sort((x, y) => docTime(y) - docTime(x));
+
+// LOP / NOC: one card per record: its current status, then every paper behind it.
+function StatusCard({ title, claim }: { title: string; claim: VerificationResponse }) {
+  const docs = sortDocs(claim);
+  const adverse = claim.status === 'CANCELLED' || claim.status === 'DISPUTED';
+  const word = claim.claim_type === 'NOC' && claim.status === 'VERIFIED' ? 'Issued' : STATUS_WORD[claim.status];
+  const m = STATUS_META[claim.status];
+  return (
+    <div>
+      <h3 style={{ fontSize: '15px', fontWeight: 800, margin: '0 0 6px', color: adverse ? DANGER_RED : TRUST_GREEN }}>{title}</h3>
+      <div style={{ border: '1px solid var(--border)', borderRadius: 'var(--radius)', background: '#fff', overflow: 'hidden' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '8px', padding: '12px 14px', background: m.bg }}>
+          <strong style={{ fontSize: '16px', color: m.color }}>
+            {m.icon} {word}
+          </strong>
+          {docs[0] && <span style={{ fontSize: '12px', fontWeight: 700 }}>{shortDate(docs[0].document_date ?? docs[0].created_at)}</span>}
         </div>
-        <StatusBadge status={claim.status} />
-      </div>
-      <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
-        <span style={{ fontSize: '13px', color: 'var(--muted)' }}>{detail}</span>
-        {docs > 0 && <EvidenceDrawer evidence={claim.evidence} triggerLabel="View documents" />}
+        {docs.map((e) => (
+          <DocRow key={e.id} e={e} />
+        ))}
+        {docs.length === 0 && <p style={{ margin: 0, padding: '10px 14px', fontSize: '13px', color: 'var(--muted)', borderTop: '1px solid var(--border)' }}>No documents attached yet.</p>}
       </div>
     </div>
   );
@@ -196,8 +195,16 @@ export default async function SocietyProfilePage({ params }: Props) {
     details = null;
   }
 
-  const primaryClaims = claims.filter((c) => c.status !== 'DISPUTED');
-  const adverseClaims = claims.filter((c) => c.status === 'DISPUTED');
+  const lopClaims = claims.filter((c) => topicOf(c.claim_type) === 'LOP');
+  const nocClaims = claims.filter((c) => topicOf(c.claim_type) === 'NOC');
+  const importantDocs = claims
+    .filter((c) => topicOf(c.claim_type) === 'IMPORTANT')
+    .flatMap((c) =>
+      c.evidence.length
+        ? c.evidence.map((e) => ({ e, label: e.document_type ? DOC_NAME[e.document_type] : c.claim, adverse: c.status === 'DISPUTED' }))
+        : [],
+    )
+    .sort((x, y) => docTime(y.e) - docTime(x.e));
 
   return (
     <main
@@ -303,20 +310,30 @@ export default async function SocietyProfilePage({ params }: Props) {
           </section>
         )}
 
-        {/* What the records say */}
-        <section style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-          <h2 style={{ fontSize: '16px', fontWeight: 800 }}>What the records say</h2>
-          {primaryClaims.map((claim) => (
-            <ClaimRow key={claim.id} claim={claim} isAdverse={false} />
+        {/* Current status, laid out like the CDA portal */}
+        <section style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+          <h2 style={{ fontSize: '18px', fontWeight: 800, color: '#2563eb' }}>Current status</h2>
+          {lopClaims.map((c) => (
+            <StatusCard key={c.id} title="LOP" claim={c} />
           ))}
+          {nocClaims.map((c) => (
+            <StatusCard key={c.id} title="NOC" claim={c} />
+          ))}
+          {lopClaims.length + nocClaims.length === 0 && (
+            <p style={{ fontSize: '14px', color: 'var(--muted)' }}>No LOP or NOC on record yet.</p>
+          )}
         </section>
 
-        {adverseClaims.length > 0 && (
+        {importantDocs.length > 0 && (
           <section style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-            <h2 style={{ fontSize: '16px', fontWeight: 800, color: DANGER_RED }}>Reported problems</h2>
-            {adverseClaims.map((claim) => (
-              <ClaimRow key={claim.id} claim={claim} isAdverse={true} />
-            ))}
+            <h2 style={{ fontSize: '18px', fontWeight: 800, color: '#2563eb' }}>Important documents</h2>
+            <div style={{ border: '1px solid var(--border)', borderRadius: 'var(--radius)', background: '#fff', overflow: 'hidden' }}>
+              {importantDocs.map(({ e, label, adverse }, i) => (
+                <div key={e.id} style={{ marginTop: i === 0 ? '-1px' : 0, background: adverse ? '#fff8f8' : undefined }}>
+                  <DocRow e={e} label={label} />
+                </div>
+              ))}
+            </div>
           </section>
         )}
 
