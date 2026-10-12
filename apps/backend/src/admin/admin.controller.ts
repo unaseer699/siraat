@@ -692,6 +692,16 @@ export class AdminController {
     return this.adminSvc.addEvidenceToVerification(verificationId, body);
   }
 
+  @Post('verifications/:verificationId/status')
+  @HttpCode(200)
+  setClaimStatus(
+    @Param('verificationId') verificationId: string,
+    @Body(new ZodValidationPipe(z.object({ status: z.enum(['VERIFIED', 'DISPUTED', 'CANCELLED']) })))
+    body: { status: 'VERIFIED' | 'DISPUTED' | 'CANCELLED' },
+  ) {
+    return this.adminSvc.setClaimStatus(verificationId, body.status);
+  }
+
   @Post('material-rates')
   @HttpCode(201)
   createMaterialRate(

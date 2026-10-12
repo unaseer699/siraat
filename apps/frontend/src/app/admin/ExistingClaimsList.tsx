@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import {
   addEvidenceToVerification,
+  setClaimStatus,
   type AdminEvidenceItem,
   type VerificationResponse,
 } from '@/lib/api';
@@ -42,6 +43,23 @@ function ExistingClaimCard({
   const [items, setItems] = useState<AdminEvidenceItem[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [statusBusy, setStatusBusy] = useState(false);
+  const [statusError, setStatusError] = useState<string | null>(null);
+
+  async function changeStatus(status: 'VERIFIED' | 'DISPUTED' | 'CANCELLED') {
+    const label = STATUS_LABEL[status].toLowerCase();
+    if (!window.confirm(`Mark this claim as ${label}? This is shown publicly and logged.`)) return;
+    setStatusBusy(true);
+    setStatusError(null);
+    try {
+      await setClaimStatus(claim.id, status);
+      onEvidenceAdded();
+    } catch (err) {
+      setStatusError(err instanceof Error ? err.message : 'Could not change status');
+    } finally {
+      setStatusBusy(false);
+    }
+  }
 
   function openEditor() {
     setAddingEvidence(true);
@@ -102,6 +120,28 @@ function ExistingClaimCard({
           </button>
         )}
       </div>
+
+      <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center' }}>
+        <span style={{ fontSize: '12px', color: 'var(--muted)' }}>Set status:</span>
+        {(['VERIFIED', 'DISPUTED', 'CANCELLED'] as const).map((st) => {
+          const noEvidence = st === 'VERIFIED' && claim.evidence.length === 0;
+          const current = claim.status === st;
+          const disabled = statusBusy || current || noEvidence;
+          return (
+            <button
+              key={st}
+              type="button"
+              onClick={() => changeStatus(st)}
+              disabled={disabled}
+              title={noEvidence ? 'Add at least one evidence item first' : current ? 'Already ' + STATUS_LABEL[st].toLowerCase() : undefined}
+              style={{ ...addEvidenceButtonStyle, opacity: disabled ? 0.5 : 1, cursor: disabled ? 'not-allowed' : 'pointer' }}
+            >
+              {STATUS_LABEL[st]}
+            </button>
+          );
+        })}
+      </div>
+      {statusError && <p style={errorTextStyle}>{statusError}</p>}
 
       {addingEvidence && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', paddingTop: '4px', borderTop: '1px solid var(--border)' }}>

@@ -381,6 +381,12 @@ export class AdminService {
     };
   }
 
+  // Claim status buttons on the "Claims & evidence" page.
+  async setClaimStatus(verificationId: string, status: 'VERIFIED' | 'DISPUTED' | 'CANCELLED') {
+    const v = await this.trustSvc.setVerificationStatus(verificationId, status);
+    return { id: v.id, status: v.status, verified_at: v.verified_at ? v.verified_at.toISOString() : null };
+  }
+
   async createMaterialRate(data: CreateMaterialRateInput): Promise<MaterialRateResult> {
     return this.ciSvc.createMaterialRate(data);
   }

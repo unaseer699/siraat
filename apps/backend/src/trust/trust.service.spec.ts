@@ -697,6 +697,30 @@ describe('TrustService', () => {
     expect(savedVer.evidence_refs).toContain(result.id);
   });
 
+  // ─── setVerificationStatus ─────────────────────────────────────────────────────
+
+  it('setVerificationStatus moves a claim to CANCELLED and keeps verified_at', async () => {
+    const verifiedAt = new Date('2026-01-01');
+    verFindOneByMock.mockResolvedValue({ ...VERIFICATION_PENDING, id: 'v1', status: 'VERIFIED', verified_at: verifiedAt, evidence_refs: [EVIDENCE_1.id] });
+
+    const result = await svc.setVerificationStatus('v1', 'CANCELLED');
+
+    expect(result.status).toBe('CANCELLED');
+    expect(result.verified_at).toBe(verifiedAt);
+  });
+
+  it('setVerificationStatus VERIFIED still requires evidence', async () => {
+    verFindOneByMock.mockResolvedValue({ ...VERIFICATION_PENDING, id: 'v1', evidence_refs: [] });
+
+    await expect(svc.setVerificationStatus('v1', 'VERIFIED')).rejects.toThrow(BadRequestException);
+  });
+
+  it('setVerificationStatus throws NotFoundException for an unknown id', async () => {
+    verFindOneByMock.mockResolvedValue(null);
+
+    await expect(svc.setVerificationStatus('nope', 'DISPUTED')).rejects.toThrow(NotFoundException);
+  });
+
   // ─── promoteVerificationToVerified (ID-scoped) ─────────────────────────────────
 
   it('promoteVerificationToVerified promotes the Verification matching the given id', async () => {

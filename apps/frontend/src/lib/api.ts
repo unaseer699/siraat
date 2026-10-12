@@ -442,6 +442,16 @@ export async function addEvidenceToVerification(
   });
 }
 
+export async function setClaimStatus(
+  verificationId: string,
+  status: 'VERIFIED' | 'DISPUTED' | 'CANCELLED',
+): Promise<{ id: string; status: string; verified_at: string | null }> {
+  return apiFetch(`/v1/admin/verifications/${verificationId}/status`, {
+    method: 'POST',
+    body: JSON.stringify({ status }),
+  });
+}
+
 export interface CreateSocietyBody {
   name: string;
   city: string;

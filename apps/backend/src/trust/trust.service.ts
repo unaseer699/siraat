@@ -501,4 +501,33 @@ export class TrustService {
 
     return saved;
   }
+
+  // Admin-only: move a specific Verification (by its own id) to VERIFIED,
+  // DISPUTED or CANCELLED. VERIFIED still requires at least one evidence
+  // item. verified_at is stamped only on VERIFIED and otherwise left alone, so
+  // a later cancellation keeps the record of when it was once verified.
+  // The change is written to the append-only Observation ledger.
+  async setVerificationStatus(
+    verificationId: string,
+    status: 'VERIFIED' | 'DISPUTED' | 'CANCELLED',
+  ): Promise<VerificationEntity> {
+    if (status === 'VERIFIED') return this.promoteVerificationToVerified(verificationId);
+
+    const verification = await this.verRepo.findOneBy({ id: verificationId });
+    if (!verification) {
+      throw new NotFoundException(`No verification record found with id ${verificationId}`);
+    }
+    const oldStatus = verification.status;
+    if (oldStatus === status) return verification;
+    verification.status = status;
+    const saved = await this.verRepo.save(verification);
+    await this.logObservation({
+      entity_ref: saved.id,
+      metric: 'verification_status',
+      old_value: oldStatus,
+      new_value: saved.status,
+      source_ref: saved.claim,
+    });
+    return saved;
+  }
 }
