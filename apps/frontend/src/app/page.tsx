@@ -9,7 +9,6 @@ import {
   Building2,
   ShieldCheck,
   Check,
-  FileCheck,
   MapPin,
   HardHat,
   Package,
@@ -25,7 +24,6 @@ import type {
 import { fetchRecommendations, fetchPlatformStats } from '@/lib/api';
 import { SearchBar } from '@/components/SearchBar';
 import { ResultsPanel } from '@/components/ResultsPanel';
-import { QuickAccessCard } from '@/components/QuickAccessCard';
 import {
   TRUST_GREEN,
   WARNING_AMBER,
@@ -282,22 +280,12 @@ function SecondarySearch({
   );
 }
 
-// HOMEPAGE REDESIGN — real counts only, never a per-card "Just getting
-// started" placeholder. Three cards each showing the same empty-state text
-// side by side read as a broken product, not an honest early one, so the
-// fallback below only fires when every count is genuinely zero — never for a
-// small-but-real count (8 societies stays "8 societies…", it never falls
-// back just because the number is modest).
-//
-// ASSUMPTION (flagged per the brief's own rule for unmatched copy): the
-// brief's third line reads "Z cities with active material rates", but no
-// existing backend field measures that — cities_covered (PlatformStatsResponse)
-// is PropertyIntelligenceService.listDistinctCities(), i.e. distinct society
-// cities, not cities with material-rate activity, and there's no cross-
-// referenced count of the two. Labeling it "material rates" would be a false
-// claim next to this same page's "No fabricated data" trust-strip item, so
-// this uses the honest label for the real field instead: "cities covered".
-function StatCardsRow({ stats }: { stats: PlatformStatsResponse | null }) {
+const plural = (n: number, one: string, many: string) => `${n.toLocaleString()} ${n === 1 ? one : many}`;
+
+// Real counts only, as one quiet line — never per-card placeholders. The
+// labels use plain words (documents, societies, cities) instead of internal
+// terms like "observations" / "evidence profiles".
+function OnRecordLine({ stats }: { stats: PlatformStatsResponse | null }) {
   if (!stats) return null;
 
   const allZero =
@@ -305,12 +293,8 @@ function StatCardsRow({ stats }: { stats: PlatformStatsResponse | null }) {
 
   if (allZero) {
     return (
-      <p style={{ fontSize: '13px', color: 'var(--muted)', textAlign: 'center' }}>
+      <p style={{ fontSize: '13px', color: 'var(--muted)', textAlign: 'center', margin: 0 }}>
         Deep coverage starting in Islamabad &amp; Rawalpindi.{' '}
-        {/* Founder decision (correction to original brief): "Request a
-            society" overpromised against its actual destination since no
-            request-flow route exists — /browse is the nearest existing page
-            to see what's covered, so the link text says that instead. */}
         <Link href="/browse" style={{ fontWeight: 600, color: 'var(--brand)' }}>
           Explore what&rsquo;s available →
         </Link>
@@ -318,105 +302,44 @@ function StatCardsRow({ stats }: { stats: PlatformStatsResponse | null }) {
     );
   }
 
-  const items: {
-    icon: ComponentType<LucideProps>;
-    color: string;
-    count: number;
-    phrase: string;
-    href?: string;
-    aria: string;
-  }[] = [
-    {
-      icon: Building2,
-      color: ACCENT_BLUE,
-      count: stats.verified_societies_count,
-      phrase: 'societies with evidence profiles',
-      href: '/browse',
-      aria: 'Browse verified societies',
-    },
-    {
-      icon: FileCheck,
-      color: TRUST_GREEN,
-      count: stats.total_evidence_count,
-      phrase: 'verified observations',
-      aria: 'Evidence items on record',
-    },
-    {
-      icon: MapPin,
-      color: WARNING_AMBER,
-      count: stats.cities_covered.length,
-      phrase: 'cities covered',
-      aria: 'Cities covered',
-    },
-  ];
-
   return (
-    <div
-      style={{
-        width: '100%',
-        maxWidth: '720px',
-        display: 'grid',
-        gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
-        gap: '12px',
-      }}
-    >
-      {items.map((item) => {
-        const Icon = item.icon;
-        const card = (
-          <div
-            style={{
-              minWidth: 0,
-              background: '#fff',
-              border: '1px solid var(--border)',
-              borderRadius: RADIUS.md,
-              padding: '16px',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '12px',
-            }}
-          >
-            <div
-              style={{
-                width: '40px',
-                height: '40px',
-                flexShrink: 0,
-                borderRadius: RADIUS.sm,
-                background: `${item.color}18`,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-              }}
-            >
-              <Icon size={20} color={item.color} aria-hidden="true" />
-            </div>
-            {/* minWidth: 0 — without it, a flex child defaults to its content's
-                min-content size (the longest unbreakable word), which can force
-                this whole grid track wider than its minmax() minimum and
-                overflow the viewport on narrow phones instead of wrapping. */}
-            <span style={{ minWidth: 0, fontSize: '13px', color: 'var(--text)', lineHeight: 1.35 }}>
-              <strong style={{ fontSize: '16px', fontWeight: 800 }}>{item.count.toLocaleString()}</strong>{' '}
-              {item.phrase}
-            </span>
-          </div>
-        );
-        return item.href ? (
-          <Link
-            key={item.phrase}
-            href={item.href}
-            aria-label={item.aria}
-            style={{ minWidth: 0, color: 'inherit', textDecoration: 'none' }}
-          >
-            {card}
-          </Link>
-        ) : (
-          <div key={item.phrase} style={{ minWidth: 0 }}>
-            {card}
-          </div>
-        );
-      })}
-    </div>
+    <p style={{ fontSize: '13px', color: 'var(--muted)', textAlign: 'center', margin: 0 }}>
+      On record today:{' '}
+      <strong style={{ color: 'var(--text)' }}>{plural(stats.verified_societies_count, 'society', 'societies')}</strong>
+      {' · '}
+      <strong style={{ color: 'var(--text)' }}>{plural(stats.total_evidence_count, 'document', 'documents')}</strong>
+      {' · '}
+      <strong style={{ color: 'var(--text)' }}>{plural(stats.cities_covered.length, 'city', 'cities')}</strong>
+    </p>
   );
 }
+
+const CHECK_CSS = `
+.check-grid{display:grid;grid-template-columns:1fr;gap:12px;width:100%}
+.check-tile{position:relative;display:flex;flex-direction:row;align-items:center;gap:14px;padding:16px;background:color-mix(in srgb,var(--c) 8%,#fff);border:1.5px solid color-mix(in srgb,var(--c) 35%,#fff);border-left:6px solid var(--c);border-radius:14px;text-decoration:none;box-shadow:0 1px 3px rgba(0,0,0,.06);transition:transform .15s,box-shadow .15s}
+.check-tile:hover{transform:translateY(-2px);box-shadow:0 6px 16px rgba(0,0,0,.12)}
+.check-icon{width:48px;height:48px;border-radius:12px;background:#fff;border:1px solid color-mix(in srgb,var(--c) 30%,#fff);display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.check-body{display:flex;flex-direction:column;gap:3px;min-width:0;flex:1}
+.check-title{font-size:16px;font-weight:800;color:var(--c);line-height:1.25}
+.check-sub{font-size:13px;font-weight:500;color:var(--muted);line-height:1.4}
+.check-arrow{color:var(--c);font-weight:800;font-size:18px}
+.how-steps{display:grid;grid-template-columns:1fr;gap:14px;margin:0;padding:0;list-style:none}
+@media(min-width:700px){
+.check-grid{grid-template-columns:repeat(2,1fr);gap:16px}
+.how-steps{grid-template-columns:repeat(3,1fr);gap:18px}
+}
+`;
+
+const CHECK_TOOLS: { href: string; title: string; subtitle: string; color: string; icon: ComponentType<LucideProps> }[] = [
+  { href: CHECK_SOCIETY_HREF, title: 'Check a Society', subtitle: 'Approval status and the documents behind it', color: TRUST_GREEN, icon: MapPin },
+  { href: '/compare', title: 'Compare Societies', subtitle: 'Put 2–3 societies side by side', color: ACCENT_BLUE, icon: Scale },
+];
+
+const HOW_WE_VERIFY_STEPS: { title: string; text: string }[] = [
+  { title: 'Official documents', text: 'We collect NOCs, approvals and notices published by CDA, RDA and other authorities.' },
+  { title: 'Human review', text: 'A person reviews every document before it is shown. Nothing is auto-published.' },
+  { title: 'Honest score', text: 'Each society gets a trust score. Without a verified approval it can never score high.' },
+];
 
 function HomeView() {
   const router = useRouter();
@@ -543,68 +466,80 @@ function HomeView() {
         />
       )}
 
-      {/* REDESIGN — same soft gradient panel treatment as the "Looking for
-          something else?" and "Or search a specific property" strips below
-          (dc344e8, 27a6efc), so all three secondary sections read as a
-          matched set instead of this one being plain page background
-          between two colorful panels. Cards/text inside stay on white, the
-          same contrast pattern the quick-link pills use against their panel. */}
-      <div
+      <section style={{ width: '100%', maxWidth: '960px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+        <style>{CHECK_CSS}</style>
+        <div>
+          <h2 style={{ fontSize: '20px', fontWeight: 800, margin: 0 }}>Check a society before you buy</h2>
+          <p style={{ fontSize: '14px', color: 'var(--muted)', margin: '4px 0 0' }}>
+            See what the official records say, then compare your shortlist.
+          </p>
+        </div>
+        <div className="check-grid">
+          {CHECK_TOOLS.map((t) => {
+            const Icon = t.icon;
+            const href = t.href === '/compare' && compareHref ? compareHref : t.href;
+            return (
+              <Link key={t.href} href={href} className="check-tile" aria-label={t.title} style={{ ['--c' as string]: t.color } as CSSProperties}>
+                <span className="check-icon">
+                  <Icon size={26} color={t.color} aria-hidden="true" />
+                </span>
+                <span className="check-body">
+                  <span className="check-title">{t.title}</span>
+                  <span className="check-sub">{t.subtitle}</span>
+                </span>
+                <span className="check-arrow" aria-hidden="true">→</span>
+              </Link>
+            );
+          })}
+        </div>
+        <OnRecordLine stats={stats} />
+      </section>
+
+      <section
+        id="how-we-verify"
         style={{
           width: '100%',
-          maxWidth: '720px',
-          display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'center',
-          gap: '16px',
-          padding: '20px',
-          background: 'linear-gradient(135deg, #f0fdf4 0%, #eff6ff 50%, #fffbeb 100%)',
+          maxWidth: '960px',
+          background: '#fff',
           border: '1px solid var(--border)',
           borderRadius: RADIUS.lg,
+          padding: '24px 20px',
+          scrollMarginTop: '24px',
         }}
       >
-        <StatCardsRow stats={stats} />
-
-        {/* HOMEPAGE REDESIGN — down from six equal-weight cards to the two
-            highest-value pillars plus the methodology card the hero's "See how
-            we verify" link scrolls to. Contractors/Suppliers/House Plans move
-            out of the primary homepage per the brief; their pages are
-            untouched and still reachable directly (e.g. from Browse). */}
-        <div
-          style={{
-            width: '100%',
-            display: 'flex',
-            flexWrap: 'wrap',
-            gap: '16px',
-            justifyContent: 'center',
-          }}
-        >
-        <QuickAccessCard
-          href={compareHref}
-          icon={Scale}
-          title="Compare Societies"
-          subtitle="See societies side by side"
-          ariaLabel="Compare societies"
-          tint={ACCENT_BLUE}
-        />
-        <QuickAccessCard
-          href={CHECK_SOCIETY_HREF}
-          icon={MapPin}
-          title="Check a Society"
-          subtitle="Browse verified societies"
-          ariaLabel="Check a society"
-          tint={TRUST_GREEN}
-        />
-        <QuickAccessCard
-          id="how-we-verify"
-          icon={ShieldCheck}
-          title="How We Verify"
-          subtitle="Evidence behind every claim"
-          ariaLabel="How Siraat verifies societies"
-          tint={TRUST_GREEN}
-        />
-        </div>
-      </div>
+        <h2 style={{ fontSize: '20px', fontWeight: 800, margin: '0 0 16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <ShieldCheck size={22} color={TRUST_GREEN} aria-hidden="true" />
+          How we verify
+        </h2>
+        <ol className="how-steps">
+          {HOW_WE_VERIFY_STEPS.map((step, i) => (
+            <li key={step.title} style={{ display: 'flex', gap: '12px' }}>
+              <span
+                style={{
+                  flexShrink: 0,
+                  width: '28px',
+                  height: '28px',
+                  borderRadius: '50%',
+                  background: TRUST_GREEN_BG,
+                  border: `1px solid ${TRUST_GREEN_BORDER}`,
+                  color: TRUST_GREEN_TEXT,
+                  fontSize: '13px',
+                  fontWeight: 800,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }}
+              >
+                {i + 1}
+              </span>
+              <span>
+                <strong style={{ display: 'block', fontSize: '15px' }}>{step.title}</strong>
+                <span style={{ fontSize: '13px', color: 'var(--muted)', lineHeight: 1.5 }}>{step.text}</span>
+              </span>
+            </li>
+          ))}
+        </ol>
+      </section>
 
     </main>
   );
