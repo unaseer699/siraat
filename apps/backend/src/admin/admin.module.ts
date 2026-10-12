@@ -4,6 +4,7 @@ import { TrustModule } from '../trust/trust.module';
 import { ConstructionIntelligenceModule } from '../construction-intelligence/construction-intelligence.module';
 import { WhatsappModule } from '../whatsapp/whatsapp.module';
 import { GroundReportsModule } from '../ground-reports/ground-reports.module';
+import { ContractorPortfolioModule } from '../contractor-portfolio/contractor-portfolio.module';
 import { AdminService } from './admin.service';
 import { AdminController } from './admin.controller';
 
@@ -21,6 +22,7 @@ import { AdminController } from './admin.controller';
     // whatsapp-mappings admin routes to WhatsappService.
     WhatsappModule,
     GroundReportsModule,
+    ContractorPortfolioModule,
   ],
   controllers: [AdminController],
   providers: [AdminService],

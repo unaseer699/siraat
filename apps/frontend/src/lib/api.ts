@@ -1899,3 +1899,19 @@ export async function setContractorVerified(id: string, verified: boolean, note?
 export async function setSupplierVerified(id: string, verified: boolean, note?: string): Promise<{ verified: boolean }> {
   return apiFetch(`/v1/admin/suppliers/${id}/verified`, { method: 'POST', body: JSON.stringify({ verified, note }) });
 }
+
+// Edit / delete for directory entries (admin).
+export type UpdateContractorBody = Partial<CreateContractorBody>;
+export async function updateContractor(id: string, data: UpdateContractorBody): Promise<ContractorSummary> {
+  return apiFetch(`/v1/admin/contractors/${id}`, { method: 'PATCH', body: JSON.stringify(data) });
+}
+export async function deleteContractor(id: string): Promise<void> {
+  return apiFetch(`/v1/admin/contractors/${id}`, { method: 'DELETE' });
+}
+export type UpdateSupplierBody = Partial<CreateSupplierBody>;
+export async function updateSupplier(id: string, data: UpdateSupplierBody): Promise<SupplierSummary> {
+  return apiFetch(`/v1/admin/suppliers/${id}`, { method: 'PATCH', body: JSON.stringify(data) });
+}
+export async function deleteSupplier(id: string): Promise<void> {
+  return apiFetch(`/v1/admin/suppliers/${id}`, { method: 'DELETE' });
+}

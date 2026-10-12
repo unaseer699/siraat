@@ -834,6 +834,70 @@ export class PropertyIntelligenceService {
     };
   }
 
+  // Edits keep history: every changed field is logged as an Observation
+  // (old and new value), the same way society edits are.
+  private async applyDirectoryEdit(
+    repoName: 'contractorRepo' | 'supplierRepo',
+    metric: 'contractor_edit' | 'supplier_edit',
+    id: string,
+    data: Record<string, unknown>,
+    findByName: (name: string) => Promise<{ id: string } | null>,
+  ): Promise<Record<string, unknown> | null> {
+    const repo = this[repoName] as unknown as { findOneBy: (w: object) => Promise<object | null>; save: (e: object) => Promise<object> };
+    const entity = await repo.findOneBy({ id });
+    if (!entity) return null;
+    const record = entity as Record<string, unknown>;
+
+    if (typeof data.name === 'string' && data.name.trim().toLowerCase() !== String(record.name).trim().toLowerCase()) {
+      const clash = await findByName(data.name);
+      if (clash && clash.id !== id) {
+        throw new BadRequestException(`"${data.name}" already exists (id: ${clash.id}).`);
+      }
+    }
+    const norm = (v: unknown): string | null => (v === null || v === undefined ? null : Array.isArray(v) ? v.join(',') : String(v));
+    const changes: { field: string; old: string | null; new: string | null }[] = [];
+    for (const [field, value] of Object.entries(data)) {
+      if (value === undefined) continue;
+      const before = norm(record[field]);
+      const after = norm(value);
+      if (before === after) continue;
+      changes.push({ field, old: before, new: after });
+      record[field] = value;
+    }
+    if (changes.length === 0) return record;
+    const saved = (await repo.save(entity)) as Record<string, unknown>;
+    for (const c of changes) {
+      void this.logObservation({ entity_ref: id, metric, old_value: c.old, new_value: c.new ?? '', source_ref: `Edited ${metric.split('_')[0]} ${id} (${c.field})` });
+    }
+    return saved;
+  }
+
+  async updateContractor(
+    id: string,
+    data: Partial<{ name: string; trade_categories: TradeCategory[]; service_cities: string[]; contact_phone: string; contact_whatsapp: string | null; is_siraat_affiliated: boolean }>,
+  ): Promise<ContractorSummary | null> {
+    const saved = await this.applyDirectoryEdit('contractorRepo', 'contractor_edit', id, data, (n) => this.findContractorByName(n));
+    return saved ? this.findContractorById(id) : null;
+  }
+
+  async deleteContractor(id: string): Promise<boolean> {
+    const result = await this.contractorRepo.delete({ id });
+    return (result.affected ?? 0) > 0;
+  }
+
+  async updateSupplier(
+    id: string,
+    data: Partial<{ name: string; material_categories: MaterialCategory[]; service_cities: string[]; contact_phone: string; contact_whatsapp: string | null; is_siraat_affiliated: boolean }>,
+  ): Promise<SupplierSummary | null> {
+    const saved = await this.applyDirectoryEdit('supplierRepo', 'supplier_edit', id, data, (n) => this.findSupplierByName(n));
+    return saved ? this.findSupplierById(id) : null;
+  }
+
+  async deleteSupplier(id: string): Promise<boolean> {
+    const result = await this.supplierRepo.delete({ id });
+    return (result.affected ?? 0) > 0;
+  }
+
   // CONTRACTOR DIRECTORY Chunk 3 — also backs the public GET
   // /property-intelligence/contractors/:id profile route; the admin addClaim
   // existence check just discards the extra verification_status field.

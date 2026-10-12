@@ -161,6 +161,14 @@ export class ContractorPortfolioService {
     for (const ph of p.photos) await this.safeDelete(ph.key);
   }
 
+  // Called when a contractor is deleted: remove every project and its files.
+  async deleteAllForContractor(contractorId: string): Promise<void> {
+    const rows = await this.projects.find({ where: { contractor_id: contractorId } });
+    for (const r of rows) for (const ph of r.photos) await this.safeDelete(ph.key);
+    await this.projects.delete({ contractor_id: contractorId });
+    await this.links.delete({ contractor_id: contractorId });
+  }
+
   private async safeDelete(key: string) {
     try {
       await this.storage.deleteFile(key);

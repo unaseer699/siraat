@@ -8,6 +8,8 @@ import type { MaterialCategory } from '@siraat/shared-types';
 import {
   setSupplierVerified,
   createSupplier,
+  updateSupplier,
+  fetchSupplier,
   fetchPlatformStats,
 } from '@/lib/api';
 import { VerifiedField } from '@/components/VerifiedField';
@@ -124,12 +126,27 @@ function NewSupplierForm() {
   const [contactPhone, setContactPhone] = useState('');
   const [contactWhatsapp, setContactWhatsapp] = useState('');
   const [isAffiliated, setIsAffiliated] = useState(false);
+  const editId = params.get('edit');
   const [verified, setVerified] = useState(false);
   const [verifiedNote, setVerifiedNote] = useState('');
 
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<{ supplier_id: string } | null>(null);
+
+  useEffect(() => {
+    if (!editId) return;
+    fetchSupplier(editId)
+      .then((x) => {
+        setName(x.name);
+        setMaterialCategories(x.material_categories);
+        setServiceCities(x.service_cities);
+        setContactPhone(x.contact_phone);
+        setContactWhatsapp(x.contact_whatsapp ?? '');
+        setIsAffiliated(x.is_siraat_affiliated);
+      })
+      .catch((e) => setError(e instanceof Error ? e.message : 'Could not load'));
+  }, [editId]);
 
   function toggleMaterial(m: MaterialCategory) {
     setMaterialCategories((prev) => (prev.includes(m) ? prev.filter((x) => x !== m) : [...prev, m]));
@@ -148,6 +165,18 @@ function NewSupplierForm() {
     setSubmitting(true);
     setError(null);
     try {
+      if (editId) {
+        await updateSupplier(editId, {
+          name: name.trim(),
+          material_categories: materialCategories,
+          service_cities: serviceCities,
+          contact_phone: contactPhone.trim(),
+          contact_whatsapp: contactWhatsapp.trim() || null,
+          is_siraat_affiliated: isAffiliated,
+        });
+        setResult({ supplier_id: editId });
+        return;
+      }
       const supplier = await createSupplier({
         name: name.trim(),
         material_categories: materialCategories,
@@ -176,7 +205,7 @@ function NewSupplierForm() {
           <p style={{ fontSize: '12px', color: 'var(--muted)', fontWeight: 600, marginBottom: '4px' }}>
             ADMIN — INTERNAL ONLY
           </p>
-          <h1 style={{ fontSize: '24px', fontWeight: 800 }}>Onboard Supplier</h1>
+          <h1 style={{ fontSize: '24px', fontWeight: 800 }}>{editId ? 'Edit Supplier' : 'Onboard Supplier'}</h1>
           <p style={{ fontSize: '14px', color: 'var(--muted)', marginTop: '6px' }}>
             Adds a supplier to the directory. Tick Verified once you have checked them.
           </p>
@@ -197,7 +226,7 @@ function NewSupplierForm() {
               gap: '8px',
             }}
           >
-            Supplier onboarded
+            {editId ? 'Changes saved' : 'Supplier onboarded'}
             <p style={{ fontSize: '13px', fontWeight: 400, color: '#166534' }}>
               Supplier ID: {result.supplier_id}
             </p>
@@ -261,7 +290,7 @@ function NewSupplierForm() {
               </label>
             </fieldset>
 
-            <VerifiedField verified={verified} note={verifiedNote} onChange={(v) => { setVerified(v.verified); setVerifiedNote(v.note); }} />
+            {!editId && <VerifiedField verified={verified} note={verifiedNote} onChange={(v) => { setVerified(v.verified); setVerifiedNote(v.note); }} />}
 
             {error && (
               <div
@@ -292,7 +321,7 @@ function NewSupplierForm() {
                 cursor: submitting || !canSubmit ? 'not-allowed' : 'pointer',
               }}
             >
-              {submitting ? 'Creating…' : 'Create supplier'}
+              {submitting ? 'Saving…' : editId ? 'Save changes' : 'Create supplier'}
             </button>
           </form>
         )}

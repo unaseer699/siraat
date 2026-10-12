@@ -13,5 +13,6 @@ import { TrustModule } from '../trust/trust.module';
   imports: [TypeOrmModule.forFeature([ContractorProjectEntity, ContractorUploadLinkEntity]), PropertyIntelligenceModule, TrustModule],
   controllers: [ContractorPortfolioController, ContractorPortfolioAdminController],
   providers: [ContractorPortfolioService],
+  exports: [ContractorPortfolioService],
 })
 export class ContractorPortfolioModule {}

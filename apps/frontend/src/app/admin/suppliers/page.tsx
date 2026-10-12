@@ -3,15 +3,27 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import type { SupplierSummary } from '@siraat/shared-types';
-import { fetchSuppliers } from '@/lib/api';
+import { deleteSupplier, fetchSuppliers } from '@/lib/api';
 import { AdminNav } from '../AdminNav';
 import { VerifiedToggle } from '@/components/VerifiedToggle';
-import { primaryButtonStyle } from '../buttonStyles';
+import { dangerButtonStyle, primaryButtonStyle } from '../buttonStyles';
 
 export default function AdminSuppliersPage() {
   const [list, setList] = useState<SupplierSummary[] | null>(null);
   const [q, setQ] = useState('');
   const [error, setError] = useState<string | null>(null);
+  const [rowError, setRowError] = useState<string | null>(null);
+
+  async function remove(x: SupplierSummary) {
+    if (!window.confirm(`Delete ${x.name}? It cannot be undone.`)) return;
+    setRowError(null);
+    try {
+      await deleteSupplier(x.id);
+      setList((l) => (l ?? []).filter((y) => y.id !== x.id));
+    } catch (e) {
+      setRowError(e instanceof Error ? e.message.replace(/^API error \d+: /, '') : 'Could not delete');
+    }
+  }
 
   useEffect(() => {
     fetchSuppliers({ limit: 100 }).then((r) => setList(r.suppliers)).catch((e) => setError(e instanceof Error ? e.message : 'Could not load'));
@@ -32,6 +44,7 @@ export default function AdminSuppliersPage() {
         </div>
         <input type="search" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search by name or phone…" aria-label="Search suppliers" style={{ padding: '10px 12px', border: '1px solid var(--border)', borderRadius: 'var(--radius)', fontSize: '14px', background: '#fff' }} />
         {error && <p style={{ color: 'var(--error)', fontSize: '13px' }}>{error}</p>}
+        {rowError && <p style={{ color: 'var(--error)', fontSize: '13px' }}>{rowError}</p>}
         {!list && !error && <p style={{ fontSize: '13px', color: 'var(--muted)' }}>Loading…</p>}
         {list && (
           <ul style={{ listStyle: 'none', margin: 0, padding: 0, display: 'flex', flexDirection: 'column', gap: '8px' }}>
@@ -41,7 +54,11 @@ export default function AdminSuppliersPage() {
                   <Link href={`/supplier/${s.id}`} style={{ fontWeight: 700, fontSize: '15px' }}>{s.name}</Link>
                   <p style={{ fontSize: '12px', color: 'var(--muted)', margin: '2px 0 0' }}>{s.service_cities.join(', ')} · {s.contact_phone}</p>
                 </div>
-                <VerifiedToggle kind="supplier" id={s.id} initial={s.verification_status === 'VERIFIED'} />
+                <div style={{ display: 'flex', gap: '14px', fontSize: '13px', fontWeight: 600, alignItems: 'center' }}>
+                  <Link href={`/admin/new-supplier?edit=${s.id}`}>Edit</Link>
+                  <VerifiedToggle kind="supplier" id={s.id} initial={s.verification_status === 'VERIFIED'} />
+                  <button type="button" onClick={() => remove(s)} style={dangerButtonStyle(false)}>Delete</button>
+                </div>
               </li>
             ))}
             {shown.length === 0 && <p style={{ fontSize: '13px', color: 'var(--muted)' }}>No suppliers match.</p>}

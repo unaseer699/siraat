@@ -205,6 +205,8 @@ import { LayoutExtractorService } from '../construction-intelligence/layout-extr
 import type { ProjectDocumentKind } from '../construction-intelligence/entities/project-document.entity';
 import { LayoutFloor, LayoutExtras } from '../construction-intelligence/entities/project-layout.entity';
 
+import { ContractorPortfolioService } from '../contractor-portfolio/contractor-portfolio.service';
+
 @Injectable()
 export class AdminService {
   private readonly logger = new Logger(AdminService.name);
@@ -221,6 +223,7 @@ export class AdminService {
     private readonly waListingForwarderSvc: WhatsappListingForwarderService,
     private readonly waListingParsingSvc: WhatsappListingParsingService,
     private readonly groundReportSvc: GroundReportSubmissionService,
+    @Optional() private readonly portfolioSvc?: ContractorPortfolioService,
     @Optional() private readonly forecastSvc?: ProjectForecastService,
     @Optional() private readonly docSvc?: ProjectDocumentService,
     @Optional() private readonly extractorSvc?: LayoutExtractorService,
@@ -381,6 +384,37 @@ export class AdminService {
       document_date: ev.document_date,
       document_type: ev.document_type,
     };
+  }
+
+  async updateContractor(id: string, data: Parameters<PropertyIntelligenceService['updateContractor']>[1]) {
+    const updated = await this.piSvc.updateContractor(id, data);
+    if (!updated) throw new NotFoundException(`Contractor ${id} not found`);
+    return updated;
+  }
+
+  // Removes the contractor, their portfolio projects and photos. Verification
+  // history stays in Trust (immutable facts), pointing at an id that no longer exists.
+  async deleteContractor(id: string): Promise<void> {
+    if (!(await this.piSvc.findContractorById(id))) throw new NotFoundException(`Contractor ${id} not found`);
+    await this.portfolioSvc?.deleteAllForContractor(id);
+    await this.piSvc.deleteContractor(id);
+  }
+
+  async updateSupplier(id: string, data: Parameters<PropertyIntelligenceService['updateSupplier']>[1]) {
+    const updated = await this.piSvc.updateSupplier(id, data);
+    if (!updated) throw new NotFoundException(`Supplier ${id} not found`);
+    return updated;
+  }
+
+  // A supplier with material rates cannot be deleted: those prices would lose
+  // their source. Remove or reassign the rates first.
+  async deleteSupplier(id: string): Promise<void> {
+    if (!(await this.piSvc.findSupplierById(id))) throw new NotFoundException(`Supplier ${id} not found`);
+    const rates = await this.piSvc.findMaterialRatesBySupplierId(id);
+    if (rates.length > 0) {
+      throw new BadRequestException(`This supplier has ${rates.length} material rate${rates.length === 1 ? '' : 's'}. Delete those rates first, then delete the supplier.`);
+    }
+    await this.piSvc.deleteSupplier(id);
   }
 
   // One-tick "Verified" for contractors and suppliers. Under the hood it is

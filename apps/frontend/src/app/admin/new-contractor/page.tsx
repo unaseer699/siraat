@@ -7,6 +7,8 @@ import { Spinner } from '@/components/Spinner';
 import type { TradeCategory } from '@siraat/shared-types';
 import {
   createContractor,
+  updateContractor,
+  fetchContractor,
   setContractorVerified,
   fetchPlatformStats,
 } from '@/lib/api';
@@ -125,12 +127,27 @@ function NewContractorForm() {
   const [contactPhone, setContactPhone] = useState('');
   const [contactWhatsapp, setContactWhatsapp] = useState('');
   const [isAffiliated, setIsAffiliated] = useState(false);
+  const editId = params.get('edit');
   const [verified, setVerified] = useState(false);
   const [verifiedNote, setVerifiedNote] = useState('');
 
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<{ contractor_id: string } | null>(null);
+
+  useEffect(() => {
+    if (!editId) return;
+    fetchContractor(editId)
+      .then((x) => {
+        setName(x.name);
+        setTradeCategories(x.trade_categories);
+        setServiceCities(x.service_cities);
+        setContactPhone(x.contact_phone);
+        setContactWhatsapp(x.contact_whatsapp ?? '');
+        setIsAffiliated(x.is_siraat_affiliated);
+      })
+      .catch((e) => setError(e instanceof Error ? e.message : 'Could not load'));
+  }, [editId]);
 
   function toggleTrade(t: TradeCategory) {
     setTradeCategories((prev) => (prev.includes(t) ? prev.filter((x) => x !== t) : [...prev, t]));
@@ -149,6 +166,18 @@ function NewContractorForm() {
     setSubmitting(true);
     setError(null);
     try {
+      if (editId) {
+        await updateContractor(editId, {
+          name: name.trim(),
+          trade_categories: tradeCategories,
+          service_cities: serviceCities,
+          contact_phone: contactPhone.trim(),
+          contact_whatsapp: contactWhatsapp.trim() || null,
+          is_siraat_affiliated: isAffiliated,
+        });
+        setResult({ contractor_id: editId });
+        return;
+      }
       const contractor = await createContractor({
         name: name.trim(),
         trade_categories: tradeCategories,
@@ -177,7 +206,7 @@ function NewContractorForm() {
           <p style={{ fontSize: '12px', color: 'var(--muted)', fontWeight: 600, marginBottom: '4px' }}>
             ADMIN — INTERNAL ONLY
           </p>
-          <h1 style={{ fontSize: '24px', fontWeight: 800 }}>Onboard Contractor</h1>
+          <h1 style={{ fontSize: '24px', fontWeight: 800 }}>{editId ? 'Edit Contractor' : 'Onboard Contractor'}</h1>
           <p style={{ fontSize: '14px', color: 'var(--muted)', marginTop: '6px' }}>
             Adds a contractor to the directory. Verification can be added later, once there is proof.
           </p>
@@ -198,13 +227,16 @@ function NewContractorForm() {
               gap: '8px',
             }}
           >
-            Contractor onboarded
+            {editId ? 'Changes saved' : 'Contractor onboarded'}
             <p style={{ fontSize: '13px', fontWeight: 400, color: '#166534' }}>
               Contractor ID: {result.contractor_id}
             </p>
             <div style={{ display: 'flex', gap: '12px', fontWeight: 600 }}>
               <Link href={`/admin/contractor/${result.contractor_id}/portfolio`} style={{ fontSize: '13px' }}>
                 Add portfolio projects →
+              </Link>
+              <Link href="/admin/contractors" style={{ fontSize: '13px' }}>
+                Back to contractors →
               </Link>
             </div>
           </div>
@@ -266,7 +298,7 @@ function NewContractorForm() {
               </label>
             </fieldset>
 
-            <VerifiedField verified={verified} note={verifiedNote} onChange={(v) => { setVerified(v.verified); setVerifiedNote(v.note); }} />
+            {!editId && <VerifiedField verified={verified} note={verifiedNote} onChange={(v) => { setVerified(v.verified); setVerifiedNote(v.note); }} />}
 
             {error && (
               <div
@@ -297,7 +329,7 @@ function NewContractorForm() {
                 cursor: submitting || !canSubmit ? 'not-allowed' : 'pointer',
               }}
             >
-              {submitting ? 'Creating…' : 'Create contractor'}
+              {submitting ? 'Saving…' : editId ? 'Save changes' : 'Create contractor'}
             </button>
           </form>
         )}

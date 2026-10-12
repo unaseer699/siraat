@@ -212,6 +212,10 @@ const CreateContractorBodySchema = z.object({
 });
 type CreateContractorBody = z.infer<typeof CreateContractorBodySchema>;
 
+// --- PATCH /v1/admin/contractors/:id, /v1/admin/suppliers/:id --- all fields optional.
+const UpdateContractorBodySchema = CreateContractorBodySchema.partial().omit({ is_siraat_affiliated: true }).extend({ is_siraat_affiliated: z.boolean().optional() });
+type UpdateContractorBody = z.infer<typeof UpdateContractorBodySchema>;
+
 // --- POST /v1/admin/suppliers (SUPPLIER DIRECTORY Chunk 2) ---
 // Same shape/organization as CreateContractorBodySchema above.
 
@@ -224,6 +228,9 @@ const CreateSupplierBodySchema = z.object({
   is_siraat_affiliated: z.boolean().default(false),
 });
 type CreateSupplierBody = z.infer<typeof CreateSupplierBodySchema>;
+
+const UpdateSupplierBodySchema = CreateSupplierBodySchema.partial().omit({ is_siraat_affiliated: true }).extend({ is_siraat_affiliated: z.boolean().optional() });
+type UpdateSupplierBody = z.infer<typeof UpdateSupplierBodySchema>;
 
 // --- POST /v1/admin/house-plans (HOUSE PLANS DIRECTORY Chunk 1) ---
 
@@ -690,6 +697,34 @@ export class AdminController {
     @Body(new ZodValidationPipe(AddClaimBodySchema)) body: AddClaimBody,
   ) {
     return this.adminSvc.addClaim({ ...body, subject_type: 'CONTRACTOR', subject_id: id });
+  }
+
+  @Patch('contractors/:id')
+  updateContractor(
+    @Param('id') id: string,
+    @Body(new ZodValidationPipe(UpdateContractorBodySchema)) body: UpdateContractorBody,
+  ) {
+    return this.adminSvc.updateContractor(id, body);
+  }
+
+  @Delete('contractors/:id')
+  @HttpCode(204)
+  async deleteContractor(@Param('id') id: string) {
+    await this.adminSvc.deleteContractor(id);
+  }
+
+  @Patch('suppliers/:id')
+  updateSupplier(
+    @Param('id') id: string,
+    @Body(new ZodValidationPipe(UpdateSupplierBodySchema)) body: UpdateSupplierBody,
+  ) {
+    return this.adminSvc.updateSupplier(id, body);
+  }
+
+  @Delete('suppliers/:id')
+  @HttpCode(204)
+  async deleteSupplier(@Param('id') id: string) {
+    await this.adminSvc.deleteSupplier(id);
   }
 
   @Post('contractors/:id/verified')
