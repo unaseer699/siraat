@@ -230,7 +230,7 @@ export function EvidenceDrawer({ evidence, triggerLabel = 'View all evidence' }:
 
                       <p style={{ fontSize: '12px', color: 'var(--muted)', margin: 0 }}>
                         {item.source_ref}
-                        {/^https:\/\/(www\.)?cda\.gov\.pk\//i.test(item.file_ref) && ' · Opens on the official CDA portal'}
+                        {/^https:\/\/(www\.)?(cda\.gov\.pk|rda\.gop\.pk)\//i.test(item.file_ref) && ' · Opens on the official portal'}
                       </p>
 
                       {errors[item.id] && (

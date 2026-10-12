@@ -5,6 +5,10 @@ describe('officialDocumentUrl', () => {
     const url = 'https://www.cda.gov.pk/storage/housing_societies/MdonZBOBsjNroCT1017bvsC30jJNdTtQK0zH4RUD.pdf';
     expect(officialDocumentUrl(url)).toBe(url);
   });
+  it('accepts an RDA portal link', () => {
+    const url = 'https://www.rda.gop.pk/storage/notice.pdf';
+    expect(officialDocumentUrl(url)).toBe(url);
+  });
   it('rejects other hosts, http, look-alikes and credentials', () => {
     expect(officialDocumentUrl('https://evil.com/a.pdf')).toBeNull();
     expect(officialDocumentUrl('http://www.cda.gov.pk/a.pdf')).toBeNull();

@@ -1,7 +1,7 @@
 // Evidence can point straight at a document hosted on an official regulator
 // portal instead of a file in our own bucket. Only allow-listed hosts are
 // accepted so a typo or a bad link can never send users to an arbitrary site.
-const OFFICIAL_DOCUMENT_HOSTS = ['cda.gov.pk', 'www.cda.gov.pk'];
+const OFFICIAL_DOCUMENT_HOSTS = ['cda.gov.pk', 'www.cda.gov.pk', 'rda.gop.pk', 'www.rda.gop.pk'];
 
 export function looksLikeUrl(ref: string): boolean {
   return /^https?:\/\//i.test(ref.trim());

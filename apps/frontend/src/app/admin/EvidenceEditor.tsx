@@ -98,7 +98,7 @@ export function EvidenceEditor({
               style={inputStyle}
             />
             <p style={{ fontSize: '12px', color: 'var(--muted)', margin: 0 }}>
-              A storage key, or paste a direct https link from cda.gov.pk — users will open it straight from the CDA portal.
+              A storage key, or paste a direct https link from cda.gov.pk or rda.gop.pk — users will open it straight from the CDA portal.
             </p>
           </div>
 

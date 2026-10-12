@@ -75,7 +75,7 @@ const FileRefSchema = z
   .trim()
   .min(1)
   .refine((v) => !looksLikeUrl(v) || officialDocumentUrl(v) !== null, {
-    message: 'Links must be https and on an official portal (cda.gov.pk). Otherwise use a storage key.',
+    message: 'Links must be https and on an official portal (cda.gov.pk, rda.gop.pk). Otherwise use a storage key.',
   });
 
 const EvidenceItemSchema = z.object({
