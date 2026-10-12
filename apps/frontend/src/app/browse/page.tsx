@@ -84,12 +84,27 @@ function formatArea(range: { min: number | null; max: number | null }): string |
   return `${Number(min ?? max)} marla`;
 }
 
-function SocietyCard({ society, plotCount }: { society: SocietyBrowseSummary; plotCount: number }) {
+const MAX_COMPARE = 3;
+
+function SocietyCard({
+  society,
+  plotCount,
+  selected,
+  capped,
+  onToggle,
+}: {
+  society: SocietyBrowseSummary;
+  plotCount: number;
+  selected: boolean;
+  capped: boolean;
+  onToggle: () => void;
+}) {
   const meta = STATUS_META[society.verification_status] ?? STATUS_META.PENDING;
   const price = formatRange(society.price_range);
   const area = formatArea(society.area_range);
   return (
-    <Link href={`/society/${society.id}`} style={{ display: 'block', textDecoration: 'none', color: 'inherit', height: '100%' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', height: '100%' }}>
+    <Link href={`/society/${society.id}`} style={{ display: 'block', textDecoration: 'none', color: 'inherit', flex: 1 }}>
       <article
         style={{
           background: '#fff',
@@ -138,6 +153,26 @@ function SocietyCard({ society, plotCount }: { society: SocietyBrowseSummary; pl
         </div>
       </article>
     </Link>
+    <label
+      title={capped ? 'You can compare up to 3 societies' : undefined}
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: '8px',
+        fontSize: '13px',
+        fontWeight: 600,
+        padding: '8px 12px',
+        borderRadius: RADIUS.md,
+        border: `1px solid ${selected ? '#111' : 'var(--border)'}`,
+        background: selected ? '#f3f4f6' : '#fff',
+        color: capped ? 'var(--muted)' : 'var(--text)',
+        cursor: capped ? 'not-allowed' : 'pointer',
+      }}
+    >
+      <input type="checkbox" checked={selected} disabled={capped} onChange={onToggle} style={{ width: '18px', height: '18px' }} />
+      {capped ? 'Compare full (max 3)' : 'Add to compare'}
+    </label>
+    </div>
   );
 }
 
@@ -154,6 +189,12 @@ function BrowseView() {
   const [error, setError] = useState<string | null>(null);
   const [cities, setCities] = useState<string[]>([]);
   const [plotCounts, setPlotCounts] = useState<Record<string, number>>({});
+  // Societies ticked for comparison. Kept across pages and searches.
+  const [compare, setCompare] = useState<string[]>([]);
+
+  function toggleCompare(id: string) {
+    setCompare((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : prev.length >= MAX_COMPARE ? prev : [...prev, id]));
+  }
 
   useEffect(() => {
     fetchPlatformStats()
@@ -345,7 +386,14 @@ function BrowseView() {
               }}
             >
               {data.societies.map((s) => (
-                <SocietyCard key={s.id} society={s} plotCount={plotCounts[s.id] ?? 0} />
+                <SocietyCard
+                  key={s.id}
+                  society={s}
+                  plotCount={plotCounts[s.id] ?? 0}
+                  selected={compare.includes(s.id)}
+                  capped={!compare.includes(s.id) && compare.length >= MAX_COMPARE}
+                  onToggle={() => toggleCompare(s.id)}
+                />
               ))}
             </div>
 
@@ -373,6 +421,25 @@ function BrowseView() {
           </div>
         ) : null}
       </div>
+
+      {compare.length > 0 && (
+        <div style={{ position: 'fixed', bottom: '20px', left: '50%', transform: 'translateX(-50%)', zIndex: 50, display: 'flex', alignItems: 'center', gap: '10px', background: '#111', color: '#fff', borderRadius: '999px', padding: '8px 10px 8px 18px', boxShadow: '0 4px 16px rgba(0,0,0,0.25)', maxWidth: 'calc(100vw - 24px)' }}>
+          <span style={{ fontSize: '13px', fontWeight: 600, whiteSpace: 'nowrap' }}>
+            {compare.length} selected{compare.length < 2 ? ' · pick 1 more' : ''}
+          </span>
+          <button
+            type="button"
+            disabled={compare.length < 2}
+            onClick={() => router.push(`/compare?ids=${encodeURIComponent(compare.join(','))}`)}
+            style={{ fontSize: '14px', fontWeight: 700, color: '#111', background: compare.length < 2 ? '#9ca3af' : '#fff', border: 'none', borderRadius: '999px', padding: '8px 16px', cursor: compare.length < 2 ? 'not-allowed' : 'pointer', whiteSpace: 'nowrap' }}
+          >
+            Compare →
+          </button>
+          <button type="button" onClick={() => setCompare([])} aria-label="Clear selection" style={{ background: 'none', border: 'none', color: '#fff', fontSize: '18px', cursor: 'pointer', padding: '0 6px' }}>
+            ×
+          </button>
+        </div>
+      )}
     </main>
   );
 }
