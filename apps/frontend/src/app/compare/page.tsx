@@ -132,8 +132,10 @@ function CompareView() {
   if (columns.length < 2) {
     return (
       <main style={pageStyle}>
-        <BackLink />
-        <ComparePicker initial={ids} />
+        <div style={{ width: '100%', maxWidth: '960px' }}>
+          <BackLink />
+          <ComparePicker initial={ids} />
+        </div>
       </main>
     );
   }
