@@ -152,7 +152,7 @@ function HeroBand() {
           >
             <ShieldCheck size={18} color={TRUST_GREEN} aria-hidden="true" />
           </span>
-          Evidence-backed real estate intelligence
+          Evidence-Backed Real Estate Intelligence
         </span>
 
         <header style={{ textAlign: 'center', maxWidth: '640px' }}>
