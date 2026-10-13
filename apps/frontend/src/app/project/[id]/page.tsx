@@ -176,13 +176,22 @@ export default function ProjectDashboardPage({ params }: Props) {
 
   return (
     <main style={pageStyle}>
+      <style>{PRINT_CSS}</style>
       <div style={{ width: '100%', maxWidth: showBoq ? '1080px' : '640px', display: 'flex', flexWrap: 'wrap', gap: '24px', alignItems: 'flex-start', justifyContent: 'center' }}>
       <div style={{ flex: '1 1 440px', maxWidth: '640px', minWidth: 0, display: 'flex', flexDirection: 'column', gap: '16px' }}>
-        <div>
-          <h1 style={{ fontSize: '22px', fontWeight: 800 }}>{project.name}</h1>
-          <p style={{ fontSize: '13px', color: 'var(--muted)', marginTop: '4px' }}>
-            Started {formatDate(project.start_date)} · {project.status.replace('_', ' ')}
-          </p>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '12px', flexWrap: 'wrap' }}>
+          <div>
+            <p className="print-only" style={{ fontSize: '11px', letterSpacing: '0.06em', fontWeight: 700 }}>
+              SIRAAT · PROJECT COST REPORT · {formatDate(new Date().toISOString())}
+            </p>
+            <h1 style={{ fontSize: '22px', fontWeight: 800 }}>{project.name}</h1>
+            <p style={{ fontSize: '13px', color: 'var(--muted)', marginTop: '4px' }}>
+              Started {formatDate(project.start_date)} · {project.status.replace('_', ' ')}
+            </p>
+          </div>
+          <button type="button" className="no-print" onClick={() => window.print()} style={printButtonStyle}>
+            Download / Print PDF
+          </button>
         </div>
 
         <div
@@ -210,7 +219,7 @@ export default function ProjectDashboardPage({ params }: Props) {
         <ForecastCard projectId={project.id} />
 
         {usedCategories.length > 1 && (
-          <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', alignItems: 'center' }}>
+          <div className="no-print" style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', alignItems: 'center' }}>
             <select
               value={sectionFilter}
               onChange={(e) => setSectionFilter(e.target.value)}
@@ -264,7 +273,7 @@ export default function ProjectDashboardPage({ params }: Props) {
             ))}
           </div>
         )}
-        <div style={{ marginTop: '16px' }}>
+        <div className="no-print" style={{ marginTop: '16px' }}>
           <ProjectDocumentsCard projectId={project.id} />
         </div>
       </div>
@@ -277,6 +286,34 @@ export default function ProjectDashboardPage({ params }: Props) {
     </main>
   );
 }
+
+// Print / Save-as-PDF: the browser prints the page exactly as shown (current
+// filters included) minus the controls. Users choose "Save as PDF" in the
+// print dialog to download.
+const PRINT_CSS = `
+.print-only { display: none; }
+@media print {
+  .no-print { display: none !important; }
+  .print-only { display: block !important; margin-bottom: 6px; }
+  * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  main { padding: 0 !important; min-height: 0 !important; }
+  details > summary { list-style: none; }
+  details { break-inside: avoid; }
+}
+@page { margin: 14mm; }
+`;
+
+const printButtonStyle: CSSProperties = {
+  padding: '8px 14px',
+  background: '#111',
+  color: '#fff',
+  border: 'none',
+  borderRadius: 'var(--radius)',
+  fontSize: '13px',
+  fontWeight: 600,
+  cursor: 'pointer',
+  whiteSpace: 'nowrap',
+};
 
 const pageStyle: CSSProperties = {
   minHeight: '100vh',
