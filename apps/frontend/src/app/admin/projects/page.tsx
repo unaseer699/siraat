@@ -2,7 +2,7 @@
 
 import { useEffect, useState, type CSSProperties } from 'react';
 import Link from 'next/link';
-import { fetchAdminProjects, type ProjectListItem } from '@/lib/api';
+import { deleteAdminProject, fetchAdminProjects, type ProjectListItem } from '@/lib/api';
 import { AdminNav } from '../AdminNav';
 import { paginationButtonStyle } from '@/styles/pagination';
 
@@ -25,6 +25,18 @@ export default function AdminProjectsPage() {
   const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [reload, setReload] = useState(0);
+
+  async function onDelete(p: ProjectListItem) {
+    if (!window.confirm(`Delete project "${p.name}"? It will be hidden everywhere. Its expense records are kept.`)) return;
+    try {
+      await deleteAdminProject(p.id);
+      if (projects.length === 1 && page > 1) setPage(page - 1);
+      else setReload((n) => n + 1);
+    } catch (err) {
+      setError(err instanceof Error ? err.message.replace(/^API error \d+: /, '') : 'Could not delete');
+    }
+  }
 
   useEffect(() => {
     let cancelled = false;
@@ -46,7 +58,7 @@ export default function AdminProjectsPage() {
     return () => {
       cancelled = true;
     };
-  }, [page]);
+  }, [page, reload]);
 
   return (
     <main style={{ minHeight: '100vh', padding: '32px 24px 48px' }}>
@@ -98,6 +110,7 @@ export default function AdminProjectsPage() {
                   <th style={thStyle}>Status</th>
                   <th style={thStyle}>Start date</th>
                   <th style={{ ...thStyle, textAlign: 'right' }}>Total</th>
+                  <th style={thStyle} />
                 </tr>
               </thead>
               <tbody>
@@ -113,6 +126,11 @@ export default function AdminProjectsPage() {
                     </td>
                     <td style={tdStyle}>{p.start_date}</td>
                     <td style={{ ...tdStyle, textAlign: 'right', fontWeight: 700 }}>{formatPKR(p.total)}</td>
+                    <td style={{ ...tdStyle, textAlign: 'right' }}>
+                      <button type="button" onClick={() => onDelete(p)} style={{ padding: '4px 10px', border: '1px solid #fecaca', background: '#fff', color: 'var(--error)', borderRadius: 'var(--radius)', fontSize: '12px', fontWeight: 600, cursor: 'pointer' }}>
+                        Delete
+                      </button>
+                    </td>
                   </tr>
                 ))}
               </tbody>

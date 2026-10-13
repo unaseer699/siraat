@@ -868,6 +868,11 @@ export class AdminService {
     return this.cpSvc.updateProject(id, data);
   }
 
+  // DELETE /v1/admin/projects/:id — soft delete.
+  async deleteProject(id: string): Promise<void> {
+    return this.cpSvc.deleteProject(id);
+  }
+
   // GET /v1/admin/projects — admin projects list. Same plain-passthrough
   // delegation as searchContractors/searchSuppliers above (no existence
   // check needed, this is the list path).

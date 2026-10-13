@@ -1,6 +1,6 @@
 import { BadRequestException, Injectable, NotFoundException, Optional } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { In, Repository } from 'typeorm';
+import { In, IsNull, Repository } from 'typeorm';
 import type { SectionCategory, ExpenseKind } from '@siraat/shared-types';
 import { ExpenseCategoryRuleEntity } from './entities/expense-category-rule.entity';
 import { ConstructionProjectEntity, type ConstructionProjectStatus } from './entities/construction-project.entity';
@@ -326,17 +326,17 @@ export class ConstructionProjectService {
   // REAL BUILDS — only projects the owner opted in. Returns the minimum the
   // public summary needs; owner_contact/name/city are never selected.
   async listPublicProjects(): Promise<Array<{ id: string; public_title: string | null; status: ConstructionProjectStatus; start_date: string }>> {
-    const rows = await this.projectRepo.find({ where: { is_public: true }, order: { created_at: 'DESC' } });
+    const rows = await this.projectRepo.find({ where: { is_public: true, deleted_at: IsNull() }, order: { created_at: 'DESC' } });
     return rows.map((r) => ({ id: r.id, public_title: r.public_title, status: r.status, start_date: r.start_date }));
   }
 
   async findPublicProject(id: string) {
-    const r = await this.projectRepo.findOneBy({ id, is_public: true });
+    const r = await this.projectRepo.findOneBy({ id, is_public: true, deleted_at: IsNull() });
     return r ? { id: r.id, public_title: r.public_title, status: r.status, start_date: r.start_date } : null;
   }
 
   async findProjectById(id: string): Promise<ProjectResult | null> {
-    const entity = await this.projectRepo.findOneBy({ id });
+    const entity = await this.projectRepo.findOneBy({ id, deleted_at: IsNull() });
     return entity ? toProjectResult(entity) : null;
   }
 
@@ -355,7 +355,7 @@ export class ConstructionProjectService {
   // row to diff old vs. new values, so a separate pre-check would just be the
   // same query run twice.
   async updateProject(id: string, data: UpdateProjectInput): Promise<ProjectResult> {
-    const entity = await this.projectRepo.findOneBy({ id });
+    const entity = await this.projectRepo.findOneBy({ id, deleted_at: IsNull() });
     if (!entity) throw new NotFoundException(`Project ${id} not found`);
 
     // old is string | null (not just string) so a cleared/never-set field logs
@@ -413,6 +413,24 @@ export class ConstructionProjectService {
     return toProjectResult(saved);
   }
 
+  // ADMIN PROJECT DELETE — soft delete. Hides the project from every list and
+  // lookup and takes it off the public Real Builds page; expenses stay in the
+  // ledger. Logged as an Observation.
+  async deleteProject(id: string): Promise<void> {
+    const entity = await this.projectRepo.findOneBy({ id, deleted_at: IsNull() });
+    if (!entity) throw new NotFoundException(`Project ${id} not found`);
+    entity.deleted_at = new Date();
+    entity.is_public = false;
+    await this.projectRepo.save(entity);
+    void this.ciSvc.logObservation({
+      entity_ref: id,
+      metric: 'project_edit',
+      old_value: 'active',
+      new_value: 'deleted',
+      source_ref: `Deleted project ${id}`,
+    });
+  }
+
   // ADMIN PROJECTS LIST — GET /v1/admin/projects. Same pagination pattern as
   // PropertyIntelligenceService.searchContractors/searchSuppliers (page/limit
   // params, getManyAndCount, total_pages = ceil(total_count/limit)). Newest
@@ -431,6 +449,7 @@ export class ConstructionProjectService {
 
     const [projects, total_count] = await this.projectRepo
       .createQueryBuilder('p')
+      .where('p.deleted_at IS NULL')
       .orderBy('p.created_at', 'DESC')
       .skip((page - 1) * limit)
       .take(limit)

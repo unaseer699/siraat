@@ -38,6 +38,7 @@ describe('ConstructionProjectService', () => {
   // ADMIN PROJECTS LIST — same chainable-mock shape as
   // PropertyIntelligenceService.spec.ts's qbMocks/contractorQbMocks.
   let projectQbMocks: {
+    where: jest.Mock;
     orderBy: jest.Mock;
     skip: jest.Mock;
     take: jest.Mock;
@@ -59,11 +60,13 @@ describe('ConstructionProjectService', () => {
     projectFindOneByMock = jest.fn().mockResolvedValue(null);
 
     projectQbMocks = {
+      where: jest.fn(),
       orderBy: jest.fn(),
       skip: jest.fn(),
       take: jest.fn(),
       getManyAndCount: jest.fn().mockResolvedValue([[], 0]),
     };
+    projectQbMocks.where.mockReturnValue(projectQbMocks);
     projectQbMocks.orderBy.mockReturnValue(projectQbMocks);
     projectQbMocks.skip.mockReturnValue(projectQbMocks);
     projectQbMocks.take.mockReturnValue(projectQbMocks);
@@ -211,6 +214,23 @@ describe('ConstructionProjectService', () => {
       const result = await service.findProjectById('non-existent-uuid');
 
       expect(result).toBeNull();
+    });
+  });
+
+  describe('deleteProject', () => {
+    it('throws NotFoundException for an unknown project and never saves', async () => {
+      projectFindOneByMock.mockResolvedValue(null);
+      await expect(service.deleteProject('nope')).rejects.toThrow(NotFoundException);
+      expect(projectSaveMock).not.toHaveBeenCalled();
+    });
+
+    it('soft-deletes: sets deleted_at and un-publishes', async () => {
+      projectFindOneByMock.mockResolvedValue({ id: 'p1', is_public: true, deleted_at: null });
+      projectSaveMock.mockImplementation(async (e: unknown) => e);
+      await service.deleteProject('p1');
+      const saved = projectSaveMock.mock.calls[0][0];
+      expect(saved.deleted_at).toBeInstanceOf(Date);
+      expect(saved.is_public).toBe(false);
     });
   });
 

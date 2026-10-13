@@ -61,4 +61,9 @@ export class ConstructionProjectEntity {
 
   @CreateDateColumn()
   created_at: Date;
+
+  // Soft delete: the expense ledger is FACT data (Law 3), so a deleted project
+  // is hidden everywhere but its rows are kept.
+  @Column({ type: 'timestamptz', nullable: true })
+  deleted_at: Date | null;
 }

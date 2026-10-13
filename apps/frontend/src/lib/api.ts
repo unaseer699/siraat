@@ -1029,6 +1029,10 @@ export async function updateProject(id: string, data: UpdateProjectBody): Promis
   });
 }
 
+export async function deleteAdminProject(id: string): Promise<void> {
+  await apiFetch(`/v1/admin/projects/${id}`, { method: 'DELETE' });
+}
+
 // ADMIN PROJECTS LIST — a lighter-weight row than ProjectResult (no
 // property_ref/owner_contact/record_type), plus `total`: the ACTIVE-only
 // expense sum across every section, same figure the project detail page's

@@ -1036,6 +1036,12 @@ export class AdminController {
     return this.adminSvc.updateProject(id, body);
   }
 
+  @Delete('projects/:id')
+  @HttpCode(204)
+  deleteProject(@Param('id') id: string) {
+    return this.adminSvc.deleteProject(id);
+  }
+
   // ADMIN PROJECTS LIST — list view, same pagination pattern as GET
   // /contractors / GET /suppliers / GET /house-plans above.
   @Get('projects')
