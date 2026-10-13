@@ -1919,3 +1919,54 @@ export async function updateSupplier(id: string, data: UpdateSupplierBody): Prom
 export async function deleteSupplier(id: string): Promise<void> {
   return apiFetch(`/v1/admin/suppliers/${id}`, { method: 'DELETE' });
 }
+
+
+// BILLS & INVOICES attached to expenses (optional). Admin-only until the
+// admin ticks "show to owner".
+export interface ExpenseBill {
+  id: string;
+  expense_ref: string;
+  filename: string;
+  content_type: string;
+  size_bytes: number;
+  visible_to_owner: boolean;
+  created_at: string;
+  download_url: string | null;
+}
+
+export async function listAdminBills(projectId: string): Promise<ExpenseBill[]> {
+  return apiFetch(`/v1/admin/projects/${projectId}/bills`);
+}
+
+export async function fetchOwnerBills(projectId: string): Promise<ExpenseBill[]> {
+  return apiFetch(`/v1/construction-intelligence/projects/${projectId}/bills`);
+}
+
+export async function attachBill(
+  projectId: string,
+  expenseId: string,
+  file: File,
+  visible_to_owner: boolean,
+): Promise<ExpenseBill> {
+  const content_type = file.type || 'application/pdf';
+  const { upload_url, key } = await apiFetch<{ upload_url: string; key: string }>(
+    `/v1/admin/projects/${projectId}/bills/upload-url`,
+    { method: 'POST', body: JSON.stringify({ filename: file.name, content_type }) },
+  );
+  await uploadFileToPresignedUrl(upload_url, file);
+  return apiFetch(`/v1/admin/projects/${projectId}/expenses/${expenseId}/bills`, {
+    method: 'POST',
+    body: JSON.stringify({ key, filename: file.name, content_type, visible_to_owner }),
+  });
+}
+
+export async function setBillVisibility(projectId: string, billId: string, visible: boolean) {
+  return apiFetch(`/v1/admin/projects/${projectId}/bills/${billId}/visibility`, {
+    method: 'POST',
+    body: JSON.stringify({ visible_to_owner: visible }),
+  });
+}
+
+export async function deleteBill(projectId: string, billId: string) {
+  return apiFetch(`/v1/admin/projects/${projectId}/bills/${billId}`, { method: 'DELETE' });
+}

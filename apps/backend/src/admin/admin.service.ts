@@ -205,6 +205,7 @@ import { LayoutExtractorService } from '../construction-intelligence/layout-extr
 import type { ProjectDocumentKind } from '../construction-intelligence/entities/project-document.entity';
 import { LayoutFloor, LayoutExtras } from '../construction-intelligence/entities/project-layout.entity';
 
+import { ExpenseAttachmentService } from '../construction-intelligence/expense-attachment.service';
 import { ContractorPortfolioService } from '../contractor-portfolio/contractor-portfolio.service';
 
 @Injectable()
@@ -229,6 +230,7 @@ export class AdminService {
     @Optional() private readonly extractorSvc?: LayoutExtractorService,
     @Optional() private readonly waOutbound?: WhatsappOutboundClient,
     @Optional() private readonly marketRateSvc?: MarketRateService,
+    @Optional() private readonly billSvc?: ExpenseAttachmentService,
   ) {}
 
   // CLEANUP — was AdminService's own CandidateSocietyEntity repository
@@ -929,6 +931,40 @@ export class AdminService {
   private docs(): ProjectDocumentService {
     if (!this.docSvc) throw new BadRequestException('Document service unavailable');
     return this.docSvc;
+  }
+
+  private bills(): ExpenseAttachmentService {
+    if (!this.billSvc) throw new BadRequestException('Bill service unavailable');
+    return this.billSvc;
+  }
+
+  async requestBillUpload(projectId: string, data: { filename: string; content_type: string }) {
+    await this.requireProject(projectId);
+    return this.bills().requestUpload(projectId, data);
+  }
+
+  async attachBill(
+    projectId: string,
+    expenseId: string,
+    data: { key: string; filename: string; content_type: string; visible_to_owner: boolean },
+  ) {
+    await this.requireProject(projectId);
+    return this.bills().attach(projectId, expenseId, data);
+  }
+
+  async listBills(projectId: string) {
+    await this.requireProject(projectId);
+    return this.bills().list(projectId, { ownerView: false });
+  }
+
+  async setBillVisibility(projectId: string, id: string, visible: boolean) {
+    await this.bills().setVisibility(projectId, id, visible);
+    return { ok: true };
+  }
+
+  async deleteBill(projectId: string, id: string) {
+    await this.bills().remove(projectId, id);
+    return { ok: true };
   }
 
   private async requireProject(projectId: string): Promise<void> {

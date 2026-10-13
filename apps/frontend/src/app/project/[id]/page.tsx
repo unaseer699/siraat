@@ -3,6 +3,8 @@
 import { useEffect, useMemo, useState, type CSSProperties } from 'react';
 import {
   fetchProjectDashboard,
+  fetchOwnerBills,
+  type ExpenseBill,
   type ProjectWithSectionsAndExpenses,
   type ExpenseResult,
 } from '@/lib/api';
@@ -34,7 +36,7 @@ function formatDate(iso: string): string {
 // management page can afford a horizontally-scrollable table (internal
 // tooling); this page is explicitly the one most likely to get checked from
 // a phone on-site, so line items wrap naturally at narrow widths instead.
-function ExpenseLine({ expense }: { expense: ExpenseResult }) {
+function ExpenseLine({ expense, bills }: { expense: ExpenseResult; bills: ExpenseBill[] }) {
   const isCorrection = expense.amount < 0;
   return (
     <div
@@ -55,6 +57,23 @@ function ExpenseLine({ expense }: { expense: ExpenseResult }) {
         <span style={{ fontSize: '12px', color: 'var(--muted)' }}>
           <VendorLabel vendor_name={expense.vendor_name} source={expense.source} />{expense.paid_by ? ` · paid by ${expense.paid_by}` : ''} · {formatDate(expense.expense_date)}
         </span>
+        {bills.length > 0 && (
+          <span style={{ fontSize: '12px' }}>
+            {bills.map((b, i) => (
+              <span key={b.id}>
+                {i > 0 && ' · '}
+                {b.download_url ? (
+                  <a href={b.download_url} target="_blank" rel="noreferrer" className="no-print">
+                    📎 Bill{bills.length > 1 ? ` ${i + 1}` : ''}
+                  </a>
+                ) : null}
+              </span>
+            ))}
+            <span className="print-only" style={{ color: 'var(--muted)' }}>
+              Bill attached{bills.length > 1 ? ` (${bills.length})` : ''}
+            </span>
+          </span>
+        )}
       </div>
       <span
         style={{
@@ -74,7 +93,7 @@ function ExpenseLine({ expense }: { expense: ExpenseResult }) {
 
 // Native <details>/<summary> — collapsible at any viewport with zero JS,
 // defaults open so nothing is hidden on first load.
-function SectionCard({ section }: { section: ProjectWithSectionsAndExpenses['sections'][number] }) {
+function SectionCard({ section, bills }: { section: ProjectWithSectionsAndExpenses['sections'][number]; bills: ExpenseBill[] }) {
   return (
     <details
       open
@@ -104,7 +123,7 @@ function SectionCard({ section }: { section: ProjectWithSectionsAndExpenses['sec
         {section.expenses.length === 0 ? (
           <p style={{ fontSize: '13px', color: 'var(--muted)', padding: '10px 0' }}>No expenses in this section.</p>
         ) : (
-          section.expenses.map((e) => <ExpenseLine key={e.id} expense={e} />)
+          section.expenses.map((e) => <ExpenseLine key={e.id} expense={e} bills={bills.filter((b) => b.expense_ref === e.id)} />)
         )}
       </div>
     </details>
@@ -116,6 +135,7 @@ export default function ProjectDashboardPage({ params }: Props) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  const [bills, setBills] = useState<ExpenseBill[]>([]);
   const [sectionFilter, setSectionFilter] = useState('');
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
@@ -135,6 +155,10 @@ export default function ProjectDashboardPage({ params }: Props) {
     return () => {
       cancelled = true;
     };
+  }, [params.id]);
+
+  useEffect(() => {
+    fetchOwnerBills(params.id).then(setBills).catch(() => setBills([]));
   }, [params.id]);
 
   // Filters affect which line items are shown, not the headline running
@@ -269,7 +293,7 @@ export default function ProjectDashboardPage({ params }: Props) {
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
             {filteredSections.map((s) => (
-              <SectionCard key={s.id} section={s} />
+              <SectionCard key={s.id} section={s} bills={bills} />
             ))}
           </div>
         )}

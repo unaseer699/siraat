@@ -1,5 +1,6 @@
 import { BadRequestException, Injectable, NotFoundException, Optional } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
+import { ExpenseAttachmentEntity } from './entities/expense-attachment.entity';
 import { In, IsNull, Repository } from 'typeorm';
 import type { SectionCategory, ExpenseKind } from '@siraat/shared-types';
 import { ExpenseCategoryRuleEntity } from './entities/expense-category-rule.entity';
@@ -581,6 +582,9 @@ export class ConstructionProjectService {
       // Partial update — only status changes on the original row. Nothing
       // else about it is ever touched.
       await manager.update(ProjectExpenseEntity, { id: original.id }, { status: 'CORRECTED' });
+
+      // Bills follow the current version of the expense.
+      await manager.update(ExpenseAttachmentEntity, { expense_ref: original.id }, { expense_ref: saved.id });
 
       return saved;
     });

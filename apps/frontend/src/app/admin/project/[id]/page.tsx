@@ -23,7 +23,11 @@ import {
   type CreateExpenseBody,
   type UpdateProjectBody,
   type ConstructionProjectStatus,
+  attachBill,
+  listAdminBills,
+  type ExpenseBill,
 } from '@/lib/api';
+import ExpenseBills from '@/components/ExpenseBills';
 import { SECTION_CATEGORY_OPTIONS, SECTION_GROUP_ORDER, SECTION_GROUP_LABELS, sectionLabel } from '@/lib/sectionCategories';
 import { CopyLinkButton } from '@/components/CopyLinkButton';
 import WhatsappBadge from '@/components/WhatsappBadge';
@@ -380,12 +384,13 @@ function ExpenseForm({
 }: {
   initial: ExpenseDraft;
   mode: ExpenseFormMode;
-  onSubmit: (data: CreateExpenseBody) => void;
+  onSubmit: (data: CreateExpenseBody, bill: File | null) => void;
   onCancel: () => void;
   submitting: boolean;
   error: string | null;
 }) {
   const [draft, setDraft] = useState<ExpenseDraft>(initial);
+  const [billFile, setBillFile] = useState<File | null>(null);
   const [linkType, setLinkType] = useState<LinkType>(initial.linkType ?? 'NONE');
   const [linkQuery, setLinkQuery] = useState(initial.linkQuery ?? '');
   const [linkedId, setLinkedId] = useState<string | null>(initial.linkedId ?? null);
@@ -430,7 +435,7 @@ function ExpenseForm({
       quantity: quantityNum,
       unit: draft.unit || null,
       rate: rateNum,
-    });
+    }, billFile);
   }
 
   return (
@@ -584,6 +589,18 @@ function ExpenseForm({
         }}
       />
 
+      {mode !== 'EDIT' && (
+        <div style={fieldGroupStyle}>
+          <label style={labelStyle}>Bill or invoice (optional)</label>
+          <input
+            type="file"
+            accept="application/pdf,image/png,image/jpeg,image/webp"
+            onChange={(e) => setBillFile(e.target.files?.[0] ?? null)}
+            style={{ fontSize: '12px' }}
+          />
+        </div>
+      )}
+
       {error && <p style={{ fontSize: '12px', color: 'var(--error)', margin: 0 }}>{error}</p>}
 
       <div style={{ display: 'flex', gap: '8px' }}>
@@ -616,7 +633,13 @@ function ExpenseRow({
   onDeleteClick,
   selected,
   onToggleSelect,
+  projectId,
+  bills,
+  onBillsChanged,
 }: {
+  projectId: string;
+  bills: ExpenseBill[];
+  onBillsChanged: () => void;
   expense: ExpenseResult;
   onCorrect: () => void;
   onEdit: () => void;
@@ -636,6 +659,7 @@ function ExpenseRow({
           {expense.source === 'IMPORT' && <span style={{ fontSize: '10px', color: 'var(--muted)' }}>imported · date unknown</span>}
           {expense.kind && <span style={{ fontSize: '10px', color: 'var(--muted)', border: '1px solid var(--border)', borderRadius: '4px', padding: '0 4px' }}>{expense.kind.toLowerCase()}</span>}
         </div>
+        <ExpenseBills projectId={projectId} expenseId={expense.id} bills={bills} onChanged={onBillsChanged} />
       </td>
       <td style={tdStyle}>
         <VendorLabel vendor_name={expense.vendor_name} source={expense.source} />
@@ -764,6 +788,18 @@ export default function AdminProjectPage({ params }: Props) {
   const [project, setProject] = useState<ProjectWithSectionsAndExpenses | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [bills, setBills] = useState<ExpenseBill[]>([]);
+  async function refetchBills() {
+    try {
+      setBills(await listAdminBills(params.id));
+    } catch {
+      /* bills are optional; leave the list as is */
+    }
+  }
+  useEffect(() => {
+    void refetchBills();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [params.id]);
 
   // ADMIN PROJECT EDIT
   const [editingProject, setEditingProject] = useState(false);
@@ -989,7 +1025,7 @@ export default function AdminProjectPage({ params }: Props) {
     }
   }
 
-  async function handleExpenseFormSubmit(data: CreateExpenseBody) {
+  async function handleExpenseFormSubmit(data: CreateExpenseBody, bill: File | null) {
     if (!activeForm || !project) return;
     setExpenseSubmitting(true);
     setExpenseError(null);
@@ -1005,6 +1041,14 @@ export default function AdminProjectPage({ params }: Props) {
         if (showHistory) await refetchHistory();
       } else {
         const expense = await createSectionExpense(activeForm.sectionId, data);
+        if (bill) {
+          try {
+            await attachBill(project.id, expense.id, bill, false);
+            await refetchBills();
+          } catch (billErr) {
+            setExpenseError(`Expense saved, but the bill did not upload: ${billErr instanceof Error ? billErr.message.replace(/^API error \d+: /, '') : 'failed'}. Use "Attach bill" on the row.`);
+          }
+        }
         // Applied locally rather than refetching the whole nested tree — this
         // form gets used repeatedly in one sitting (WhatsApp-relay entry), so
         // speed matters more here than anywhere else in the admin. Only the
@@ -1312,6 +1356,9 @@ export default function AdminProjectPage({ params }: Props) {
                           onDeleteClick={() => openVoidPrompt(expense)}
                           selected={selectedIds.has(expense.id)}
                           onToggleSelect={() => toggleSelected(expense.id)}
+                          projectId={project.id}
+                          bills={bills.filter((b) => b.expense_ref === expense.id)}
+                          onBillsChanged={refetchBills}
                         />
                         {voidPrompt?.expense.id === expense.id && (
                           <VoidReasonRow

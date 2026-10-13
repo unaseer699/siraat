@@ -1,6 +1,7 @@
 import { Controller, Get, NotFoundException, Param, UseGuards } from '@nestjs/common';
 import { BearerGuard } from '../auth/bearer.guard';
 import { ConstructionProjectService } from './construction-project.service';
+import { ExpenseAttachmentService } from './expense-attachment.service';
 import { ProjectDocumentService } from './project-document.service';
 import { ProjectForecastService } from './project-forecast.service';
 import { PublicBuildsService } from './public-builds.service';
@@ -18,6 +19,7 @@ export class ConstructionProjectController {
   constructor(
     private readonly cpSvc: ConstructionProjectService,
     private readonly docs: ProjectDocumentService,
+    private readonly bills: ExpenseAttachmentService,
     private readonly forecastSvc: ProjectForecastService,
     private readonly publicBuilds: PublicBuildsService,
   ) {}
@@ -46,6 +48,14 @@ export class ConstructionProjectController {
   @Get('projects/:id/documents')
   async getDocuments(@Param('id') id: string) {
     return this.docs.list(id, { ownerView: true });
+  }
+
+  // Bills and invoices the admin has chosen to show the owner.
+  @Get('projects/:id/bills')
+  async getBills(@Param('id') id: string) {
+    const project = await this.cpSvc.findProjectById(id);
+    if (!project) throw new NotFoundException(`Project ${id} not found`);
+    return this.bills.list(id, { ownerView: true });
   }
 
   // Forecast for the owner dashboard. Only a confirmed layout is shown; an

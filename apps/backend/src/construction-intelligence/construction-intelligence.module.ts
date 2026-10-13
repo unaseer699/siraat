@@ -21,6 +21,8 @@ import { ConstructionIntelligenceService } from './construction-intelligence.ser
 import { ConstructionProjectService } from './construction-project.service';
 import { EstimatesService } from './estimates.service';
 import { EstimatesController } from './estimates.controller';
+import { ExpenseAttachmentEntity } from './entities/expense-attachment.entity';
+import { ExpenseAttachmentService } from './expense-attachment.service';
 import { ConstructionProjectController } from './construction-project.controller';
 
 @Module({
@@ -36,13 +38,14 @@ import { ConstructionProjectController } from './construction-project.controller
       ExpenseCategoryRuleEntity,
       ProjectLayoutEntity,
       ProjectDocumentEntity,
+      ExpenseAttachmentEntity,
       MarketRateQuoteEntity,
       MarketRateBaselineEntity,
     ]),
     TrustModule,
   ],
   controllers: [EstimatesController, ConstructionProjectController],
-  providers: [ConstructionIntelligenceService, ConstructionProjectService, EstimatesService, ProjectForecastService, PublicBuildsService, ProjectDocumentService, LayoutExtractorService, MarketRateService],
-  exports: [ConstructionIntelligenceService, ConstructionProjectService, ProjectForecastService, ProjectDocumentService, LayoutExtractorService, MarketRateService],
+  providers: [ConstructionIntelligenceService, ConstructionProjectService, EstimatesService, ProjectForecastService, PublicBuildsService, ProjectDocumentService, ExpenseAttachmentService, LayoutExtractorService, MarketRateService],
+  exports: [ExpenseAttachmentService, ConstructionIntelligenceService, ConstructionProjectService, ProjectForecastService, ProjectDocumentService, LayoutExtractorService, MarketRateService],
 })
 export class ConstructionIntelligenceModule {}

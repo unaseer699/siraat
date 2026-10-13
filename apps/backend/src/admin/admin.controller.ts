@@ -524,6 +524,15 @@ const DocFinalizeBodySchema = z.object({
 type DocFinalizeBody = z.infer<typeof DocFinalizeBodySchema>;
 const DocVisibilityBodySchema = z.object({ visible_to_owner: z.boolean() });
 type DocVisibilityBody = z.infer<typeof DocVisibilityBodySchema>;
+const BillUploadUrlBodySchema = z.object({ filename: z.string().min(1).max(200), content_type: z.string().min(1) });
+type BillUploadUrlBody = z.infer<typeof BillUploadUrlBodySchema>;
+const BillAttachBodySchema = z.object({
+  key: z.string().min(1),
+  filename: z.string().trim().min(1).max(200),
+  content_type: z.string().min(1),
+  visible_to_owner: z.boolean().default(false),
+});
+type BillAttachBody = z.infer<typeof BillAttachBodySchema>;
 const DocKindBodySchema = z.object({ kind: z.enum(['ARCHITECTURAL', 'STRUCTURAL', 'ELECTRICAL', 'PLUMBING', 'SOIL', 'OTHER']) });
 type DocKindBody = z.infer<typeof DocKindBodySchema>;
 
@@ -1112,6 +1121,46 @@ export class AdminController {
   @HttpCode(200)
   diagnoseWhatsapp(@Body(new ZodValidationPipe(WhatsappDiagnoseBodySchema)) body: WhatsappDiagnoseBody) {
     return this.adminSvc.diagnoseWhatsapp(body.to ?? null);
+  }
+
+  @Get('projects/:projectId/bills')
+  listBills(@Param('projectId') projectId: string) {
+    return this.adminSvc.listBills(projectId);
+  }
+
+  @Post('projects/:projectId/bills/upload-url')
+  @HttpCode(200)
+  requestBillUpload(
+    @Param('projectId') projectId: string,
+    @Body(new ZodValidationPipe(BillUploadUrlBodySchema)) body: BillUploadUrlBody,
+  ) {
+    return this.adminSvc.requestBillUpload(projectId, body);
+  }
+
+  @Post('projects/:projectId/expenses/:expenseId/bills')
+  @HttpCode(200)
+  attachBill(
+    @Param('projectId') projectId: string,
+    @Param('expenseId') expenseId: string,
+    @Body(new ZodValidationPipe(BillAttachBodySchema)) body: BillAttachBody,
+  ) {
+    return this.adminSvc.attachBill(projectId, expenseId, body);
+  }
+
+  @Post('projects/:projectId/bills/:billId/visibility')
+  @HttpCode(200)
+  setBillVisibility(
+    @Param('projectId') projectId: string,
+    @Param('billId') billId: string,
+    @Body(new ZodValidationPipe(DocVisibilityBodySchema)) body: DocVisibilityBody,
+  ) {
+    return this.adminSvc.setBillVisibility(projectId, billId, body.visible_to_owner);
+  }
+
+  @Delete('projects/:projectId/bills/:billId')
+  @HttpCode(200)
+  deleteBill(@Param('projectId') projectId: string, @Param('billId') billId: string) {
+    return this.adminSvc.deleteBill(projectId, billId);
   }
 
   @Get('projects/:projectId/documents')
