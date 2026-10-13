@@ -28,6 +28,7 @@ const TYPE_LABEL: Record<EvidenceItem['type'], string> = {
 // renders on public profile pages (society/contractor/supplier/developer).
 const DOCUMENT_TYPE_LABEL: Record<DocumentType, string> = {
   LOP_APPROVAL: 'LOP Approval',
+  LOP: 'LOP',
   LOP_LETTER: 'LOP Letter',
   LOP_CANCELLATION: 'Cancellation of LOP',
   NOC: 'NOC',

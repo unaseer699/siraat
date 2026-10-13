@@ -17,6 +17,7 @@ export interface EvidenceSubmissionResponse {
 // (e.g. NOC) can have multiple document types tied to it over its lifetime,
 // e.g. both a "NOC" document and a later "NOC Cancellation" document.
 export const DocumentTypeSchema = z.enum([
+  'LOP',
   'LOP_APPROVAL',
   'LOP_LETTER',
   'LOP_CANCELLATION',

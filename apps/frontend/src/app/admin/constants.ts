@@ -30,6 +30,7 @@ export const EVIDENCE_TYPE_OPTIONS: { value: EvidenceType; label: string }[] = [
 // claim (e.g. NOC) can have multiple document types tied to it over its
 // lifetime, e.g. both a "NOC" document and a later "NOC Cancellation" one.
 export const DOCUMENT_TYPE_OPTIONS: { value: DocumentType; label: string }[] = [
+  { value: 'LOP', label: 'LOP' },
   { value: 'LOP_APPROVAL', label: 'LOP Approval' },
   { value: 'LOP_LETTER', label: 'LOP Letter' },
   { value: 'LOP_CANCELLATION', label: 'Cancellation of LOP' },

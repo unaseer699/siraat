@@ -1168,6 +1168,7 @@ describe('TrustService', () => {
 // controller spec in this codebase — the schema is the actual contract.
 describe('DocumentTypeSchema (shared-types)', () => {
   const VALID_DOCUMENT_TYPES = [
+    'LOP',
     'LOP_APPROVAL',
     'LOP_LETTER',
     'LOP_CANCELLATION',

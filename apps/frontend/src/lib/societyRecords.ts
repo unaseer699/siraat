@@ -16,6 +16,7 @@ export interface DocRule {
 
 export const DOC_RULES: Record<DocumentType, DocRule> = {
   LOP_APPROVAL: { claimType: 'PLANNING_APPROVAL', claim: 'LOP (Layout Plan Approval)', status: 'VERIFIED', topic: 'LOP', outcome: 'LOP will show as Approved' },
+  LOP: { claimType: 'PLANNING_APPROVAL', claim: 'LOP (Layout Plan Approval)', status: 'VERIFIED', topic: 'LOP', outcome: 'LOP will show as Approved' },
   LOP_LETTER: { claimType: 'PLANNING_APPROVAL', claim: 'LOP (Layout Plan Approval)', status: 'VERIFIED', topic: 'LOP', outcome: 'LOP will show as Approved' },
   LOP_CANCELLATION: { claimType: 'PLANNING_APPROVAL', claim: 'LOP (Layout Plan Approval)', status: 'CANCELLED', topic: 'LOP', outcome: 'LOP will show as Cancelled' },
   NOC: { claimType: 'NOC', claim: 'NOC', status: 'VERIFIED', topic: 'NOC', outcome: 'NOC will show as Issued' },

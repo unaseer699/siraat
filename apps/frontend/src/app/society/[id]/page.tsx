@@ -66,6 +66,7 @@ function shortDate(iso: string): string {
 
 const DOC_NAME: Record<string, string> = {
   LOP_APPROVAL: 'Approved LOP',
+  LOP: 'LOP',
   LOP_LETTER: 'LOP Letter',
   LOP_CANCELLATION: 'Cancellation of LOP',
   NOC: 'NOC',
