@@ -140,7 +140,7 @@ const LIST_CSS = `
 .supplier-card-link { position: absolute; inset: 0; z-index: 1; border-radius: 14px; }
 .supplier-action { font-size: 13px; font-weight: 600; border: 1px solid; border-radius: 8px; padding: 6px 14px; text-decoration: none; background: #fff; }
 .supplier-action:hover { background: #f9fafb; }
-.supplier-chips { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 4px; scrollbar-width: thin; }
+.supplier-chips { display: flex; flex-wrap: wrap; gap: 8px; }
 .supplier-chip { flex-shrink: 0; font-size: 13px; font-weight: 600; padding: 6px 14px; border-radius: 99px; border: 1px solid var(--border); background: #fff; color: var(--text); cursor: pointer; white-space: nowrap; }
 .supplier-chip:hover { background: #f3f4f6; }
 .supplier-chip[aria-pressed="true"] { background: #111; color: #fff; border-color: #111; }
