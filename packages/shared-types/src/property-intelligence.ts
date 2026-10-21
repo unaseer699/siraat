@@ -470,7 +470,7 @@ export interface PropertyPlotGroup {
 // whose Society is not onboarded yet.
 export interface PropertyListingFacets {
   cities: string[];
-  societies: { key: string; name: string; count: number }[];
+  societies: { key: string; name: string; city: string | null; count: number }[];
   // Distinct plot sizes ("25x50"…), smallest first, counted per distinct plot.
   // `label` is the merged category ("5 Marla"); `aliases` are the dimensions sold under it.
   sizes: { label: string; count: number; aliases?: string[] }[];

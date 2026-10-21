@@ -272,9 +272,28 @@ function PlotsView() {
             placeholder="Search plot number, e.g. 7473"
             style={{ ...controlStyle, flex: '2 1 220px', padding: '10px 12px' }}
           />
+          <select
+            aria-label="City"
+            value={city}
+            onChange={(e) => {
+              const params = new URLSearchParams(sp.toString());
+              if (e.target.value) params.set('city', e.target.value);
+              else params.delete('city');
+              params.delete('society_id');
+              router.push(`/plots${params.toString() ? `?${params}` : ''}`);
+            }}
+            style={{ ...controlStyle, flex: '1 1 140px', padding: '10px 12px' }}
+          >
+            <option value="">All cities</option>
+            {(facets?.cities ?? []).map((c) => (
+              <option key={c} value={c}>{c}</option>
+            ))}
+          </select>
           <select aria-label="Society" value={societyId} onChange={(e) => setParam('society_id', e.target.value)} style={{ ...controlStyle, flex: '1 1 180px', padding: '10px 12px' }}>
-            <option value="">All societies</option>
-            {(facets?.societies ?? []).map((so) => (
+            <option value="">{city ? `All societies in ${city}` : 'All societies'}</option>
+            {(facets?.societies ?? [])
+              .filter((so) => !city || (so.city ?? '').toLowerCase() === city.toLowerCase())
+              .map((so) => (
               <option key={so.key} value={so.key}>{so.name} ({so.count})</option>
             ))}
           </select>

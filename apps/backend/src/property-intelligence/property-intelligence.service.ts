@@ -1584,7 +1584,7 @@ export class PropertyIntelligenceService {
     const display = societyDisplayNames(rows);
     const allPlots = groupOffersIntoPlots(rows, display);
     const facetCities = new Set<string>();
-    const facetSocieties = new Map<string, { key: string; name: string; count: number }>();
+    const facetSocieties = new Map<string, { key: string; name: string; city: string | null; count: number }>();
     const facetSizes = new Map<string, { count: number; aliases: Set<string> }>();
     for (const g of allPlots) {
       if (g.city) facetCities.add(g.city);
@@ -1595,7 +1595,7 @@ export class PropertyIntelligenceService {
         facetSizes.set(g.size_category, f);
       }
       const key = g.society_key;
-      const f = facetSocieties.get(key) ?? { key, name: g.society_name ?? g.society_display, count: 0 };
+      const f = facetSocieties.get(key) ?? { key, name: g.society_name ?? g.society_display, city: g.city, count: 0 };
       f.count += 1;
       facetSocieties.set(key, f);
     }
