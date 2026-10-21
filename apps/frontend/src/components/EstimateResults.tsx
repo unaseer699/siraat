@@ -577,6 +577,23 @@ export function EstimateResults({ result }: Props) {
                       : 'rates not yet available'}
                 </strong>
               </p>
+              <details style={{ marginTop: '8px' }}>
+                <summary style={{ cursor: 'pointer', fontSize: '12px', fontWeight: 600, color: '#2563eb' }}>How is this cost calculated?</summary>
+                <div style={{ fontSize: '12px', color: 'var(--muted)', marginTop: '6px', lineHeight: 1.5 }}>
+                  <p style={{ margin: 0 }}>
+                    Cost = quantity × current rate, added up for every priced line: {result.line_items.filter((li) => li.subtotal !== null).map((li) => li.item_name).join(', ') || 'none yet'}.
+                  </p>
+                  <p style={{ margin: '6px 0 0' }}>
+                    Each rate is the newest fresh rate on record for that item. A supplier-verified rate is used first when one exists,
+                    otherwise the latest market or admin rate. Rates for steel and similar items are converted to the unit shown
+                    (for example per ton to per kg). Lines with no fresh rate are left out of the total, and are named above.
+                  </p>
+                  <p style={{ margin: '6px 0 0' }}>
+                    This covers materials and selected works only. Labour, tiles, wood, sanitary ware and site work are in the whole-house estimate.
+                    Turn on "Also show cost" in the table below to see each line.
+                  </p>
+                </div>
+              </details>
               {result.state !== 'FULL' && result.missing_major_items.length > 0 && (
                 <p style={{ fontSize: '13px', color: WARNING_AMBER, marginTop: '6px' }}>
                   Missing rates for: {result.missing_major_items.join(', ')}. Quantities are still shown.
