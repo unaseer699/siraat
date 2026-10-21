@@ -12,6 +12,8 @@ const LABEL_OVERRIDE: Partial<Record<MaterialCategory, string>> = {
   READY_MIX_CONCRETE: 'Ready-mix concrete',
   WATERPROOFING: 'Waterproofing & insulation',
   WOOD: 'Wood & doors',
+  IRON_WORKS: 'Iron works',
+  MOTORS_SOLAR_BORING: 'Submersible motors, solar, engines & boring',
 };
 
 export const MATERIAL_CATEGORY_OPTIONS: { value: MaterialCategory; label: string }[] =

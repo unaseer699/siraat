@@ -257,6 +257,8 @@ export const MaterialCategorySchema = z.enum([
   'WATERPROOFING',
   'READY_MIX_CONCRETE',
   'LIGHTING',
+  'IRON_WORKS',
+  'MOTORS_SOLAR_BORING',
   'OTHER',
 ]);
 export type MaterialCategory = z.infer<typeof MaterialCategorySchema>;
