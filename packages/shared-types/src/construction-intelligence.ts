@@ -265,6 +265,32 @@ export interface PublicBuild {
   phases: PublicBuildPhase[];
 }
 
+// Expense lines of a shared build, grouped by phase then section. Only date,
+// description, amount and quantity/unit: never vendor, contact, paid-by or bills.
+export interface PublicBuildExpenseLine {
+  date: string;
+  description: string;
+  amount: number;
+  quantity: number | null;
+  unit: string | null;
+}
+export interface PublicBuildExpenseSection {
+  category: string;
+  subtotal: number;
+  expenses: PublicBuildExpenseLine[];
+}
+export interface PublicBuildExpensePhase {
+  label: string;
+  total: number;
+  sections: PublicBuildExpenseSection[];
+}
+export interface PublicBuildExpensesResponse {
+  state: 'FULL' | 'NOT_COVERED';
+  title: string;
+  total: number;
+  phases: PublicBuildExpensePhase[];
+}
+
 export interface PublicBuildsResponse {
   state: 'FULL' | 'DEGRADED_SUCCESS' | 'NOT_COVERED';
   record_type: 'GENERATED';

@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
-import type { PublicBuild, PublicBuildsResponse } from '@siraat/shared-types';
+import { sectionGroupOf, SECTION_GROUP_LABELS } from '@siraat/shared-types';
+import type { PublicBuild, PublicBuildsResponse, PublicBuildExpensesResponse, SectionCategory, SectionGroup } from '@siraat/shared-types';
 import { ConstructionProjectService } from './construction-project.service';
 import { ProjectForecastService, STALENESS_THRESHOLD_DAYS } from './project-forecast.service';
 
@@ -107,6 +108,38 @@ export class PublicBuildsService {
       if (b) out.push(b);
     }
     return this.wrap(out);
+  }
+
+  // Full expense list of a shared build, for the build's detail page and PDF.
+  async expenses(id: string): Promise<PublicBuildExpensesResponse> {
+    const row = await this.projects.findPublicProject(id);
+    const full = row ? await this.projects.getProjectWithSectionsAndExpenses(id) : null;
+    if (!row || !full) return { state: 'NOT_COVERED', title: '', total: 0, phases: [] };
+    const order: SectionGroup[] = ['LAND', 'STRUCTURE', 'SERVICES', 'FINISHING', 'SITE_OTHER'];
+    const byGroup = new Map<SectionGroup, PublicBuildExpensesResponse['phases'][number]['sections']>();
+    for (const s of full.sections) {
+      const lines = s.expenses
+        .filter((e) => e.status === 'ACTIVE')
+        .map((e) => ({ date: e.expense_date, description: e.description, amount: e.amount, quantity: e.quantity, unit: e.unit }))
+        .sort((a, b) => a.date.localeCompare(b.date));
+      if (lines.length === 0) continue;
+      const g = sectionGroupOf(s.category as SectionCategory);
+      const list = byGroup.get(g) ?? [];
+      list.push({ category: s.category, subtotal: lines.reduce((t, l) => t + l.amount, 0), expenses: lines });
+      byGroup.set(g, list);
+    }
+    const phases = order
+      .filter((g) => byGroup.has(g))
+      .map((g) => {
+        const sections = byGroup.get(g)!;
+        return { label: SECTION_GROUP_LABELS[g], total: sections.reduce((t, x) => t + x.subtotal, 0), sections };
+      });
+    return {
+      state: phases.length === 0 ? 'NOT_COVERED' : 'FULL',
+      title: row.public_title?.trim() || 'Home build',
+      total: phases.reduce((t, p) => t + p.total, 0),
+      phases,
+    };
   }
 
   async get(id: string): Promise<PublicBuildsResponse> {

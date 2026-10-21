@@ -6,12 +6,14 @@ import type { PublicBuild, PublicBuildsResponse } from '@siraat/shared-types';
 import { BackLink } from '@/components/BackLink';
 import { Spinner } from '@/components/Spinner';
 import { fetchPublicBuilds } from '@/lib/api';
+import { phaseSlug } from '@/lib/phaseSlug';
 import { ACCENT_BLUE, TRUST_GREEN, WARNING_AMBER } from '@/styles/tokens';
 
 const CSS = `
 .rb-grid{display:grid;grid-template-columns:1fr;gap:16px}
 @media(min-width:900px){.rb-grid{grid-template-columns:1fr 1fr}}
 .rb-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.rb-phase-link:hover{background:#f3f4f6}
 `;
 
 function pkr(n: number): string {
@@ -42,7 +44,9 @@ function BuildCard({ b }: { b: PublicBuild }) {
   return (
     <article style={{ background: '#fff', border: '1px solid var(--border)', borderRadius: '16px', padding: '20px', display: 'flex', flexDirection: 'column', gap: '14px', boxShadow: '0 1px 3px rgba(0,0,0,0.06)' }}>
       <div>
-        <h2 style={{ fontSize: '19px', fontWeight: 800, lineHeight: 1.25 }}>{b.title}</h2>
+        <h2 style={{ fontSize: '19px', fontWeight: 800, lineHeight: 1.25 }}>
+          <Link href={`/real-builds/${b.id}`} style={{ color: 'inherit', textDecoration: 'none' }}>{b.title}</Link>
+        </h2>
         <p style={{ fontSize: '13px', color: 'var(--muted)', marginTop: '4px' }}>
           {[
             STATUS_TEXT[b.status],
@@ -85,9 +89,15 @@ function BuildCard({ b }: { b: PublicBuild }) {
       <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', borderTop: '1px solid var(--border)', paddingTop: '12px' }}>
         <div style={{ fontSize: '13px', fontWeight: 800, letterSpacing: '0.04em', color: 'var(--muted)' }}>PHASES</div>
         {b.phases.map((p) => (
-          <div key={p.label} style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
+          <Link
+            key={p.label}
+            href={`/real-builds/${b.id}#${phaseSlug(p.label)}`}
+            title={`See every ${p.label} expense`}
+            style={{ display: 'flex', flexDirection: 'column', gap: '5px', color: 'inherit', textDecoration: 'none', padding: '6px 8px', margin: '-6px -8px', borderRadius: '10px' }}
+            className="rb-phase-link"
+          >
             <div style={{ display: 'flex', justifyContent: 'space-between', gap: '8px', flexWrap: 'wrap', fontSize: '14px' }}>
-              <strong>{p.label}</strong>
+              <strong>{p.label} <span style={{ color: ACCENT_BLUE, fontWeight: 600 }}>›</span></strong>
               <span style={{ color: 'var(--muted)' }}>
                 {pkr(p.spent)}
                 {!actualsOnly && p.estimated !== null ? ` of ${pkr(p.estimated)}` : ''}
@@ -95,8 +105,11 @@ function BuildCard({ b }: { b: PublicBuild }) {
               </span>
             </div>
             <Bar pct={actualsOnly ? (b.spent_total > 0 ? (p.spent / b.spent_total) * 100 : 0) : p.progress_pct ?? 0} color={TRUST_GREEN} />
-          </div>
+          </Link>
         ))}
+        <Link href={`/real-builds/${b.id}`} style={{ fontSize: '14px', fontWeight: 700, color: ACCENT_BLUE, textDecoration: 'none', marginTop: '4px' }}>
+          See all expenses &amp; download PDF →
+        </Link>
       </div>
     </article>
   );
@@ -130,7 +143,7 @@ export default function RealBuildsPage() {
           <h1 style={{ fontSize: '28px', fontWeight: 800, lineHeight: 1.2 }}>Real homes, real costs</h1>
           <p style={{ fontSize: '15px', color: 'var(--muted)', marginTop: '6px' }}>
             Real projects, shared by their owners: what each phase actually cost, and for homes still being built, how far each phase has come against the estimate.
-            Names, locations and contact details are never shown.
+            Owner name, location, contact details and vendor names are never shown.
           </p>
         </div>
 

@@ -1,5 +1,6 @@
 import type {
   PublicBuildsResponse,
+  PublicBuildExpensesResponse,
   RecommendationRequest,
   RecommendationResponse,
   RecommendationDetail,
@@ -1832,6 +1833,14 @@ export async function saveMarketRateBaseline(key: string, rate: number): Promise
 // builds only. Never 404s: NOT_COVERED when nothing is shared yet.
 export async function fetchPublicBuilds(): Promise<PublicBuildsResponse> {
   return apiFetch('/v1/construction-intelligence/public-builds');
+}
+
+export async function fetchPublicBuild(id: string): Promise<PublicBuildsResponse> {
+  return apiFetch(`/v1/construction-intelligence/public-builds/${id}`);
+}
+
+export async function fetchPublicBuildExpenses(id: string): Promise<PublicBuildExpensesResponse> {
+  return apiFetch(`/v1/construction-intelligence/public-builds/${id}/expenses`);
 }
 
 

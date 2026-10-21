@@ -36,6 +36,11 @@ export class ConstructionProjectController {
     return this.publicBuilds.get(id);
   }
 
+  @Get('public-builds/:id/expenses')
+  getPublicBuildExpenses(@Param('id') id: string) {
+    return this.publicBuilds.expenses(id);
+  }
+
   @Get('projects/:id')
   async getProject(@Param('id') id: string) {
     const result = await this.cpSvc.getProjectWithSectionsAndExpenses(id);
