@@ -238,8 +238,8 @@ function NewSupplierForm() {
               <legend style={legendStyle}>Supplier</legend>
 
               <div style={fieldGroupStyle}>
-                <label style={labelStyle}>Name</label>
-                <input type="text" value={name} onChange={(e) => setName(e.target.value)} required style={inputStyle} />
+                <label style={labelStyle}>Supplier / shop name</label>
+                <input type="text" value={name} onChange={(e) => setName(e.target.value)} required placeholder="e.g. Ali Paint House" style={inputStyle} />
               </div>
 
               <div style={fieldGroupStyle}>

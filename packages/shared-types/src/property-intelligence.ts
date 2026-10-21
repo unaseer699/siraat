@@ -247,6 +247,17 @@ export const MaterialCategorySchema = z.enum([
   'TILES',
   'ELECTRICAL_SUPPLIES',
   'PLUMBING_SUPPLIES',
+  'BRICKS',
+  'PAINT',
+  'WOOD',
+  'MARBLE_GRANITE',
+  'ALUMINUM_GLASS',
+  'SANITARY_FITTINGS',
+  'HARDWARE',
+  'WATERPROOFING',
+  'READY_MIX_CONCRETE',
+  'LIGHTING',
+  'OTHER',
 ]);
 export type MaterialCategory = z.infer<typeof MaterialCategorySchema>;
 export const MATERIAL_CATEGORIES = MaterialCategorySchema.options;
