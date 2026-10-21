@@ -727,6 +727,9 @@ export interface CreateSupplierBody {
   service_cities: string[];
   contact_phone: string;
   contact_whatsapp: string | null;
+  other_phones?: string[];
+  address?: string | null;
+  location_url?: string | null;
   is_siraat_affiliated: boolean;
 }
 

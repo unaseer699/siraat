@@ -209,6 +209,32 @@ function MaterialRateRow({ rate }: { rate: MaterialRateItem }) {
   );
 }
 
+const cardStyle = {
+  background: '#fff',
+  border: '1px solid var(--border)',
+  borderRadius: 'var(--radius)',
+  padding: '20px',
+  display: 'flex',
+  flexDirection: 'column',
+  gap: '12px',
+} as const;
+
+const sectionLabelStyle = { fontSize: '12px', fontWeight: 700, color: 'var(--muted)', letterSpacing: '0.05em', margin: 0 } as const;
+const dividerStyle = { height: '1px', background: 'var(--border)', margin: '4px 0' } as const;
+
+function actionLinkStyle(color: string) {
+  return {
+    fontSize: '13px',
+    fontWeight: 600,
+    color,
+    border: `1px solid ${color}60`,
+    borderRadius: '4px',
+    padding: '6px 12px',
+    textDecoration: 'none',
+    background: '#fff',
+  } as const;
+}
+
 export default async function SupplierProfilePage({ params }: Props) {
   let supplier;
   try {
@@ -234,6 +260,25 @@ export default async function SupplierProfilePage({ params }: Props) {
   } catch {
     materialRates = [];
   }
+
+  // One row per distinct number: primary phone, WhatsApp, and any others.
+  // A number that is both phone and WhatsApp shows once with both labels.
+  const phoneRows: { number: string; digits: string; labels: string[]; whatsapp: boolean }[] = [];
+  const addPhone = (n: string | null | undefined, label: string, whatsapp: boolean) => {
+    if (!n) return;
+    const digits = n.replace(/\D/g, '');
+    if (!digits) return;
+    const found = phoneRows.find((r) => r.digits === digits);
+    if (found) {
+      if (!found.labels.includes(label)) found.labels.push(label);
+      found.whatsapp = found.whatsapp || whatsapp;
+    } else {
+      phoneRows.push({ number: n, digits, labels: [label], whatsapp });
+    }
+  };
+  addPhone(supplier.contact_phone, 'Primary', false);
+  addPhone(supplier.contact_whatsapp, 'WhatsApp', true);
+  (supplier.other_phones ?? []).forEach((n) => addPhone(n, 'Other', false));
 
   const primaryClaims = claims.filter((c) => c.status !== 'DISPUTED');
   const adverseClaims = claims.filter((c) => c.status === 'DISPUTED');
@@ -285,77 +330,102 @@ export default async function SupplierProfilePage({ params }: Props) {
           </div>
         )}
 
-        <div
-          style={{
-            background: '#fff',
-            border: '1px solid var(--border)',
-            borderRadius: 'var(--radius)',
-            padding: '20px',
-            display: 'flex',
-            flexDirection: 'column',
-            gap: '16px',
-          }}
-        >
-          <div>
-            <p style={{ fontSize: '12px', fontWeight: 700, color: 'var(--muted)', marginBottom: '6px' }}>
-              MATERIAL CATEGORIES
-            </p>
-            <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
-              {supplier.material_categories.map((m) => (
-                <span
-                  key={m}
-                  style={{
-                    fontSize: '12px',
-                    fontWeight: 600,
-                    color: 'var(--text)',
-                    border: '1px solid var(--border)',
-                    padding: '3px 10px',
-                    borderRadius: '99px',
-                  }}
-                >
-                  {materialLabel(m)}
-                </span>
-              ))}
-            </div>
+        <section style={cardStyle}>
+          <p style={sectionLabelStyle}>WHAT THEY SUPPLY</p>
+          <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+            {supplier.material_categories.map((m) => (
+              <span
+                key={m}
+                style={{
+                  fontSize: '13px',
+                  fontWeight: 600,
+                  color: '#1e3a8a',
+                  background: '#eff6ff',
+                  border: '1px solid #bfdbfe',
+                  padding: '5px 12px',
+                  borderRadius: '99px',
+                }}
+              >
+                {materialLabel(m)}
+              </span>
+            ))}
           </div>
 
-          <div>
-            <p style={{ fontSize: '12px', fontWeight: 700, color: 'var(--muted)', marginBottom: '6px' }}>
-              SERVICE CITIES
-            </p>
-            <p style={{ fontSize: '14px', color: 'var(--text)' }}>
-              {supplier.service_cities.join(', ')}
-            </p>
+          <div style={dividerStyle} />
+
+          <p style={sectionLabelStyle}>SERVES</p>
+          <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+            {supplier.service_cities.map((c) => (
+              <span key={c} style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text)', background: '#f3f4f6', padding: '5px 12px', borderRadius: '99px' }}>
+                📍 {c}
+              </span>
+            ))}
+          </div>
+        </section>
+
+        <section style={cardStyle}>
+          <p style={sectionLabelStyle}>CONTACT</p>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+            {phoneRows.map((row) => (
+              <div
+                key={row.digits}
+                style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  gap: '10px',
+                  flexWrap: 'wrap',
+                  padding: '12px 14px',
+                  border: '1px solid var(--border)',
+                  borderRadius: 'var(--radius)',
+                  background: '#fafafa',
+                }}
+              >
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                  <span style={{ fontSize: '16px', fontWeight: 700, color: 'var(--text)', letterSpacing: '0.01em' }}>{row.number}</span>
+                  <span style={{ fontSize: '11px', fontWeight: 600, color: 'var(--muted)' }}>{row.labels.join(' · ')}</span>
+                </div>
+                <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center' }}>
+                  <a href={`tel:${row.number.replace(/[^\d+]/g, '')}`} style={actionLinkStyle('#111')}>
+                    Call
+                  </a>
+                  {row.whatsapp && (
+                    <a
+                      href={`https://wa.me/${toWaMeNumber(row.number)}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      style={actionLinkStyle(TRUST_GREEN)}
+                    >
+                      WhatsApp
+                    </a>
+                  )}
+                  <CopyLinkButton label="Copy" text={row.number} />
+                </div>
+              </div>
+            ))}
           </div>
 
-          <div>
-            <p style={{ fontSize: '12px', fontWeight: 700, color: 'var(--muted)', marginBottom: '6px' }}>
-              CONTACT
-            </p>
-            <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center' }}>
-              <span style={{ fontSize: '14px', color: 'var(--text)' }}>{supplier.contact_phone}</span>
-              <CopyLinkButton label="Copy Number" text={supplier.contact_phone} />
-              {supplier.contact_whatsapp && (
+          {(supplier.address || supplier.location_url) && (
+            <>
+              <div style={dividerStyle} />
+              <p style={sectionLabelStyle}>LOCATION</p>
+              {supplier.address && <p style={{ fontSize: '15px', color: 'var(--text)', lineHeight: 1.5, margin: 0 }}>{supplier.address}</p>}
+              <div>
                 <a
-                  href={`https://wa.me/${toWaMeNumber(supplier.contact_whatsapp)}`}
+                  href={
+                    supplier.location_url ??
+                    `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${supplier.address ?? ''} ${supplier.service_cities[0] ?? ''}`.trim())}`
+                  }
                   target="_blank"
                   rel="noopener noreferrer"
-                  style={{
-                    fontSize: '13px',
-                    fontWeight: 600,
-                    color: TRUST_GREEN,
-                    border: `1px solid ${TRUST_GREEN}60`,
-                    borderRadius: '4px',
-                    padding: '6px 12px',
-                    textDecoration: 'none',
-                  }}
+                  style={actionLinkStyle('#2563eb')}
                 >
-                  WhatsApp →
+                  Open in Maps
                 </a>
-              )}
-            </div>
-          </div>
-        </div>
+              </div>
+            </>
+          )}
+        </section>
 
         {materialRates.length > 0 && (
           <div

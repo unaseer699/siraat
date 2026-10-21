@@ -169,6 +169,9 @@ function toSupplierFields(e: SupplierEntity) {
     service_cities: e.service_cities,
     contact_phone: e.contact_phone,
     contact_whatsapp: e.contact_whatsapp,
+    other_phones: e.other_phones ?? [],
+    address: e.address ?? null,
+    location_url: e.location_url ?? null,
     is_siraat_affiliated: e.is_siraat_affiliated,
     record_type: e.record_type,
   };
@@ -887,7 +890,7 @@ export class PropertyIntelligenceService {
 
   async updateSupplier(
     id: string,
-    data: Partial<{ name: string; material_categories: MaterialCategory[]; service_cities: string[]; contact_phone: string; contact_whatsapp: string | null; is_siraat_affiliated: boolean }>,
+    data: Partial<{ name: string; material_categories: MaterialCategory[]; service_cities: string[]; contact_phone: string; contact_whatsapp: string | null; other_phones: string[]; address: string | null; location_url: string | null; is_siraat_affiliated: boolean }>,
   ): Promise<SupplierSummary | null> {
     const saved = await this.applyDirectoryEdit('supplierRepo', 'supplier_edit', id, data, (n) => this.findSupplierByName(n));
     return saved ? this.findSupplierById(id) : null;
@@ -1003,6 +1006,9 @@ export class PropertyIntelligenceService {
     service_cities: string[];
     contact_phone: string;
     contact_whatsapp: string | null;
+    other_phones?: string[];
+    address?: string | null;
+    location_url?: string | null;
     is_siraat_affiliated: boolean;
   }): Promise<SupplierSummary> {
     // Pre-data-population review finding #1 — Supplier had no dedup check
@@ -1014,7 +1020,7 @@ export class PropertyIntelligenceService {
       );
     }
 
-    const entity = this.supplierRepo.create({ ...data, record_type: 'FACT' });
+    const entity = this.supplierRepo.create({ ...data, other_phones: data.other_phones ?? [], address: data.address ?? null, location_url: data.location_url ?? null, record_type: 'FACT' });
     const saved = await this.supplierRepo.save(entity);
     return {
       ...toSupplierFields(saved),

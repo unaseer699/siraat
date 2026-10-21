@@ -225,6 +225,15 @@ const CreateSupplierBodySchema = z.object({
   service_cities: z.array(z.string().min(1)).min(1),
   contact_phone: PhoneNumberSchema,
   contact_whatsapp: NullableWhatsappNumberSchema.default(null),
+  other_phones: z.array(PhoneNumberSchema).max(8).default([]),
+  address: z.string().trim().max(500).nullable().default(null),
+  location_url: z
+    .string()
+    .trim()
+    .max(1000)
+    .regex(/^https?:\/\//i, 'Must be a link starting with http:// or https://')
+    .nullable()
+    .default(null),
   is_siraat_affiliated: z.boolean().default(false),
 });
 type CreateSupplierBody = z.infer<typeof CreateSupplierBodySchema>;

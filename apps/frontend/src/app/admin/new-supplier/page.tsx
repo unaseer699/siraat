@@ -125,6 +125,9 @@ function NewSupplierForm() {
   const [serviceCities, setServiceCities] = useState<string[]>([]);
   const [contactPhone, setContactPhone] = useState('');
   const [contactWhatsapp, setContactWhatsapp] = useState('');
+  const [otherPhones, setOtherPhones] = useState<string[]>([]);
+  const [address, setAddress] = useState('');
+  const [locationUrl, setLocationUrl] = useState('');
   const [isAffiliated, setIsAffiliated] = useState(false);
   const editId = params.get('edit');
   const [verified, setVerified] = useState(false);
@@ -143,6 +146,9 @@ function NewSupplierForm() {
         setServiceCities(x.service_cities);
         setContactPhone(x.contact_phone);
         setContactWhatsapp(x.contact_whatsapp ?? '');
+        setOtherPhones(x.other_phones ?? []);
+        setAddress(x.address ?? '');
+        setLocationUrl(x.location_url ?? '');
         setIsAffiliated(x.is_siraat_affiliated);
       })
       .catch((e) => setError(e instanceof Error ? e.message : 'Could not load'));
@@ -172,6 +178,9 @@ function NewSupplierForm() {
           service_cities: serviceCities,
           contact_phone: contactPhone.trim(),
           contact_whatsapp: contactWhatsapp.trim() || null,
+          other_phones: otherPhones.map((n) => n.trim()).filter(Boolean),
+          address: address.trim() || null,
+          location_url: locationUrl.trim() || null,
           is_siraat_affiliated: isAffiliated,
         });
         setResult({ supplier_id: editId });
@@ -183,6 +192,9 @@ function NewSupplierForm() {
         service_cities: serviceCities,
         contact_phone: contactPhone.trim(),
         contact_whatsapp: contactWhatsapp.trim() || null,
+        other_phones: otherPhones.map((n) => n.trim()).filter(Boolean),
+        address: address.trim() || null,
+        location_url: locationUrl.trim() || null,
         is_siraat_affiliated: isAffiliated,
       });
       if (verified) await setSupplierVerified(supplier.id, true, verifiedNote.trim());
@@ -282,6 +294,60 @@ function NewSupplierForm() {
                     style={inputStyle}
                   />
                 </div>
+              </div>
+
+              <div style={fieldGroupStyle}>
+                <label style={labelStyle}>Other phone numbers (optional)</label>
+                {otherPhones.map((n, i) => (
+                  <div key={i} style={{ display: 'flex', gap: '8px' }}>
+                    <input
+                      type="text"
+                      value={n}
+                      onChange={(e) => setOtherPhones((prev) => prev.map((x, j) => (j === i ? e.target.value : x)))}
+                      placeholder="e.g. 0321-1234567"
+                      style={{ ...inputStyle, flex: 1 }}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setOtherPhones((prev) => prev.filter((_, j) => j !== i))}
+                      style={{ padding: '0 12px', border: '1px solid var(--border)', borderRadius: 'var(--radius)', background: '#fff', fontSize: '13px', cursor: 'pointer' }}
+                    >
+                      Remove
+                    </button>
+                  </div>
+                ))}
+                {otherPhones.length < 8 && (
+                  <button
+                    type="button"
+                    onClick={() => setOtherPhones((prev) => [...prev, ''])}
+                    style={{ alignSelf: 'flex-start', padding: '6px 12px', border: '1px solid var(--border)', borderRadius: 'var(--radius)', background: '#fff', fontSize: '13px', fontWeight: 600, cursor: 'pointer' }}
+                  >
+                    + Add another number
+                  </button>
+                )}
+              </div>
+
+              <div style={fieldGroupStyle}>
+                <label style={labelStyle}>Shop address / location (optional)</label>
+                <textarea
+                  value={address}
+                  onChange={(e) => setAddress(e.target.value)}
+                  rows={2}
+                  maxLength={500}
+                  placeholder="e.g. Shop 12, Main GT Road, Taxila"
+                  style={{ ...inputStyle, resize: 'vertical', fontFamily: 'inherit' }}
+                />
+              </div>
+
+              <div style={fieldGroupStyle}>
+                <label style={labelStyle}>Google Maps link (optional)</label>
+                <input
+                  type="url"
+                  value={locationUrl}
+                  onChange={(e) => setLocationUrl(e.target.value)}
+                  placeholder="https://maps.google.com/…"
+                  style={inputStyle}
+                />
               </div>
 
               <label style={{ fontSize: '13px', display: 'flex', alignItems: 'center', gap: '6px' }}>

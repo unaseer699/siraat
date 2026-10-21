@@ -33,6 +33,17 @@ export class SupplierEntity {
   @Column({ type: 'text', nullable: true })
   contact_whatsapp: string | null;
 
+  // Extra phone numbers (second shop line, owner, manager...).
+  @Column({ type: 'text', array: true, default: '{}' })
+  other_phones: string[];
+
+  // Shop address and an optional Google Maps link.
+  @Column({ type: 'text', nullable: true })
+  address: string | null;
+
+  @Column({ type: 'text', nullable: true })
+  location_url: string | null;
+
   // Same field/rule as Developer/Contractor — never affects verification or
   // scoring, always disclosed when true.
   @Column({ type: 'boolean', default: false })

@@ -296,6 +296,9 @@ export interface SupplierSummary {
   service_cities: string[];
   contact_phone: string;
   contact_whatsapp: string | null;
+  other_phones: string[];
+  address: string | null;
+  location_url: string | null;
   is_siraat_affiliated: boolean;
   record_type: 'FACT';
   verification_status: SocietyVerificationStatus;
