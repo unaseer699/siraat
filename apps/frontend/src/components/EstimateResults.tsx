@@ -79,6 +79,83 @@ const BOQ_CSS = `
 .boq-det-body{display:flex;flex-direction:column;gap:6px;align-items:flex-start;margin-top:6px}
 `;
 
+// Plain shopping list: what to buy, how much, at what rate. The step-by-step
+// list below groups the same lines by build stage; this is the one place to
+// read the materials at a glance.
+const MATERIAL_SUPPLIER: Record<string, string> = {
+  CEMENT: 'CEMENT',
+  STEEL: 'STEEL',
+  BRICKS: 'BRICKS',
+  SAND: 'AGGREGATE',
+  CRUSH: 'AGGREGATE',
+  PAINT: 'PAINT',
+  DOORS: 'WOOD',
+  WINDOWS: 'ALUMINUM_GLASS',
+  HARDWARE: 'HARDWARE',
+  MARBLE_STAIRS: 'MARBLE_GRANITE',
+};
+
+function MaterialsTable({ lineItems }: { lineItems: BoqLineItem[] }) {
+  const rows = lineItems.filter((li) => MATERIAL_SUPPLIER[li.item_key]);
+  if (rows.length === 0) return null;
+  const total = rows.reduce((sum, r) => sum + (r.subtotal ?? 0), 0);
+  const th = { textAlign: 'left', padding: '8px 12px', fontSize: '11px', fontWeight: 700, color: 'var(--muted)', letterSpacing: '0.04em', background: '#f9fafb' } as const;
+  const td = { padding: '10px 12px', fontSize: '13px', borderTop: '1px solid #eef0f3', verticalAlign: 'top' } as const;
+  return (
+    <section style={{ background: '#fff', border: '1px solid var(--border)', borderRadius: RADIUS.md, overflow: 'hidden' }}>
+      <div style={{ padding: '14px 16px', borderBottom: '1px solid var(--border)' }}>
+        <h3 style={{ fontSize: '16px', fontWeight: 800, margin: 0 }}>Materials to buy</h3>
+        <p style={{ fontSize: '12px', color: 'var(--muted)', margin: '4px 0 0' }}>
+          What you need, how much, and the rate used. Quantities are estimates from your plot size and floors.
+        </p>
+      </div>
+      <div style={{ overflowX: 'auto' }}>
+        <table style={{ width: '100%', minWidth: '520px', borderCollapse: 'collapse' }}>
+          <thead>
+            <tr>
+              <th style={th}>MATERIAL</th>
+              <th style={{ ...th, textAlign: 'right' }}>QUANTITY</th>
+              <th style={{ ...th, textAlign: 'right' }}>RATE</th>
+              <th style={{ ...th, textAlign: 'right' }}>AMOUNT</th>
+              <th style={th}></th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((r) => (
+              <tr key={r.item_key}>
+                <td style={{ ...td, fontWeight: 700 }}>{r.item_name}</td>
+                <td style={{ ...td, textAlign: 'right', whiteSpace: 'nowrap' }}>
+                  {r.quantity === null ? <span style={{ color: 'var(--muted)' }}>n/a</span> : (
+                    <>
+                      <strong>{formatQuantity(r.quantity)}</strong> <span style={{ color: 'var(--muted)' }}>{r.unit}</span>
+                    </>
+                  )}
+                </td>
+                <td style={{ ...td, textAlign: 'right', whiteSpace: 'nowrap' }}>
+                  {r.unit_rate !== null ? formatPKR(r.unit_rate) : <span style={{ color: WARNING_AMBER, fontWeight: 600 }}>not yet available</span>}
+                </td>
+                <td style={{ ...td, textAlign: 'right', fontWeight: 800, whiteSpace: 'nowrap' }}>
+                  {r.subtotal !== null ? formatPKR(r.subtotal) : '—'}
+                </td>
+                <td style={{ ...td, whiteSpace: 'nowrap' }}>
+                  <Link href={`/suppliers?material=${MATERIAL_SUPPLIER[r.item_key]}`} style={{ fontSize: '12px', fontWeight: 600, color: '#2563eb', textDecoration: 'none' }}>
+                    Find suppliers →
+                  </Link>
+                </td>
+              </tr>
+            ))}
+            <tr>
+              <td style={{ ...td, fontWeight: 800, background: '#f9fafb' }} colSpan={3}>Materials total</td>
+              <td style={{ ...td, textAlign: 'right', fontWeight: 800, background: '#f9fafb', whiteSpace: 'nowrap' }}>{formatPKR(total)}</td>
+              <td style={{ ...td, background: '#f9fafb' }}></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+  );
+}
+
 function BoqList({ lineItems, basement }: { lineItems: BoqLineItem[]; basement: boolean }) {
   // Lines grouped under the build step they belong to, in site order.
   const sections = PHASE_STYLES.map((p) => ({
@@ -455,6 +532,9 @@ export function EstimateResults({ result }: Props) {
             Materials &amp; selected works (BOQ): cement, steel, bricks, sand, crush, doors, windows, rough-in. Labour,
             tiles, wood, paint, sanitary ware and site work are in the whole-house estimate above.
           </p>
+          <MaterialsTable lineItems={result.line_items} />
+
+          <p style={{ fontSize: '13px', fontWeight: 700, margin: '4px 0 -8px' }}>Same lines by build step</p>
           <BoqList lineItems={result.line_items} basement={result.basement} />
 
           <AssumptionsBlock result={result} />
