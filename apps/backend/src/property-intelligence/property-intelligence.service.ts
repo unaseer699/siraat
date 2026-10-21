@@ -1047,6 +1047,7 @@ export class PropertyIntelligenceService {
   async searchSuppliers(params: {
     material_category?: string;
     city?: string;
+    q?: string;
     page?: number;
     limit?: number;
   }): Promise<SupplierListResponse> {
@@ -1054,6 +1055,9 @@ export class PropertyIntelligenceService {
     const limit = params.limit && params.limit > 0 ? params.limit : DEFAULT_SUPPLIER_PAGE_SIZE;
 
     const qb = this.supplierRepo.createQueryBuilder('s');
+    if (params.q && params.q.trim()) {
+      qb.andWhere('s.name ILIKE :q', { q: `%${params.q.trim().replace(/[%_\\]/g, '\\$&')}%` });
+    }
     if (params.material_category) {
       // Same array-containment pattern as searchContractors' trade_category filter.
       qb.andWhere(':category = ANY(s.material_categories)', { category: params.material_category });

@@ -167,10 +167,12 @@ export class PropertyIntelligenceController {
     @Query('city') city?: string,
     @Query('page') page?: string,
     @Query('limit') limit?: string,
+    @Query('q') q?: string,
   ) {
     return this.piSvc.searchSuppliers({
       material_category,
       city,
+      q,
       page: page !== undefined ? Number(page) : undefined,
       limit: limit !== undefined ? Number(limit) : undefined,
     });

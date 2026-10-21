@@ -301,10 +301,12 @@ export async function fetchContractorVerifications(
 export async function fetchSuppliers(params?: {
   material_category?: string;
   city?: string;
+  q?: string;
   page?: number;
   limit?: number;
 }): Promise<SupplierListResponse> {
   const qs = new URLSearchParams();
+  if (params?.q) qs.set('q', params.q);
   if (params?.material_category) qs.set('material_category', params.material_category);
   if (params?.city) qs.set('city', params.city);
   if (params?.page) qs.set('page', String(params.page));
