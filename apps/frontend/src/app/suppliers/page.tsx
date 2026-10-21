@@ -140,10 +140,6 @@ const LIST_CSS = `
 .supplier-card-link { position: absolute; inset: 0; z-index: 1; border-radius: 14px; }
 .supplier-action { font-size: 13px; font-weight: 600; border: 1px solid; border-radius: 8px; padding: 6px 14px; text-decoration: none; background: #fff; }
 .supplier-action:hover { background: #f9fafb; }
-.supplier-chips { display: flex; flex-wrap: wrap; gap: 8px; }
-.supplier-chip { flex-shrink: 0; font-size: 13px; font-weight: 600; padding: 6px 14px; border-radius: 99px; border: 1px solid var(--border); background: #fff; color: var(--text); cursor: pointer; white-space: nowrap; }
-.supplier-chip:hover { background: #f3f4f6; }
-.supplier-chip[aria-pressed="true"] { background: #111; color: #fff; border-color: #111; }
 `;
 
 function SuppliersView() {
@@ -257,6 +253,19 @@ function SuppliersView() {
             style={{ flex: '1 1 260px', padding: '10px 14px', border: '1px solid var(--border)', borderRadius: '10px', fontSize: '14px', background: '#fff' }}
           />
           <select
+            value={material}
+            onChange={(e) => updateParams({ material: e.target.value, page: 1 })}
+            aria-label="Filter by material"
+            style={{ padding: '10px 14px', border: '1px solid var(--border)', borderRadius: '10px', fontSize: '14px', background: '#fff', maxWidth: '100%' }}
+          >
+            <option value="">Filter by material</option>
+            {MATERIAL_CATEGORY_OPTIONS.map((m) => (
+              <option key={m.value} value={m.value}>
+                {m.label}
+              </option>
+            ))}
+          </select>
+          <select
             value={city}
             onChange={(e) => updateParams({ city: e.target.value, page: 1 })}
             aria-label="City"
@@ -269,17 +278,6 @@ function SuppliersView() {
               </option>
             ))}
           </select>
-        </div>
-
-        <div className="supplier-chips" role="group" aria-label="Filter by material">
-          <button type="button" className="supplier-chip" aria-pressed={material === ''} onClick={() => updateParams({ material: '', page: 1 })}>
-            All
-          </button>
-          {MATERIAL_CATEGORY_OPTIONS.map((m) => (
-            <button key={m.value} type="button" className="supplier-chip" aria-pressed={material === m.value} onClick={() => updateParams({ material: m.value, page: 1 })}>
-              {m.label}
-            </button>
-          ))}
         </div>
 
         {error && (
