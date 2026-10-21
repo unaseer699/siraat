@@ -18,6 +18,7 @@ import { WhatsappListingForwarderService } from './whatsapp-listing-forwarder.se
 import { WhatsappListingParsingService } from './whatsapp-listing-parsing.service';
 import { WhatsappListingAlertService } from './whatsapp-listing-alert.service';
 import { WhatsappGroundReportService } from './whatsapp-ground-report.service';
+import { WhatsappSelfServeService, isNewProjectMessage } from './whatsapp-self-serve.service';
 import { WhatsappProjectResolverService } from './whatsapp-project-resolver.service';
 import { WhatsappExpenseBatchService, isExpenseBatchMessage, isLedgerLinesMessage, isCancelReply } from './whatsapp-expense-batch.service';
 
@@ -174,6 +175,7 @@ export class WhatsappService {
     private readonly groundReportSvc?: WhatsappGroundReportService,
     @Optional() private readonly expenseBatchSvc?: WhatsappExpenseBatchService,
     @Optional() private readonly projectResolver?: WhatsappProjectResolverService,
+    @Optional() private readonly selfServeSvc?: WhatsappSelfServeService,
   ) {}
 
   // ── [SECURITY] Webhook verification handshake (GET) ──────────────────────
@@ -231,6 +233,31 @@ export class WhatsappService {
       if (stopped > 0) {
         this.logger.log(`Listing alerts stopped for ${maskPhone(msg.from)} (${stopped})`);
         return { stored: false, duplicate: false };
+      }
+    }
+
+    // SELF-SERVE LIVE PROJECT — "New Project: <name>" from any number creates
+    // that sender's own project (free trial / paid). Never enters the expense,
+    // listing or unmapped queues.
+    if (this.selfServeSvc && isNewProjectMessage(msg.text)) {
+      try {
+        const saved = await this.inboundRepo.save(
+          this.inboundRepo.create({
+            wa_message_id: msg.id,
+            wa_id: msg.from,
+            message_type: msg.type,
+            message_text: msg.text,
+            wa_timestamp: msg.timestamp,
+            raw_payload: msg.rawPayload,
+            project_ref: null,
+            status: 'RECEIVED',
+          }),
+        );
+        void this.selfServeSvc.handleNewProject(saved);
+        return { stored: true, duplicate: false, message: saved };
+      } catch (err) {
+        if (isUniqueViolation(err)) return { stored: false, duplicate: true };
+        throw err;
       }
     }
 
@@ -470,6 +497,17 @@ export class WhatsappService {
     }
 
     return { reprocessed: unmapped.length };
+  }
+
+  // ── Self-serve plans (admin) ──────────────────────────────────────────────
+
+  async setAccountPlan(waId: string, plan: 'TRIAL' | 'PAID' | 'BLOCKED', paidUntil: Date | null, trialLimit?: number) {
+    if (!this.selfServeSvc) throw new NotFoundException('Self-serve plans are not available');
+    return this.selfServeSvc.setPlan(waId, plan, paidUntil, trialLimit);
+  }
+
+  async listAccounts() {
+    return this.selfServeSvc ? this.selfServeSvc.listAccounts() : [];
   }
 
   // ── Admin mapping CRUD (POST/GET/DELETE /v1/admin/whatsapp-mappings) ─────

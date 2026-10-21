@@ -585,6 +585,14 @@ const CreateWhatsappMappingBodySchema = z.object({
 });
 type CreateWhatsappMappingBody = z.infer<typeof CreateWhatsappMappingBodySchema>;
 
+const SetWhatsappAccountBodySchema = z.object({
+  wa_id: z.string().regex(/^\d{6,32}$/, 'wa_id must be digits only (no +, spaces, or dashes)'),
+  plan: z.enum(['TRIAL', 'PAID', 'BLOCKED']),
+  paid_until: z.string().datetime().nullable().default(null),
+  trial_expense_limit: z.number().int().min(0).max(1000).optional(),
+});
+type SetWhatsappAccountBody = z.infer<typeof SetWhatsappAccountBodySchema>;
+
 // --- POST /v1/admin/whatsapp-drafts/:id/void (WHATSAPP INTEGRATION Phase 4) ---
 // `reason` is optional (unlike VoidExpenseBodySchema's mandatory one above)
 // per the brief — the admin isn't required to explain why a stuck draft is
@@ -1313,6 +1321,19 @@ export class AdminController {
     @Body(new ZodValidationPipe(CreateWhatsappMappingBodySchema)) body: CreateWhatsappMappingBody,
   ) {
     return this.adminSvc.createWhatsappMapping(body);
+  }
+
+  // Self-serve live-project plans: grant PAID (with optional expiry), reset a
+  // trial, or block a number.
+  @Post('whatsapp-accounts')
+  @HttpCode(200)
+  setWhatsappAccountPlan(@Body(new ZodValidationPipe(SetWhatsappAccountBodySchema)) body: SetWhatsappAccountBody) {
+    return this.adminSvc.setWhatsappAccountPlan(body);
+  }
+
+  @Get('whatsapp-accounts')
+  listWhatsappAccounts() {
+    return this.adminSvc.listWhatsappAccounts();
   }
 
   @Get('whatsapp-mappings')

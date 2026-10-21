@@ -444,6 +444,16 @@ export class ConstructionProjectService {
   // a join to ProjectSectionEntity since ProjectExpenseEntity has no direct
   // project_ref (only section_ref) — no SQL FK either way (Law 2), this is a
   // plain query-time join, not a TypeORM relation.
+  // Saved (ACTIVE) expenses on a project — used for the free-trial limit.
+  async countActiveExpenses(projectId: string): Promise<number> {
+    return this.expenseRepo
+      .createQueryBuilder('e')
+      .innerJoin(ProjectSectionEntity, 's', 's.id = e.section_ref')
+      .where('e.status = :status', { status: 'ACTIVE' })
+      .andWhere('s.project_ref = :projectId', { projectId })
+      .getCount();
+  }
+
   async listProjects(params: { page?: number; limit?: number }): Promise<ProjectListResponse> {
     const page = params.page && params.page > 0 ? params.page : 1;
     const limit = params.limit && params.limit > 0 ? params.limit : DEFAULT_PROJECT_PAGE_SIZE;

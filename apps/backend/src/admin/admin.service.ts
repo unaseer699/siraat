@@ -1162,6 +1162,14 @@ export class AdminService {
     return this.waSvc.listMappings();
   }
 
+  async setWhatsappAccountPlan(body: { wa_id: string; plan: 'TRIAL' | 'PAID' | 'BLOCKED'; paid_until: string | null; trial_expense_limit?: number }) {
+    return this.waSvc.setAccountPlan(body.wa_id, body.plan, body.paid_until ? new Date(body.paid_until) : null, body.trial_expense_limit);
+  }
+
+  async listWhatsappAccounts() {
+    return this.waSvc.listAccounts();
+  }
+
   async deleteWhatsappMapping(id: string): Promise<void> {
     return this.waSvc.deleteMapping(id);
   }

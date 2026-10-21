@@ -1,0 +1,1 @@
+CREATE TABLE IF NOT EXISTS data_acquisition.whatsapp_accounts (id uuid PRIMARY KEY DEFAULT gen_random_uuid(), wa_id varchar(32) NOT NULL UNIQUE, plan varchar(10) NOT NULL DEFAULT 'TRIAL', trial_expense_limit int NOT NULL DEFAULT 25, paid_until timestamptz NULL, created_at timestamptz NOT NULL DEFAULT now())

@@ -1,4 +1,5 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { WhatsappSelfServeService } from './whatsapp-self-serve.service';
+import { Injectable, Logger, Optional } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { sectionCategoryLabel, type SectionCategory, type ExpenseKind } from '@siraat/shared-types';
@@ -88,6 +89,7 @@ export class WhatsappExpenseBatchService {
     private readonly outbound: WhatsappOutboundClient,
     private readonly confirmationSvc: WhatsappConfirmationService,
     private readonly cpSvc: ConstructionProjectService,
+    @Optional() private readonly selfServeSvc?: WhatsappSelfServeService,
   ) {}
 
   // Never throws — fire-and-forget caller. On failure the message stays
@@ -218,6 +220,16 @@ export class WhatsappExpenseBatchService {
   }
 
   private async confirm(batch: WhatsappExpenseBatchEntity, message: WhatsappInboundMessageEntity): Promise<void> {
+    // Free-trial / paid-plan limit. Checked before claiming so a refused batch
+    // can be cancelled or replaced like any other pending one.
+    if (this.selfServeSvc) {
+      const quota = await this.selfServeSvc.checkExpenseQuota(message.wa_id, batch.project_ref, batch.lines.length);
+      if (!quota.allowed) {
+        await this.batchRepo.update({ id: batch.id, status: 'PENDING' }, { status: 'CANCELLED' });
+        await this.reply(message.wa_id, quota.reply);
+        return;
+      }
+    }
     const claim = await this.batchRepo.update({ id: batch.id, status: 'PENDING' }, { status: 'CONFIRMED', confirmed_at: new Date() });
     if (!claim.affected) return;
 
