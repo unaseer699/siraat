@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from 'next';
 import './globals.css';
 import { AppHeader } from '@/components/HomeButton';
+import { SiraatChatFloat } from '@/components/SiraatChatFloat';
 import { ServiceWorkerRegister } from '@/components/ServiceWorkerRegister';
 
 export const metadata: Metadata = {
@@ -33,6 +34,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <AppHeader />
         <ServiceWorkerRegister />
         {children}
+        <SiraatChatFloat />
       </body>
     </html>
   );

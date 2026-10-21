@@ -1,6 +1,7 @@
 import { notFound } from 'next/navigation';
 import { fetchSupplier, fetchSupplierVerifications, fetchSupplierMaterialRates } from '@/lib/api';
 import { EvidenceDrawer } from '@/components/EvidenceDrawer';
+import { AskSiraatButton } from '@/components/AskSiraatButton';
 import { CopyLinkButton } from '@/components/CopyLinkButton';
 import { BackLink } from '@/components/BackLink';
 import StatCard from '@/components/StatCard';
@@ -403,6 +404,11 @@ export default async function SupplierProfilePage({ params }: Props) {
                 </div>
               </div>
             ))}
+          </div>
+
+          <div style={dividerStyle} />
+          <div>
+            <AskSiraatButton subject={`the supplier "${supplier.name}"`} label="Ask Siraat about this supplier" />
           </div>
 
           {(supplier.address || supplier.location_url) && (

@@ -2,6 +2,7 @@ import { notFound } from 'next/navigation';
 import { fetchContractor, fetchContractorVerifications, fetchContractorPortfolio, type ContractorProject } from '@/lib/api';
 import { ContractorPortfolio } from '@/components/ContractorPortfolio';
 import { EvidenceDrawer } from '@/components/EvidenceDrawer';
+import { AskSiraatButton } from '@/components/AskSiraatButton';
 import { CopyLinkButton } from '@/components/CopyLinkButton';
 import { BackLink } from '@/components/BackLink';
 import StatCard from '@/components/StatCard';
@@ -310,6 +311,9 @@ export default async function ContractorProfilePage({ params }: Props) {
                   WhatsApp →
                 </a>
               )}
+            </div>
+            <div style={{ marginTop: '12px' }}>
+              <AskSiraatButton subject={`the contractor "${contractor.name}"`} label="Ask Siraat about this contractor" />
             </div>
           </div>
         </div>

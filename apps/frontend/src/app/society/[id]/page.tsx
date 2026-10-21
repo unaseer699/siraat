@@ -4,6 +4,7 @@ import { fetchSocietyVerifications, fetchSocietyScore, fetchPropertyListings, fe
 import { PlotGroupCard, ListingDisclaimer } from '@/components/PlotListings';
 import { EvidenceLink } from '@/components/EvidenceLink';
 import { STATUS_WORD, docTime, topicOf } from '@/lib/societyRecords';
+import { AskSiraatButton } from '@/components/AskSiraatButton';
 import { CopyLinkButton } from '@/components/CopyLinkButton';
 import { WatchButton } from '@/components/WatchButton';
 import { BackLink } from '@/components/BackLink';
@@ -239,6 +240,7 @@ export default async function SocietyProfilePage({ params }: Props) {
 
         <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
           <CopyLinkButton />
+          <AskSiraatButton subject={`the society "${score?.society_name ?? 'this society'}"`} label="Ask Siraat" />
           <WatchButton societyId={params.id} societyName={score?.society_name ?? params.id} />
         </div>
 
