@@ -56,7 +56,7 @@ const btn: CSSProperties = { fontSize: '13px', fontWeight: 600, padding: '8px 14
 const th: CSSProperties = { textAlign: 'left', fontSize: '12px', color: 'var(--muted)', padding: '4px 8px', borderBottom: '1px solid var(--border)' };
 const td: CSSProperties = { fontSize: '13px', padding: '6px 8px', borderBottom: '1px solid var(--border)' };
 
-export function ForecastPanel({ projectId, isPublic = false }: { projectId: string; isPublic?: boolean }) {
+export function ForecastPanel({ projectId, isPublic = false, isComplete = false }: { projectId: string; isPublic?: boolean; isComplete?: boolean }) {
   const [fc, setFc] = useState<ProjectForecast | null>(null);
   const [floors, setFloors] = useState(DEFAULT_FLOORS);
   const [finish, setFinish] = useState<FinishLevel>('STANDARD');
@@ -257,7 +257,7 @@ export function ForecastPanel({ projectId, isPublic = false }: { projectId: stri
 
   const confirmed = fc?.layout?.status === 'CONFIRMED';
   const hasLayout = !!fc?.layout && fc.state !== 'NOT_COVERED';
-  const liveOnRealBuilds = isPublic && hasLayout && confirmed;
+  const liveOnRealBuilds = isPublic && ((hasLayout && confirmed) || isComplete);
 
   return (
     <section style={box}>
@@ -419,7 +419,9 @@ export function ForecastPanel({ projectId, isPublic = false }: { projectId: stri
           }}
         >
           {liveOnRealBuilds
-            ? '✓ Live on the public Real builds page.'
+            ? isComplete && !(hasLayout && confirmed)
+              ? '✓ Live on the public Real builds page as a completed project (actual spending). Confirm the areas to also show the estimate comparison.'
+              : '✓ Live on the public Real builds page.'
             : !hasLayout
               ? 'Not on the Real builds page yet: enter the covered area per floor below and save, then confirm the areas.'
               : 'Not on the Real builds page yet: click "Confirm areas" below.'}

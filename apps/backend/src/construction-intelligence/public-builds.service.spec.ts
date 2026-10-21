@@ -45,6 +45,23 @@ describe('PublicBuildsService', () => {
     expect(r.builds[0].title).toBe('5 Marla family home');
   });
 
+  it('shows a COMPLETE project with no layout using actual spending only', async () => {
+    const noLayout = fc({ state: 'NOT_COVERED', layout: null, spent_total: 6_543_210, groups: [{ label: 'Structure', estimated: null, spent: 4_100_400, progress_pct: null }, { label: 'Finishing', estimated: null, spent: 2_442_810, progress_pct: null }, { label: 'Land', estimated: null, spent: 0, progress_pct: null }] });
+    const r = await make(noLayout, [{ ...project, status: 'COMPLETE' }]).list();
+    expect(r.state).toBe('FULL');
+    const b = r.builds[0];
+    expect(b.actuals_only).toBe(true);
+    expect(b.spent_total).toBe(6_543_000);
+    expect(b.estimated_total).toBeNull();
+    expect(b.covered_area_sqft).toBeNull();
+    expect(b.phases.map((x) => x.label)).toEqual(['Structure', 'Finishing']);
+  });
+
+  it('still hides an in-progress project without a confirmed layout', async () => {
+    const r = await make(fc({ state: 'NOT_COVERED', layout: null })).list();
+    expect(r.state).toBe('NOT_COVERED');
+  });
+
   it('skips projects without a confirmed forecast and reports NOT_COVERED', async () => {
     const r = await make(fc({ state: 'NOT_COVERED', layout: null })).list();
     expect(r.state).toBe('NOT_COVERED');

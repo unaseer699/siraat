@@ -22,7 +22,34 @@ export class PublicBuildsService {
 
   private async build(p: { id: string; public_title: string | null; status: PublicBuild['status']; start_date: string }): Promise<{ build: PublicBuild; confidence: number; stale: boolean } | null> {
     const fc = await this.forecasts.forecast(p.id);
-    if (fc.state !== 'FULL' || !fc.layout) return null;
+    if (fc.state !== 'FULL' || !fc.layout) {
+      // A finished project can be shown without a layout: actual spending only.
+      if (p.status !== 'COMPLETE' || !(fc.spent_total > 0)) return null;
+      const area = fc.layout?.total_area_sqft ?? 0;
+      return {
+        confidence: 1,
+        stale: false,
+        build: {
+          id: p.id,
+          title: p.public_title?.trim() || 'Completed home build',
+          status: p.status,
+          started_month: p.start_date.slice(0, 7),
+          actuals_only: true,
+          covered_area_sqft: area > 0 ? round(area, 50) : null,
+          floors: fc.layout ? fc.layout.floors.length : null,
+          finish_level: fc.layout ? fc.layout.finish_level : null,
+          estimated_total: null,
+          spent_total: round(fc.spent_total, 1000),
+          forecast_total: round(fc.spent_total, 1000),
+          variance_pct: null,
+          per_sqft: area > 0 ? round(fc.spent_total / area, 10) : null,
+          overall_progress_pct: 100,
+          phases: fc.groups
+            .filter((g) => g.spent > 0)
+            .map((g) => ({ label: g.label, estimated: null, spent: round(g.spent, 1000), progress_pct: 100 })),
+        },
+      };
+    }
     const area = fc.layout.total_area_sqft;
     const phases = fc.groups.map((g) => ({
       label: g.label,
@@ -42,6 +69,7 @@ export class PublicBuildsService {
         title: p.public_title?.trim() || `${round(area, 50).toLocaleString('en-US')} sq ft home build`,
         status: p.status,
         started_month: p.start_date.slice(0, 7),
+        actuals_only: false,
         covered_area_sqft: round(area, 50),
         floors: fc.layout.floors.length,
         finish_level: fc.layout.finish_level,

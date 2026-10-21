@@ -35,20 +35,28 @@ function Bar({ pct, color }: { pct: number; color: string }) {
 }
 
 function BuildCard({ b }: { b: PublicBuild }) {
+  const actualsOnly = b.actuals_only;
   const over = b.variance_pct !== null && b.variance_pct > 0;
   const varianceColor = b.variance_pct === null ? 'var(--muted)' : over ? WARNING_AMBER : TRUST_GREEN;
-  const spentShare = b.estimated_total > 0 ? (b.spent_total / b.estimated_total) * 100 : 0;
+  const spentShare = b.estimated_total && b.estimated_total > 0 ? (b.spent_total / b.estimated_total) * 100 : 0;
   return (
     <article style={{ background: '#fff', border: '1px solid var(--border)', borderRadius: '16px', padding: '20px', display: 'flex', flexDirection: 'column', gap: '14px', boxShadow: '0 1px 3px rgba(0,0,0,0.06)' }}>
       <div>
         <h2 style={{ fontSize: '19px', fontWeight: 800, lineHeight: 1.25 }}>{b.title}</h2>
         <p style={{ fontSize: '13px', color: 'var(--muted)', marginTop: '4px' }}>
-          {STATUS_TEXT[b.status]} · started {monthLabel(b.started_month)} · {b.covered_area_sqft.toLocaleString('en-US')} sq ft covered ·{' '}
-          {b.floors} {b.floors === 1 ? 'floor' : 'floors'} · {b.finish_level.toLowerCase()} finish
+          {[
+            STATUS_TEXT[b.status],
+            `started ${monthLabel(b.started_month)}`,
+            b.covered_area_sqft !== null ? `${b.covered_area_sqft.toLocaleString('en-US')} sq ft covered` : null,
+            b.floors !== null ? `${b.floors} ${b.floors === 1 ? 'floor' : 'floors'}` : null,
+            b.finish_level ? `${b.finish_level.toLowerCase()} finish` : null,
+          ]
+            .filter(Boolean)
+            .join(' · ')}
         </p>
       </div>
 
-      {b.overall_progress_pct !== null && (
+      {!actualsOnly && b.overall_progress_pct !== null && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '14px', fontWeight: 700 }}>
             <span>Overall progress</span>
@@ -58,13 +66,20 @@ function BuildCard({ b }: { b: PublicBuild }) {
         </div>
       )}
 
-      <div className="rb-stats">
-        <Stat label="Estimate" value={pkr(b.estimated_total)} />
-        <Stat label="Spent so far" value={pkr(b.spent_total)} sub={`${Math.round(spentShare)}% of estimate`} />
-        <Stat label="Projected final" value={pkr(b.forecast_total)} sub={b.variance_pct === null ? undefined : `${over ? '+' : ''}${b.variance_pct}% vs estimate`} subColor={varianceColor} />
-      </div>
+      {actualsOnly ? (
+        <div style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: '12px', padding: '14px' }}>
+          <div style={{ fontSize: '12px', fontWeight: 700, color: '#166534' }}>✓ COMPLETED · TOTAL ACTUALLY SPENT</div>
+          <div style={{ fontSize: '28px', fontWeight: 800, color: '#14532d', marginTop: '2px' }}>{pkr(b.spent_total)}</div>
+        </div>
+      ) : (
+        <div className="rb-stats">
+          <Stat label="Estimate" value={b.estimated_total !== null ? pkr(b.estimated_total) : '—'} />
+          <Stat label="Spent so far" value={pkr(b.spent_total)} sub={`${Math.round(spentShare)}% of estimate`} />
+          <Stat label="Projected final" value={pkr(b.forecast_total)} sub={b.variance_pct === null ? undefined : `${over ? '+' : ''}${b.variance_pct}% vs estimate`} subColor={varianceColor} />
+        </div>
+      )}
       {b.per_sqft !== null && (
-        <p style={{ fontSize: '13px', color: 'var(--muted)' }}>Projected cost per sq ft: <strong style={{ color: 'var(--text)' }}>PKR {b.per_sqft.toLocaleString('en-US')}</strong></p>
+        <p style={{ fontSize: '13px', color: 'var(--muted)' }}>{actualsOnly ? 'Actual cost per sq ft:' : 'Projected cost per sq ft:'} <strong style={{ color: 'var(--text)' }}>PKR {b.per_sqft.toLocaleString('en-US')}</strong></p>
       )}
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', borderTop: '1px solid var(--border)', paddingTop: '12px' }}>
@@ -75,11 +90,11 @@ function BuildCard({ b }: { b: PublicBuild }) {
               <strong>{p.label}</strong>
               <span style={{ color: 'var(--muted)' }}>
                 {pkr(p.spent)}
-                {p.estimated !== null ? ` of ${pkr(p.estimated)}` : ''}
-                {p.progress_pct !== null ? ` · ${p.progress_pct}% done` : ''}
+                {!actualsOnly && p.estimated !== null ? ` of ${pkr(p.estimated)}` : ''}
+                {!actualsOnly && p.progress_pct !== null ? ` · ${p.progress_pct}% done` : ''}
               </span>
             </div>
-            <Bar pct={p.progress_pct ?? 0} color={TRUST_GREEN} />
+            <Bar pct={actualsOnly ? (b.spent_total > 0 ? (p.spent / b.spent_total) * 100 : 0) : p.progress_pct ?? 0} color={TRUST_GREEN} />
           </div>
         ))}
       </div>
@@ -112,9 +127,9 @@ export default function RealBuildsPage() {
         <BackLink />
         <div>
           <p style={{ fontSize: '12px', color: 'var(--muted)', fontWeight: 600, marginBottom: '4px' }}>REAL BUILDS</p>
-          <h1 style={{ fontSize: '28px', fontWeight: 800, lineHeight: 1.2 }}>Homes being built right now</h1>
+          <h1 style={{ fontSize: '28px', fontWeight: 800, lineHeight: 1.2 }}>Real homes, real costs</h1>
           <p style={{ fontSize: '15px', color: 'var(--muted)', marginTop: '6px' }}>
-            Real projects, shared by their owners: how far each phase has come and what it has cost against the estimate.
+            Real projects, shared by their owners: what each phase actually cost, and for homes still being built, how far each phase has come against the estimate.
             Names, locations and contact details are never shown.
           </p>
         </div>

@@ -250,10 +250,13 @@ export interface PublicBuild {
   title: string;
   status: 'ACTIVE' | 'COMPLETE' | 'ON_HOLD';
   started_month: string;
-  covered_area_sqft: number;
-  floors: number;
-  finish_level: 'BASIC' | 'STANDARD' | 'PREMIUM';
-  estimated_total: number;
+  // true = a finished project shown with what was actually spent only (no
+  // layout/estimate); covered area, floors, finish and estimate may be null.
+  actuals_only: boolean;
+  covered_area_sqft: number | null;
+  floors: number | null;
+  finish_level: 'BASIC' | 'STANDARD' | 'PREMIUM' | null;
+  estimated_total: number | null;
   spent_total: number;
   forecast_total: number;
   variance_pct: number | null;
