@@ -127,8 +127,7 @@ function MaterialsTable({ lineItems, areaSqft }: { lineItems: BoqLineItem[]; are
       <div style={{ padding: '14px 16px', borderBottom: '1px solid var(--border)' }}>
         <h3 style={{ fontSize: '16px', fontWeight: 800, margin: 0 }}>Material consumption for {Math.round(areaSqft).toLocaleString()} sq ft</h3>
         <p style={{ fontSize: '12px', color: 'var(--muted)', margin: '4px 0 0' }}>
-          How much of each material this project needs, worked out per sq ft of covered area. Change any per sq ft figure to
-          match your architect or contractor and the quantity updates.
+          Worked out per sq ft. Edit any per sq ft figure to match your architect&apos;s numbers.
         </p>
         <div style={{ display: 'flex', gap: '14px', alignItems: 'center', flexWrap: 'wrap', marginTop: '8px' }}>
           <label style={{ fontSize: '12px', display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer' }}>
@@ -223,9 +222,7 @@ function MaterialsTable({ lineItems, areaSqft }: { lineItems: BoqLineItem[]; are
         </table>
       </div>
       <p style={{ fontSize: '12px', color: 'var(--muted)', margin: 0, padding: '10px 16px 14px', borderTop: '1px solid var(--border)' }}>
-        <strong>Basis:</strong> consumption per sq ft is taken from a completed 2,700 sq ft house (cement, steel, bricks, sand,
-        crush, doors, windows) and scaled to your covered area, finish level and basement. Paint is worked out from wall area.
-        One house is one sample, so treat these as planning figures and confirm with your architect before ordering.
+        Based on one completed 2,700 sq ft house, scaled to your area. Planning figures: confirm before ordering.
       </p>
     </section>
   );
@@ -333,26 +330,23 @@ function RoadmapCard({ w }: { w: WholeHouse }) {
     <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
       <div style={{ background: '#fff', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '24px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
         <p style={{ fontSize: '13px', color: 'var(--muted)', fontWeight: 600 }}>
-          Whole-house estimate (labour included, with {allowancePct}% contingency)
+          Whole-house estimate <span style={{ fontWeight: 400 }}>· labour included</span>
         </p>
-        <p style={{ fontSize: '32px', fontWeight: 800 }}>{formatPKR(houseTotal)}</p>
-        <p style={{ fontSize: '13px', color: 'var(--muted)' }}>
-          Building cost {formatPKR(w.total)} + contingency {formatPKR(allowance)}
+        <p style={{ fontSize: '32px', fontWeight: 800, margin: 0 }}>{formatPKR(houseTotal)}</p>
+        <p style={{ fontSize: '13px', color: 'var(--muted)', margin: 0 }}>
+          About PKR {Math.round(houseTotal / Math.max(w.area_sqft + (w.basement_area_sqft ?? 0), 1)).toLocaleString()} per sq ft · {Math.round(w.area_sqft).toLocaleString()} sq ft covered{(w.basement_area_sqft ?? 0) > 0 ? ` + ${Math.round(w.basement_area_sqft ?? 0).toLocaleString()} sq ft basement` : ''}{w.is_stale ? ' · prices not current' : ''}
         </p>
-        <p style={{ fontSize: '13px', color: 'var(--muted)' }}>
-          About PKR {Math.round(houseTotal / Math.max(w.area_sqft + (w.basement_area_sqft ?? 0), 1)).toLocaleString()} per sq ft · {Math.round(w.area_sqft).toLocaleString()} sq ft covered{(w.basement_area_sqft ?? 0) > 0 ? ` + ${Math.round(w.basement_area_sqft ?? 0).toLocaleString()} sq ft basement` : ''} ·
-          confidence {Math.round(w.confidence_score * 100)}%{w.is_stale ? ' · prices are not current' : ''}
-        </p>
-        <p style={{ fontSize: '13px' }}>
-          Plus before building starts (approvals, soil testing, excavation, reference amounts):{' '}
-          <strong>{formatPKR(w.before_building_total)}</strong>. The plot price is not included.
-        </p>
-        <div style={{ background: '#f9fafb', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '12px 14px', fontSize: '13px' }}>
-          <strong>All-in estimate with approvals and your own quotes: {formatPKR(allIn)}</strong>
-          <div style={{ color: 'var(--muted)', marginTop: '4px' }}>
-            Whole house {formatPKR(houseTotal)} + approvals, soil and excavation {formatPKR(w.before_building_total)}
-            {yourQuotes > 0 ? ` + your quotes ${formatPKR(yourQuotes)}` : ''}. Enter your own quotes in the steps marked &quot;Not estimated&quot; below.
-          </div>
+        <div style={{ background: '#f9fafb', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '10px 14px', fontSize: '13px' }}>
+          <strong>All-in with approvals &amp; soil: {formatPKR(allIn)}</strong>
+          <details style={{ marginTop: '4px' }}>
+            <summary style={{ cursor: 'pointer', fontSize: '12px', fontWeight: 600, color: '#2563eb' }}>How this adds up</summary>
+            <div style={{ color: 'var(--muted)', fontSize: '12px', marginTop: '4px', lineHeight: 1.5 }}>
+              Building cost {formatPKR(w.total)} + {allowancePct}% contingency {formatPKR(allowance)} = {formatPKR(houseTotal)}.
+              Plus approvals, soil testing and excavation {formatPKR(w.before_building_total)}
+              {yourQuotes > 0 ? ` and your quotes ${formatPKR(yourQuotes)}` : ''}. The plot price is not included. Enter your own
+              quotes in the steps marked &quot;Not estimated&quot; below.
+            </div>
+          </details>
         </div>
         {/* Share of the building cost by step, in build order. */}
         <div style={{ display: 'flex', height: '14px', borderRadius: '99px', overflow: 'hidden', background: '#e5e7eb' }} aria-hidden="true">
@@ -368,11 +362,16 @@ function RoadmapCard({ w }: { w: WholeHouse }) {
             </span>
           ))}
         </div>
-        <ul style={{ margin: 0, paddingLeft: '18px', fontSize: '12px', color: 'var(--muted)' }}>
-          {w.notes.map((n) => (
-            <li key={n}>{n}</li>
-          ))}
-        </ul>
+        <details>
+          <summary style={{ cursor: 'pointer', fontSize: '12px', fontWeight: 600, color: '#2563eb' }}>
+            Notes &amp; confidence ({Math.round(w.confidence_score * 100)}%)
+          </summary>
+          <ul style={{ margin: '6px 0 0', paddingLeft: '18px', fontSize: '12px', color: 'var(--muted)' }}>
+            {w.notes.map((n) => (
+              <li key={n}>{n}</li>
+            ))}
+          </ul>
+        </details>
       </div>
 
       <p style={{ fontSize: '15px', fontWeight: 800, margin: '4px 0 0' }}>Your build, step by step</p>
@@ -568,7 +567,7 @@ export function EstimateResults({ result }: Props) {
                 {result.basement ? ' + basement' : ''} · {result.finish_level}
               </p>
               <p style={{ fontSize: '13px', color: 'var(--text)', marginTop: '8px' }}>
-                Quantities below are worked out per sq ft. Estimated cost of these materials:{' '}
+                Materials cost:{' '}
                 <strong>
                   {result.state === 'FULL'
                     ? formatPKR(result.total_estimate)
@@ -579,20 +578,10 @@ export function EstimateResults({ result }: Props) {
               </p>
               <details style={{ marginTop: '8px' }}>
                 <summary style={{ cursor: 'pointer', fontSize: '12px', fontWeight: 600, color: '#2563eb' }}>How is this cost calculated?</summary>
-                <div style={{ fontSize: '12px', color: 'var(--muted)', marginTop: '6px', lineHeight: 1.5 }}>
-                  <p style={{ margin: 0 }}>
-                    Cost = quantity × current rate, added up for every priced line: {result.line_items.filter((li) => li.subtotal !== null).map((li) => li.item_name).join(', ') || 'none yet'}.
-                  </p>
-                  <p style={{ margin: '6px 0 0' }}>
-                    Each rate is the newest fresh rate on record for that item. A supplier-verified rate is used first when one exists,
-                    otherwise the latest market or admin rate. Rates for steel and similar items are converted to the unit shown
-                    (for example per ton to per kg). Lines with no fresh rate are left out of the total, and are named above.
-                  </p>
-                  <p style={{ margin: '6px 0 0' }}>
-                    This covers materials and selected works only. Labour, tiles, wood, sanitary ware and site work are in the whole-house estimate.
-                    Turn on "Also show cost" in the table below to see each line.
-                  </p>
-                </div>
+                <p style={{ fontSize: '12px', color: 'var(--muted)', margin: '6px 0 0', lineHeight: 1.5 }}>
+                  Quantity × newest fresh rate for each line, added up. Labour, tiles, wood and sanitary ware are in the whole-house
+                  estimate. Tick &quot;Also show cost&quot; below to see each line.
+                </p>
               </details>
               {result.state !== 'FULL' && result.missing_major_items.length > 0 && (
                 <p style={{ fontSize: '13px', color: WARNING_AMBER, marginTop: '6px' }}>
@@ -619,10 +608,6 @@ export function EstimateResults({ result }: Props) {
             </div>
           )}
 
-          <p style={{ fontSize: '13px', fontWeight: 700, margin: '4px 0 -8px' }}>
-            Materials &amp; selected works (BOQ): cement, steel, bricks, sand, crush, doors, windows, rough-in. Labour,
-            tiles, wood, paint, sanitary ware and site work are in the whole-house estimate above.
-          </p>
           <MaterialsTable lineItems={result.line_items} areaSqft={result.area_sqft} />
 
           <p style={{ fontSize: '13px', fontWeight: 700, margin: '4px 0 -8px' }}>Same lines by build step</p>
