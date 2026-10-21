@@ -56,7 +56,7 @@ const btn: CSSProperties = { fontSize: '13px', fontWeight: 600, padding: '8px 14
 const th: CSSProperties = { textAlign: 'left', fontSize: '12px', color: 'var(--muted)', padding: '4px 8px', borderBottom: '1px solid var(--border)' };
 const td: CSSProperties = { fontSize: '13px', padding: '6px 8px', borderBottom: '1px solid var(--border)' };
 
-export function ForecastPanel({ projectId }: { projectId: string }) {
+export function ForecastPanel({ projectId, isPublic = false }: { projectId: string; isPublic?: boolean }) {
   const [fc, setFc] = useState<ProjectForecast | null>(null);
   const [floors, setFloors] = useState(DEFAULT_FLOORS);
   const [finish, setFinish] = useState<FinishLevel>('STANDARD');
@@ -256,6 +256,8 @@ export function ForecastPanel({ projectId }: { projectId: string }) {
   }
 
   const confirmed = fc?.layout?.status === 'CONFIRMED';
+  const hasLayout = !!fc?.layout && fc.state !== 'NOT_COVERED';
+  const liveOnRealBuilds = isPublic && hasLayout && confirmed;
 
   return (
     <section style={box}>
@@ -403,6 +405,26 @@ export function ForecastPanel({ projectId }: { projectId: string }) {
         )}
       </div>
       {err && <p style={{ color: 'var(--error)', fontSize: '13px' }}>{err}</p>}
+
+      {isPublic && (
+        <p
+          style={{
+            fontSize: '13px',
+            margin: '0 0 10px',
+            padding: '8px 12px',
+            borderRadius: '8px',
+            background: liveOnRealBuilds ? '#f0fdf4' : '#fffbeb',
+            border: `1px solid ${liveOnRealBuilds ? '#bbf7d0' : '#fcd34d'}`,
+            color: liveOnRealBuilds ? '#166534' : '#92400e',
+          }}
+        >
+          {liveOnRealBuilds
+            ? '✓ Live on the public Real builds page.'
+            : !hasLayout
+              ? 'Not on the Real builds page yet: enter the covered area per floor below and save, then confirm the areas.'
+              : 'Not on the Real builds page yet: click "Confirm areas" below.'}
+        </p>
+      )}
 
       {fc && fc.state !== 'NOT_COVERED' && (
         <>

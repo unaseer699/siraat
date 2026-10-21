@@ -1267,7 +1267,7 @@ export default function AdminProjectPage({ params }: Props) {
         </div>
 
         <div style={{ marginTop: '24px' }}>
-          <ForecastPanel projectId={params.id} />
+          <ForecastPanel projectId={params.id} isPublic={project?.is_public === true} />
         </div>
 
         {refetchError && (
