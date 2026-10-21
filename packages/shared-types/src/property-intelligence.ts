@@ -258,6 +258,7 @@ export const MaterialCategorySchema = z.enum([
   'READY_MIX_CONCRETE',
   'LIGHTING',
   'IRON_WORKS',
+  'PRINTERS',
   'MOTORS_SOLAR_BORING',
   'OTHER',
 ]);

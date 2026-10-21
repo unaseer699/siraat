@@ -13,6 +13,7 @@ const LABEL_OVERRIDE: Partial<Record<MaterialCategory, string>> = {
   WATERPROOFING: 'Waterproofing & insulation',
   WOOD: 'Wood & doors',
   IRON_WORKS: 'Iron works',
+  PRINTERS: 'Printers (cards, letterheads, panaflex)',
   MOTORS_SOLAR_BORING: 'Submersible motors, solar, engines & boring',
 };
 
