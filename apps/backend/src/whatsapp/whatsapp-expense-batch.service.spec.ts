@@ -1,3 +1,4 @@
+import { WhatsappExpenseBatchService } from './whatsapp-expense-batch.service';
 import { buildBatchSummary, isCancelReply, isExpenseBatchMessage, isLedgerLinesMessage, projectNamesMatch } from './whatsapp-expense-batch.service';
 
 describe('expense batch helpers', () => {
@@ -48,5 +49,29 @@ describe('isLedgerLinesMessage', () => {
     expect(isLedgerLinesMessage('Cement: 1300 /bag')).toBe(false);
     expect(isLedgerLinesMessage('cement 50 bags @ 1490')).toBe(false);
     expect(isLedgerLinesMessage('Project Name: THE COURTYARD')).toBe(false);
+  });
+});
+
+describe('parseAndStoreBatch when the AI call fails', () => {
+  it('falls back to the plain reader and still asks for confirmation', async () => {
+    const replies: string[] = [];
+    const saved: Array<{ lines: Array<{ description: string; amount: number; trade_category: string }> }> = [];
+    const svc = Object.create(WhatsappExpenseBatchService.prototype);
+    Object.assign(svc, {
+      logger: { error: jest.fn() },
+      cpSvc: { findProjectById: async () => ({ name: 'THE COURTYARD' }), findCategoryRule: async () => null },
+      aiClient: { extractExpenseBatch: async () => { throw new Error('Anthropic API returned 401'); } },
+      inboundRepo: { update: jest.fn() },
+      batchRepo: { update: jest.fn(), create: (x: never) => x, save: async (x: never) => { saved.push(x); return x; } },
+      reply: async (_to: string, text: string) => { replies.push(text); },
+    });
+    await svc.parseAndStoreBatch({
+      id: 'm1', status: 'RECEIVED', project_ref: 'p1', wa_id: '923001234567', wa_timestamp: new Date('2026-10-21'),
+      message_text: 'Project Name: THE COURTYARD \nCement  50 bags - 77000',
+    });
+    expect(saved[0].lines[0]).toMatchObject({ amount: 77000, trade_category: 'CEMENT' });
+    expect(replies[0]).toContain('Found 1 expenses');
+    expect(replies[0]).toContain('smart reader was unavailable');
+    expect(replies[0]).not.toContain('could not read');
   });
 });

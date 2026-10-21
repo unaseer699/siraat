@@ -2,7 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { sectionCategoryLabel, type SectionCategory, type ExpenseKind } from '@siraat/shared-types';
-import { WhatsappAiClient } from './whatsapp-ai.client';
+import { WhatsappAiClient, recoverMissedExpenseLines } from './whatsapp-ai.client';
 import { WhatsappOutboundClient } from './whatsapp-outbound.client';
 import { WhatsappConfirmationService, isConfirmationReply, mapToExpenseUnit } from './whatsapp-confirmation.service';
 import { WhatsappInboundMessageEntity } from './entities/whatsapp-inbound-message.entity';
@@ -98,7 +98,24 @@ export class WhatsappExpenseBatchService {
       const project = await this.cpSvc.findProjectById(message.project_ref);
       const projectName = project?.name ?? 'your project';
 
-      const outcome = await this.aiClient.extractExpenseBatch(message.message_text);
+      // If the AI call fails (key, credit, overload, bad reply), fall back to
+      // the plain "name - amount" reader so the owner's message is not lost.
+      // Nothing is saved until the owner replies YES either way.
+      let aiFailed = false;
+      let outcome: Awaited<ReturnType<WhatsappAiClient['extractExpenseBatch']>>;
+      try {
+        outcome = await this.aiClient.extractExpenseBatch(message.message_text);
+      } catch (aiErr) {
+        this.logger.error(
+          `AI expense parse failed for message id=${message.id}; trying plain reader`,
+          aiErr instanceof Error ? aiErr.stack : String(aiErr),
+        );
+        const recovered = recoverMissedExpenseLines(message.message_text, []);
+        if (recovered.length === 0) throw aiErr;
+        const nameLine = /^\s*project\s*name\s*[:\-]\s*(.+)$/im.exec(message.message_text);
+        aiFailed = true;
+        outcome = { project_name: nameLine ? nameLine[1].trim() : null, lines: recovered, raw: { fallback: 'plain_reader' } };
+      }
 
       if (outcome.project_name && project && !projectNamesMatch(outcome.project_name, project.name)) {
         await this.inboundRepo.update({ id: message.id }, { status: 'PARSED' });
@@ -161,7 +178,11 @@ export class WhatsappExpenseBatchService {
         }),
       );
       await this.inboundRepo.update({ id: message.id }, { status: 'PARSED' });
-      await this.reply(message.wa_id, buildBatchSummary(projectName, lines, total));
+      await this.reply(
+        message.wa_id,
+        buildBatchSummary(projectName, lines, total) +
+          (aiFailed ? '\n\nNote: the smart reader was unavailable, so sections and vendors were not detected. You can move expenses between sections in Admin.' : ''),
+      );
     } catch (err) {
       this.logger.error(
         `Failed bulk expense parse for message id=${message.id} from ${maskPhone(message.wa_id)}`,
