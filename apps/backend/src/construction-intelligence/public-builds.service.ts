@@ -22,9 +22,9 @@ export class PublicBuildsService {
 
   private async build(p: { id: string; public_title: string | null; status: PublicBuild['status']; start_date: string }): Promise<{ build: PublicBuild; confidence: number; stale: boolean } | null> {
     const fc = await this.forecasts.forecast(p.id);
-    if (fc.state !== 'FULL' || !fc.layout) {
-      // A finished project can be shown without a layout: actual spending only.
-      if (p.status !== 'COMPLETE' || !(fc.spent_total > 0)) return null;
+    // A finished project is shown by what was actually spent, not against an
+    // estimate (with or without a layout). Land is left out of the per sq ft figure.
+    if (p.status === 'COMPLETE' && fc.spent_total > 0) {
       const area = fc.layout?.total_area_sqft ?? 0;
       return {
         confidence: 1,
@@ -42,7 +42,7 @@ export class PublicBuildsService {
           spent_total: round(fc.spent_total, 1000),
           forecast_total: round(fc.spent_total, 1000),
           variance_pct: null,
-          per_sqft: area > 0 ? round(fc.spent_total / area, 10) : null,
+          per_sqft: area > 0 ? round((fc.spent_total - (fc.groups.find((g) => g.group === 'LAND')?.spent ?? 0)) / area, 10) : null,
           overall_progress_pct: 100,
           phases: fc.groups
             .filter((g) => g.spent > 0)
@@ -50,6 +50,7 @@ export class PublicBuildsService {
         },
       };
     }
+    if (fc.state !== 'FULL' || !fc.layout) return null;
     const area = fc.layout.total_area_sqft;
     const phases = fc.groups.map((g) => ({
       label: g.label,

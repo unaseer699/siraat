@@ -79,7 +79,7 @@ function BuildCard({ b }: { b: PublicBuild }) {
         </div>
       )}
       {b.per_sqft !== null && (
-        <p style={{ fontSize: '13px', color: 'var(--muted)' }}>{actualsOnly ? 'Actual cost per sq ft:' : 'Projected cost per sq ft:'} <strong style={{ color: 'var(--text)' }}>PKR {b.per_sqft.toLocaleString('en-US')}</strong></p>
+        <p style={{ fontSize: '13px', color: 'var(--muted)' }}>{actualsOnly ? 'Actual construction cost per sq ft (excluding land):' : 'Projected cost per sq ft:'} <strong style={{ color: 'var(--text)' }}>PKR {b.per_sqft.toLocaleString('en-US')}</strong></p>
       )}
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', borderTop: '1px solid var(--border)', paddingTop: '12px' }}>
