@@ -95,48 +95,116 @@ const MATERIAL_SUPPLIER: Record<string, string> = {
   MARBLE_STAIRS: 'MARBLE_GRANITE',
 };
 
-function MaterialsTable({ lineItems }: { lineItems: BoqLineItem[] }) {
+function fmtPerSqft(v: number): string {
+  // Small counts (doors) read better per 1,000 sq ft.
+  if (v < 0.01) return `${(v * 1000).toLocaleString(undefined, { maximumFractionDigits: 2 })} per 1,000 sq ft`;
+  return v.toLocaleString(undefined, { maximumFractionDigits: 3 });
+}
+
+function MaterialsTable({ lineItems, areaSqft }: { lineItems: BoqLineItem[]; areaSqft: number }) {
+  const [showCosts, setShowCosts] = useState(false);
+  // Per sq ft figures the user has changed; everything else comes from the estimate.
+  const [edited, setEdited] = useState<Record<string, string>>({});
   const rows = lineItems.filter((li) => MATERIAL_SUPPLIER[li.item_key]);
-  if (rows.length === 0) return null;
-  const total = rows.reduce((sum, r) => sum + (r.subtotal ?? 0), 0);
+  if (rows.length === 0 || !(areaSqft > 0)) return null;
+
+  const view = rows.map((r) => {
+    const basePer = r.quantity !== null ? r.quantity / areaSqft : null;
+    const raw = edited[r.item_key];
+    const per = raw !== undefined && raw !== '' && Number(raw) >= 0 ? Number(raw) : basePer;
+    const qty = per !== null ? per * areaSqft : null;
+    const amount = qty !== null && r.unit_rate !== null ? qty * r.unit_rate : null;
+    return { r, basePer, per, qty, amount, isEdited: raw !== undefined && raw !== '' };
+  });
+  const total = view.reduce((sum, v) => sum + (v.amount ?? 0), 0);
+  const anyEdited = view.some((v) => v.isEdited);
   const th = { textAlign: 'left', padding: '8px 12px', fontSize: '11px', fontWeight: 700, color: 'var(--muted)', letterSpacing: '0.04em', background: '#f9fafb' } as const;
-  const td = { padding: '10px 12px', fontSize: '13px', borderTop: '1px solid #eef0f3', verticalAlign: 'top' } as const;
+  const td = { padding: '10px 12px', fontSize: '13px', borderTop: '1px solid #eef0f3', verticalAlign: 'middle' } as const;
+  const num = { textAlign: 'right', whiteSpace: 'nowrap' } as const;
+
   return (
     <section style={{ background: '#fff', border: '1px solid var(--border)', borderRadius: RADIUS.md, overflow: 'hidden' }}>
       <div style={{ padding: '14px 16px', borderBottom: '1px solid var(--border)' }}>
-        <h3 style={{ fontSize: '16px', fontWeight: 800, margin: 0 }}>Materials to buy</h3>
+        <h3 style={{ fontSize: '16px', fontWeight: 800, margin: 0 }}>Material consumption for {Math.round(areaSqft).toLocaleString()} sq ft</h3>
         <p style={{ fontSize: '12px', color: 'var(--muted)', margin: '4px 0 0' }}>
-          What you need, how much, and the rate used. Quantities are estimates from your plot size and floors.
+          How much of each material this project needs, worked out per sq ft of covered area. Change any per sq ft figure to
+          match your architect or contractor and the quantity updates.
         </p>
+        <div style={{ display: 'flex', gap: '14px', alignItems: 'center', flexWrap: 'wrap', marginTop: '8px' }}>
+          <label style={{ fontSize: '12px', display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer' }}>
+            <input type="checkbox" checked={showCosts} onChange={(e) => setShowCosts(e.target.checked)} />
+            Also show cost
+          </label>
+          {anyEdited && (
+            <button
+              type="button"
+              onClick={() => setEdited({})}
+              style={{ fontSize: '12px', fontWeight: 600, border: '1px solid var(--border)', borderRadius: '6px', background: '#fff', padding: '3px 10px', cursor: 'pointer' }}
+            >
+              Reset to estimate
+            </button>
+          )}
+        </div>
       </div>
       <div style={{ overflowX: 'auto' }}>
-        <table style={{ width: '100%', minWidth: '520px', borderCollapse: 'collapse' }}>
+        <table style={{ width: '100%', minWidth: showCosts ? '640px' : '420px', borderCollapse: 'collapse' }}>
           <thead>
             <tr>
               <th style={th}>MATERIAL</th>
-              <th style={{ ...th, textAlign: 'right' }}>QUANTITY</th>
-              <th style={{ ...th, textAlign: 'right' }}>RATE</th>
-              <th style={{ ...th, textAlign: 'right' }}>AMOUNT</th>
+              <th style={{ ...th, textAlign: 'right' }}>PER SQ FT</th>
+              <th style={{ ...th, textAlign: 'right' }}>TOTAL NEEDED</th>
+              {showCosts && <th style={{ ...th, textAlign: 'right' }}>RATE</th>}
+              {showCosts && <th style={{ ...th, textAlign: 'right' }}>COST</th>}
               <th style={th}></th>
             </tr>
           </thead>
           <tbody>
-            {rows.map((r) => (
+            {view.map(({ r, basePer, per, qty, amount, isEdited }) => (
               <tr key={r.item_key}>
-                <td style={{ ...td, fontWeight: 700 }}>{r.item_name}</td>
-                <td style={{ ...td, textAlign: 'right', whiteSpace: 'nowrap' }}>
-                  {r.quantity === null ? <span style={{ color: 'var(--muted)' }}>n/a</span> : (
-                    <>
-                      <strong>{formatQuantity(r.quantity)}</strong> <span style={{ color: 'var(--muted)' }}>{r.unit}</span>
-                    </>
+                <td style={{ ...td, fontWeight: 700 }}>
+                  {r.item_name}
+                  <div style={{ fontSize: '11px', fontWeight: 400, color: 'var(--muted)' }}>{r.unit}</div>
+                </td>
+                <td style={{ ...td, ...num }}>
+                  {basePer === null ? (
+                    <span style={{ color: 'var(--muted)' }}>n/a</span>
+                  ) : (
+                    <input
+                      type="number"
+                      inputMode="decimal"
+                      min={0}
+                      step="any"
+                      aria-label={`${r.item_name} per sq ft`}
+                      value={edited[r.item_key] ?? ''}
+                      placeholder={fmtPerSqft(basePer)}
+                      onChange={(e) => setEdited((prev) => ({ ...prev, [r.item_key]: e.target.value }))}
+                      style={{
+                        width: '110px',
+                        padding: '5px 8px',
+                        fontSize: '13px',
+                        textAlign: 'right',
+                        border: `1px solid ${isEdited ? '#2563eb' : 'var(--border)'}`,
+                        borderRadius: '6px',
+                        background: isEdited ? '#eff6ff' : '#fff',
+                      }}
+                    />
+                  )}
+                  {basePer !== null && per !== null && isEdited && (
+                    <div style={{ fontSize: '10px', color: 'var(--muted)' }}>estimate: {fmtPerSqft(basePer)}</div>
                   )}
                 </td>
-                <td style={{ ...td, textAlign: 'right', whiteSpace: 'nowrap' }}>
-                  {r.unit_rate !== null ? formatPKR(r.unit_rate) : <span style={{ color: WARNING_AMBER, fontWeight: 600 }}>not yet available</span>}
+                <td style={{ ...td, ...num, fontWeight: 800, fontSize: '14px' }}>
+                  {qty === null ? <span style={{ color: 'var(--muted)', fontWeight: 400 }}>n/a</span> : formatQuantity(qty)}
+                  {r.item_key === 'STEEL' && qty !== null && (
+                    <div style={{ fontSize: '11px', fontWeight: 400, color: 'var(--muted)' }}>{(qty / 1000).toFixed(2)} ton</div>
+                  )}
                 </td>
-                <td style={{ ...td, textAlign: 'right', fontWeight: 800, whiteSpace: 'nowrap' }}>
-                  {r.subtotal !== null ? formatPKR(r.subtotal) : '—'}
-                </td>
+                {showCosts && (
+                  <td style={{ ...td, ...num }}>
+                    {r.unit_rate !== null ? formatPKR(r.unit_rate) : <span style={{ color: WARNING_AMBER, fontWeight: 600 }}>not yet available</span>}
+                  </td>
+                )}
+                {showCosts && <td style={{ ...td, ...num, fontWeight: 700 }}>{amount !== null ? formatPKR(amount) : '—'}</td>}
                 <td style={{ ...td, whiteSpace: 'nowrap' }}>
                   <Link href={`/suppliers?material=${MATERIAL_SUPPLIER[r.item_key]}`} style={{ fontSize: '12px', fontWeight: 600, color: '#2563eb', textDecoration: 'none' }}>
                     Find suppliers →
@@ -144,14 +212,21 @@ function MaterialsTable({ lineItems }: { lineItems: BoqLineItem[] }) {
                 </td>
               </tr>
             ))}
-            <tr>
-              <td style={{ ...td, fontWeight: 800, background: '#f9fafb' }} colSpan={3}>Materials total</td>
-              <td style={{ ...td, textAlign: 'right', fontWeight: 800, background: '#f9fafb', whiteSpace: 'nowrap' }}>{formatPKR(total)}</td>
-              <td style={{ ...td, background: '#f9fafb' }}></td>
-            </tr>
+            {showCosts && (
+              <tr>
+                <td style={{ ...td, fontWeight: 800, background: '#f9fafb' }} colSpan={4}>Materials cost</td>
+                <td style={{ ...td, ...num, fontWeight: 800, background: '#f9fafb' }}>{formatPKR(total)}</td>
+                <td style={{ ...td, background: '#f9fafb' }}></td>
+              </tr>
+            )}
           </tbody>
         </table>
       </div>
+      <p style={{ fontSize: '12px', color: 'var(--muted)', margin: 0, padding: '10px 16px 14px', borderTop: '1px solid var(--border)' }}>
+        <strong>Basis:</strong> consumption per sq ft is taken from a completed 2,700 sq ft house (cement, steel, bricks, sand,
+        crush, doors, windows) and scaled to your covered area, finish level and basement. Paint is worked out from wall area.
+        One house is one sample, so treat these as planning figures and confirm with your architect before ordering.
+      </p>
     </section>
   );
 }
@@ -484,30 +559,29 @@ export function EstimateResults({ result }: Props) {
             }}
           >
             <div style={{ flex: 1, minWidth: '200px' }}>
-              <p style={{ fontSize: '13px', color: 'var(--muted)', fontWeight: 600 }}>
-                {result.state === 'FULL' ? 'Materials & selected works (BOQ) total' : 'Materials & selected works (BOQ), some rates missing'}
+              <p style={{ fontSize: '13px', color: 'var(--muted)', fontWeight: 600 }}>MATERIAL BOQ FOR</p>
+              <p style={{ fontSize: '32px', fontWeight: 800, marginTop: '4px' }}>
+                {Math.round(result.area_sqft).toLocaleString()} sq ft
               </p>
-              {result.state === 'FULL' ? (
-                <p style={{ fontSize: '32px', fontWeight: 800, marginTop: '4px' }}>
-                  {formatPKR(result.total_estimate)}
-                </p>
-              ) : (
-                <>
-                  <p style={{ fontSize: '32px', fontWeight: 800, marginTop: '4px', color: WARNING_AMBER }}>
-                    {result.partial_subtotal !== null ? formatPKR(result.partial_subtotal) : '—'}
-                  </p>
-                  {result.missing_major_items.length > 0 && (
-                    <p style={{ fontSize: '13px', color: WARNING_AMBER, marginTop: '6px' }}>
-                      Missing rates for: {result.missing_major_items.join(', ')}. Not included in this materials figure{result.whole_house ? '; the whole-house estimate above already covers them' : ''}.
-                    </p>
-                  )}
-                </>
-              )}
               <p style={{ fontSize: '13px', color: 'var(--muted)', marginTop: '6px' }}>
-                {result.area} {result.area_unit === 'MARLA' ? 'Marla' : 'sq ft'} ({result.area_sqft.toLocaleString()}{' '}
-                sq ft total) · {result.floors} floor{result.floors > 1 ? 's' : ''}
+                {result.area} {result.area_unit === 'MARLA' ? 'Marla' : 'sq ft'} entered · {result.floors} floor{result.floors > 1 ? 's' : ''}
                 {result.basement ? ' + basement' : ''} · {result.finish_level}
               </p>
+              <p style={{ fontSize: '13px', color: 'var(--text)', marginTop: '8px' }}>
+                Quantities below are worked out per sq ft. Estimated cost of these materials:{' '}
+                <strong>
+                  {result.state === 'FULL'
+                    ? formatPKR(result.total_estimate)
+                    : result.partial_subtotal !== null
+                      ? `${formatPKR(result.partial_subtotal)} (some rates missing)`
+                      : 'rates not yet available'}
+                </strong>
+              </p>
+              {result.state !== 'FULL' && result.missing_major_items.length > 0 && (
+                <p style={{ fontSize: '13px', color: WARNING_AMBER, marginTop: '6px' }}>
+                  Missing rates for: {result.missing_major_items.join(', ')}. Quantities are still shown.
+                </p>
+              )}
             </div>
             <ConfidenceGauge score={result.confidence_score} size="lg" />
           </div>
@@ -532,7 +606,7 @@ export function EstimateResults({ result }: Props) {
             Materials &amp; selected works (BOQ): cement, steel, bricks, sand, crush, doors, windows, rough-in. Labour,
             tiles, wood, paint, sanitary ware and site work are in the whole-house estimate above.
           </p>
-          <MaterialsTable lineItems={result.line_items} />
+          <MaterialsTable lineItems={result.line_items} areaSqft={result.area_sqft} />
 
           <p style={{ fontSize: '13px', fontWeight: 700, margin: '4px 0 -8px' }}>Same lines by build step</p>
           <BoqList lineItems={result.line_items} basement={result.basement} />
