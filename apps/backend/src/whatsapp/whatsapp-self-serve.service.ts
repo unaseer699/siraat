@@ -265,8 +265,19 @@ export class WhatsappSelfServeService {
     return this.accountRepo.save(row);
   }
 
-  listAccounts(): Promise<WhatsappAccountEntity[]> {
-    return this.accountRepo.find({ order: { created_at: 'DESC' } });
+  // Admin list: each account with its project count and saved-expense usage.
+  async listAccounts(): Promise<
+    Array<WhatsappAccountEntity & { projects: number; expenses_used: number; is_active_paid: boolean }>
+  > {
+    const rows = await this.accountRepo.find({ order: { created_at: 'DESC' } });
+    return Promise.all(
+      rows.map(async (a) => {
+        const maps = await this.mappingRepo.find({ where: { wa_id: a.wa_id, created_by: SELF_SERVE_CREATED_BY } });
+        let used = 0;
+        for (const m of maps) used += await this.cpSvc.countActiveExpenses(m.project_ref);
+        return Object.assign(a, { projects: maps.length, expenses_used: used, is_active_paid: this.isActivePaid(a) });
+      }),
+    );
   }
 
   private async reply(to: string, text: string): Promise<void> {

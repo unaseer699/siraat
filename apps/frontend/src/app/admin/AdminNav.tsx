@@ -13,7 +13,8 @@ type AdminSection =
   | 'projects'
   | 'whatsapp-review'
   | 'whatsapp-listings'
-  | 'ground-reports';
+  | 'ground-reports'
+  | 'whatsapp-plans';
 
 const SECTIONS: { key: AdminSection; href: string; label: string }[] = [
   { key: 'candidates', href: '/admin/candidates', label: 'Candidate Societies' },
@@ -47,6 +48,8 @@ const SECTIONS: { key: AdminSection; href: string; label: string }[] = [
   { key: 'whatsapp-listings', href: '/admin/whatsapp-listings', label: 'WhatsApp Listings' },
   // GROUND-CONDITION REPORTS — review queue for owner/builder reports.
   { key: 'ground-reports', href: '/admin/ground-reports', label: 'Ground Reports' },
+  // Premium live-project plans: who is on the free trial, who has paid.
+  { key: 'whatsapp-plans', href: '/admin/whatsapp-plans', label: 'WhatsApp Plans' },
 ];
 
 // Shared nav row so the admin tools are reachable from one another instead of

@@ -1984,3 +1984,35 @@ export async function setBillVisibility(projectId: string, billId: string, visib
 export async function deleteBill(projectId: string, billId: string) {
   return apiFetch(`/v1/admin/projects/${projectId}/bills/${billId}`, { method: 'DELETE' });
 }
+
+
+// SELF-SERVE LIVE PROJECT PLANS (premium) — one row per WhatsApp number.
+export type WhatsappPlan = 'TRIAL' | 'PAID' | 'BLOCKED';
+
+export interface WhatsappAccount {
+  id: string;
+  wa_id: string;
+  plan: WhatsappPlan;
+  trial_expense_limit: number;
+  paid_until: string | null;
+  created_at: string;
+  projects: number;
+  expenses_used: number;
+  is_active_paid: boolean;
+}
+
+export async function fetchWhatsappAccounts(): Promise<WhatsappAccount[]> {
+  return apiFetch<WhatsappAccount[]>('/v1/admin/whatsapp-accounts');
+}
+
+export async function setWhatsappAccountPlan(body: {
+  wa_id: string;
+  plan: WhatsappPlan;
+  paid_until?: string | null;
+  trial_expense_limit?: number;
+}): Promise<void> {
+  await apiFetch('/v1/admin/whatsapp-accounts', {
+    method: 'POST',
+    body: JSON.stringify({ paid_until: null, ...body }),
+  });
+}
