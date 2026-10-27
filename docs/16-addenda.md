@@ -27,3 +27,26 @@ Property.owner_ref: UUID → User [nullable]
 ```
 
 ---
+
+**Addendum 4 (Phase 14, on Phase 10's DevOps & Cloud Infrastructure — founder decision, 2026-10-27):**
+```
+Launch hosting is Vercel (frontend) + Cloudways (backend), NOT
+DigitalOcean App Platform. Phase 10's DigitalOcean specification and
+its AWS migration target remain the frozen reference for a later move;
+they are not the launch stack.
+
+Frontend:  Vercel (Next.js). Browser calls go through the same-origin
+           /api/proxy route, which holds the backend credentials
+           server-side.
+Backend:   Cloudways (NestJS / Fastify), deployed by the founder after
+           each push to main.
+Database:  PostgreSQL with the six context schemas (init-schemas.sql).
+           Schema changes are applied by hand from docker/migrations/
+           (no migration runner yet — REVIEW_BACKLOG item 10).
+Storage:   S3-compatible bucket, configured through the S3_* backend
+           variables (private, pre-signed URLs, as Phase 10 specified).
+CI/CD:     Founder-triggered redeploys. No automatic deploy pipeline.
+
+No architectural law changes: schemas, invariants and API contracts
+are unaffected by the hosting choice.
+```

@@ -16,12 +16,12 @@ Referenced directly by `CLAUDE.md` for Claude Code sessions.
 | [09-microservices.md](09-microservices.md) | Phase 7 — Modular monolith, extraction triggers |
 | [10-event-driven-architecture.md](10-event-driven-architecture.md) | Phase 8 — Tiered delivery, event envelope |
 | [11-security-iam.md](11-security-iam.md) | Phase 9 — OBO tokens, per-context HMAC keys |
-| [12-devops-infrastructure.md](12-devops-infrastructure.md) | Phase 10 — DigitalOcean stack, cost model |
+| [12-devops-infrastructure.md](12-devops-infrastructure.md) | Phase 10 — DigitalOcean stack, cost model (launch hosting is Vercel + Cloudways: see Addendum 4) |
 | [13-api-contracts.md](13-api-contracts.md) | Phase 11 — REST/GraphQL hybrid, response schemas |
 | [14-prds.md](14-prds.md) | Phase 12 — Personas, screens, Product Laws, MVP scope |
 | [15-standing-architectural-laws.md](15-standing-architectural-laws.md) | All 18 cross-phase laws, consolidated |
 | [16-addenda.md](16-addenda.md) | All additive amendments, chronological |
-| [17-sprint-planning.md](17-sprint-planning.md) | Phase 13 — Capability plan, SCR process, Capability 1 handoff |
+| [17-sprint-planning.md](17-sprint-planning.md) | Phase 13 — Capability plan, SCR process, Capability 1 handoff, implementation status |
 
 **For Claude Code:** start with `15-standing-architectural-laws.md` and
 `17-sprint-planning.md` for the current build task; consult the

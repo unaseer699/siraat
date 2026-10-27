@@ -46,8 +46,9 @@ Backend:   Node.js / TypeScript — NestJS + Fastify
 Frontend:  Next.js / React — TypeScript
 Repo:      Single monorepo (pnpm workspaces)
 Local dev: Docker Compose — Postgres, Redis, MinIO (S3 stand-in)
-Prod:      DigitalOcean (App Platform, Managed Postgres, Spaces) —
-           per Phase 10, NOT AWS at launch
+Prod:      Vercel (frontend) + Cloudways (backend) — founder decision,
+           see Addendum 4 in 16-addenda.md. Phase 10's DigitalOcean
+           spec is not the launch stack.
 ```
 
 ---
@@ -226,7 +227,7 @@ already exists and is ready to use.
 
 ### Operations notes
 
-- **Hosting (current):** backend on Cloudways, frontend on Vercel. This differs from the Phase 10 plan (DigitalOcean); `docs/DEPLOYMENT.md` still describes the DO path.
+- **Hosting:** frontend on Vercel, backend on Cloudways (Addendum 4). Redeploys are triggered by the founder after each push. `docs/DEPLOYMENT.md` is the runbook for this stack.
 - **Migrations:** applied by hand, in order, from `docker/migrations/` (001 to 027), one statement at a time. All use `IF NOT EXISTS`, so a rerun is safe. There is no migration runner yet (backlog item 10).
 - **Backend settings used by recent work:** `ANTHROPIC_API_KEY` (smart expense reader), `WHATSAPP_ACCESS_TOKEN`, `WHATSAPP_PHONE_NUMBER_ID`, `WHATSAPP_VERIFY_TOKEN`, `WHATSAPP_APP_SECRET`, `WHATSAPP_ADMIN_NUMBERS`, `PUBLIC_SITE_URL` (links sent on WhatsApp), `FRONTEND_URL` (CORS).
 - **Known data rule:** society `min_price` / `max_price` are stored in PKR, not Lakh. A value below 100,000 is almost certainly a unit mistake.

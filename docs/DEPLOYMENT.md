@@ -1,68 +1,80 @@
-# Siraat — Production Deployment Checklist
+# Siraat — Deployment Runbook (Vercel + Cloudways)
 
-This document covers what must be done before and during a first production deploy
-to DigitalOcean App Platform. Work through every section in order.
+Launch hosting is **Vercel** for the frontend and **Cloudways** for the backend
+(Addendum 4 in `16-addenda.md`). Deploys are triggered by the founder after a push to
+`main`. The DigitalOcean (`.do/app.yaml`) and Fly (`fly.toml`) files in the repo are not
+used.
 
 ---
 
-## 1. Environment Variables
+## 1. Environment variables
 
-All secrets are set in the **DO App Platform → App Settings → Environment Variables**
-panel, not in `.do/app.yaml`. The `app.yaml` marks them as `type: SECRET` to signal
-that DO should prompt for the value; it never stores the value itself.
+### Backend (Cloudways application settings)
 
-| Variable | Component | Notes |
+| Variable | Required | Notes |
 |---|---|---|
-| `DATABASE_URL` | Backend | Injected automatically by DO when you attach the Managed Postgres database. Verify it starts with `postgres://`. |
-| `REDIS_URL` | Backend | Placeholder for future Redis-backed throttler/queue. Set to any valid Redis URL or a dummy value until needed. |
-| `SIRAAT_API_KEY` | Backend + Frontend | The shared Bearer token all API clients must send. Generate a strong random string (e.g. `openssl rand -hex 32`). Set the **same value** in both the backend env var and the frontend's own `SIRAAT_API_KEY` (server-side only — no `NEXT_PUBLIC_` prefix, never baked into the browser bundle; read by the frontend's proxy route at request time). |
-| `NEXT_PUBLIC_API_URL` | Frontend (build-time) | Auto-resolved from the backend component's public URL by DO. No manual action needed. |
-| `FRONTEND_URL` | Backend | Auto-resolved from the frontend component's public URL. Used for CORS. |
+| `DATABASE_URL` | yes | PostgreSQL connection string. |
+| `SIRAAT_API_KEY` | yes | Shared Bearer key. Must equal the frontend's `SIRAAT_API_KEY`. |
+| `FRONTEND_URL` | yes | The Vercel site URL. Used for CORS. |
+| `PUBLIC_SITE_URL` | yes | The Vercel site URL. Used for links sent on WhatsApp (report link, Real builds link, alerts). |
+| `NODE_ENV` | yes | `production`. Turns TypeORM `synchronize` off. |
+| `PORT` | if needed | Port the backend listens on. |
+| `S3_BUCKET`, `S3_ENDPOINT`, `S3_ACCESS_KEY`, `S3_SECRET_KEY` | yes | S3-compatible private bucket (evidence, house plans, bills, drawings). `S3_REGION` is optional. |
+| `ANTHROPIC_API_KEY` | yes | Smart expense reader, layout reader. Without a valid key the plain reader is used and sections are not detected. `ANTHROPIC_MODEL` and `ANTHROPIC_LAYOUT_MODEL` are optional overrides. |
+| `WHATSAPP_ACCESS_TOKEN` | yes | Use a permanent system-user token; a temporary one expires. |
+| `WHATSAPP_PHONE_NUMBER_ID` | yes | |
+| `WHATSAPP_VERIFY_TOKEN` | yes | Used for Meta's webhook handshake. |
+| `WHATSAPP_APP_SECRET` | yes | Verifies the signature on every webhook call. |
+| `WHATSAPP_ADMIN_NUMBERS` | recommended | Comma-separated digits. These numbers can post to any project and are never limited by the free-trial cap. |
+| `WHATSAPP_ALERT_TEMPLATE`, `WHATSAPP_ALERT_TEMPLATE_LANG` | for plot alerts | Approved template used outside the 24-hour window. |
+| `WHATSAPP_DRAFT_STALE_HOURS`, `WHATSAPP_LISTING_EXPIRY_DAYS`, `LISTING_STALE_DAYS` | optional | Tuning values with defaults. |
+
+### Frontend (Vercel project settings)
+
+| Variable | Notes |
+|---|---|
+| `NEXT_PUBLIC_API_URL` | The backend's public URL (the Cloudways application URL). Build-time. |
+| `SIRAAT_API_KEY` | Same value as the backend. Server-side only; never prefix with `NEXT_PUBLIC_`. |
+| `ADMIN_PANEL_PASSWORD` | Admin login. |
+| `NEXT_PUBLIC_SIRAAT_WHATSAPP` | Optional override of the "Ask Siraat" WhatsApp number (default is set in `lib/siraatContact.ts`). |
+
+### Meta (WhatsApp Cloud API)
+
+- Webhook callback URL: `<backend URL>/v1/webhooks/whatsapp`, with the same verify token as `WHATSAPP_VERIFY_TOKEN`.
+- The app must be live (or the recipient added as a test number), otherwise replies fail with error 131030, "Recipient phone number not in allowed list".
 
 ---
 
-## 2. Database Migration Strategy
+## 2. Database
 
-**`synchronize: true` is NOT safe for production.**
+Schema changes are applied **by hand**, one statement at a time (Adminer), in this order,
+before deploying the backend that needs them. There is no migration runner yet
+(REVIEW_BACKLOG item 10).
 
-The backend currently sets `synchronize: process.env.NODE_ENV !== 'production'`, which
-means synchronize is disabled when `NODE_ENV=production`. This is the correct guard.
+1. A fresh database first needs the schemas: run `docker/init-schemas.sql`.
+2. Apply every file in `docker/migrations/` in numeric order (001 to 027 so far). Each uses
+   `IF NOT EXISTS`, so running one again is safe.
+3. With `NODE_ENV=production` TypeORM does not create tables. For a brand-new database,
+   either run once with `NODE_ENV=development` (fresh, empty database only), then switch
+   back, or create the tables from the entity definitions by hand.
 
-**Before first deploy:**
+**Rule:** run a migration *before* deploying code that reads the new column or table.
+For example, migration 026 (supplier phones, address, map link) must exist before the
+backend that selects those columns goes live, or supplier pages return errors.
 
-1. The DO Managed Postgres database starts empty. You must run schema creation manually:
-
-   ```bash
-   # Connect to the DO database from your local machine (get the connection string from DO panel)
-   psql $DATABASE_URL -f docker/init-schemas.sql
-   ```
-
-   This creates all schemas (`property_intelligence`, `trust`, `market_intelligence`, etc.)
-   and the GIN index on `property_types`.
-
-2. On first startup with a fresh database, TypeORM will **not** auto-create tables
-   (synchronize is off). Before going live, either:
-
-   **Option A (recommended for early stage):** Temporarily set `NODE_ENV=development` on
-   the DO backend component, deploy once, then switch back to `production`. This lets
-   TypeORM synchronize the tables on the fresh database exactly once. Then redeploy with
-   `production`. This is safe only on a fresh database with no real data.
-
-   **Option B (recommended before real data exists):** Add a TypeORM migration runner.
-   The codebase does not yet have migrations — this is a known REVIEW_BACKLOG item
-   targeted for a future capability. When implemented, the migration step replaces Option A.
+After applying migrations, check them with a query against `information_schema.columns`
+(see the verification query in the relevant chat or PR).
 
 ---
 
-## 3. Seed Data
+## 3. Seed data
 
-**Production seeding is a manual, human-verified process. It is never automated.**
+Production data is entered by humans through the admin screens. The scripts in
+`scripts/seed-*.sql` are for local development only: they contain fake data at stable
+UUIDs and must never be run against production.
 
-The scripts in `scripts/seed-*.sql` are for local development only. Do not run them
-against the production database — they contain fake data at stable UUIDs, which would
-pollute the trust record.
-
-To onboard a real society, use the admin tool:
+To onboard one real society from the command line (evidence must match real,
+manually verified documents):
 
 ```bash
 pnpm --filter backend exec ts-node \
@@ -70,44 +82,34 @@ pnpm --filter backend exec ts-node \
   scripts/admin-add-society.ts
 ```
 
-Point it at the production database by setting `DATABASE_URL` in your shell before
-running. Walk through one society at a time. Evidence must correspond to real documents
-that have been manually verified.
+Set `DATABASE_URL` in your shell first.
 
 ---
 
-## 4. Deploy Steps
+## 4. Deploy steps
 
-1. Push code to `main` (or your release branch).
-2. In the DO panel: create the app from `.do/app.yaml` (or use `doctl apps create --spec .do/app.yaml`).
-3. Set all SECRET env vars in the panel (see Section 1).
-4. Attach the Managed Postgres database to the backend component.
-5. Run `init-schemas.sql` against the new database (Section 2, step 1).
-6. Deploy the backend component. Verify `/health` returns `{"status":"ok"}`.
-7. If using Option A above: switch `NODE_ENV` to `development` temporarily, redeploy,
-   then switch back to `production` and redeploy again.
-8. Deploy the frontend component (needs backend URL for `NEXT_PUBLIC_API_URL`).
-9. Run the smoke test against the staging URL to confirm the system is alive:
+1. Push to `main`.
+2. Run any new migrations from `docker/migrations/` (Section 2).
+3. Add or change any backend environment variables (Section 1).
+4. Redeploy the backend on Cloudways, then restart it so new variables are read.
+   Check `<backend URL>/health` returns `{"status":"ok"}`.
+5. Redeploy the frontend on Vercel (it needs `NEXT_PUBLIC_API_URL`).
+6. Smoke test:
    ```bash
-   SMOKE_BASE=https://your-backend-url.ondigitalocean.app \
-   SMOKE_KEY=your-api-key \
+   SMOKE_BASE=https://<your-backend-url> \
+   SMOKE_KEY=<your-api-key> \
    ts-node -P scripts/tsconfig.scripts.json scripts/qa-smoke-test.ts
    ```
+7. For WhatsApp changes, send a message from a test number and confirm the reply arrives.
+
+A backend-only change needs no Vercel redeploy, and a frontend-only change needs no backend
+redeploy or SQL.
 
 ---
 
-## 5. DO Spaces (File Storage)
+## 5. Known gaps (REVIEW_BACKLOG)
 
-The Evidence Submission flow stores `file_ref` strings but does not yet upload real
-files. When file upload is implemented, provision a DO Spaces bucket and wire its
-endpoint + access keys to the backend via env vars.
-
----
-
-## 6. Known Gaps (REVIEW_BACKLOG)
-
-- TypeORM migrations are not yet implemented — synchronize-once is the interim strategy.
-- Redis-backed throttler: currently in-memory (resets on redeploy). Suitable for
-  single-instance deploys; wire Redis when scaling to multiple instances.
-- Full OBO/user-level auth: BearerGuard uses a single shared key. Multi-user auth is
-  a future capability.
+- No migration runner and no startup check that the schemas exist (item 10).
+- Throttling is in memory and resets on restart. Fine for one instance; wire Redis before running several.
+- Auth is one shared key plus the admin password. Per-user login is a future capability (item 9).
+- A project's private report link is its id; it cannot be revoked until real user login exists.
