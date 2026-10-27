@@ -412,7 +412,11 @@ export class WhatsappService {
 
     // BILL PHOTOS — a photo/PDF sent soon after a saved expense list is
     // attached to the matching expense (never to listings or the unmapped queue).
-    if (this.billSvc && !isListingForwarder) {
+    // Applies to listing-forwarder numbers too: the founder uses one number for
+    // inventory and expenses, and a photo within 2 hours of saving expenses is
+    // a bill. canAttach is false when no expense list was saved recently, so
+    // normal inventory forwarding is untouched.
+    if (this.billSvc) {
       let canBill = false;
       try {
         canBill = await this.billSvc.canAttach(msg.from, msg.type);
