@@ -20,6 +20,12 @@ export function isNewProjectMessage(text: string | null): boolean {
   return extractNewProjectName(text) !== null;
 }
 
+const REPORT_RE = /^\s*(?:my\s+)?(?:report|link|dashboard)\s*[.!]?\s*$/i;
+
+export function isReportRequest(text: string | null): boolean {
+  return !!text && REPORT_RE.test(text);
+}
+
 export const SELF_SERVE_CREATED_BY = 'self-serve';
 
 export type QuotaResult = { allowed: true } | { allowed: false; reply: string };
@@ -93,6 +99,34 @@ export class WhatsappSelfServeService {
     } catch (err) {
       this.logger.error(`New project failed for ${maskPhone(waId)}`, err instanceof Error ? err.stack : String(err));
       await this.reply(waId, 'I could not create the project right now. Please try again in a minute.');
+    }
+  }
+
+  // "REPORT" from a number with linked projects: reply with each project's
+  // private cost-report link. The project id is an unguessable UUID, so the
+  // link itself is the secret; nothing else is exposed. Returns false when the
+  // sender has no linked project (caller routes the message normally).
+  async handleReportRequest(message: WhatsappInboundMessageEntity): Promise<boolean> {
+    const waId = message.wa_id;
+    try {
+      const mappings = await this.mappingRepo.find({ where: { wa_id: waId }, order: { created_at: 'ASC' } });
+      if (mappings.length === 0) return false;
+      await this.inboundRepo.update({ id: message.id }, { status: 'PARSED' });
+      const base = (process.env.PUBLIC_SITE_URL ?? process.env.FRONTEND_URL ?? '').replace(/\/$/, '');
+      const lines: string[] = [];
+      for (const m of mappings) {
+        const p = await this.cpSvc.findProjectById(m.project_ref);
+        if (p) lines.push(`${p.name}\n${base}/project/${p.id}`);
+      }
+      if (lines.length === 0) return false;
+      await this.reply(
+        waId,
+        `Your cost report${lines.length > 1 ? 's' : ''} (private link${lines.length > 1 ? 's' : ''} — do not share unless you want others to see your expenses):\n\n${lines.join('\n\n')}\n\nOpen it to see totals by section and use Download / Print PDF.`,
+      );
+      return true;
+    } catch (err) {
+      this.logger.error(`Report link failed for ${maskPhone(waId)}`, err instanceof Error ? err.stack : String(err));
+      return false;
     }
   }
 

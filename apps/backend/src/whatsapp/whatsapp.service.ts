@@ -18,7 +18,7 @@ import { WhatsappListingForwarderService } from './whatsapp-listing-forwarder.se
 import { WhatsappListingParsingService } from './whatsapp-listing-parsing.service';
 import { WhatsappListingAlertService } from './whatsapp-listing-alert.service';
 import { WhatsappGroundReportService } from './whatsapp-ground-report.service';
-import { WhatsappSelfServeService, isNewProjectMessage } from './whatsapp-self-serve.service';
+import { WhatsappSelfServeService, isNewProjectMessage, isReportRequest } from './whatsapp-self-serve.service';
 import { WhatsappProjectResolverService } from './whatsapp-project-resolver.service';
 import { WhatsappExpenseBatchService, isExpenseBatchMessage, isLedgerLinesMessage, isCancelReply } from './whatsapp-expense-batch.service';
 
@@ -258,6 +258,32 @@ export class WhatsappService {
       } catch (err) {
         if (isUniqueViolation(err)) return { stored: false, duplicate: true };
         throw err;
+      }
+    }
+
+    // "REPORT" — a project owner asks for their private cost-report link.
+    if (this.selfServeSvc && isReportRequest(msg.text) && !((await this.listingForwarderSvc?.isForwarder(msg.from)) ?? false)) {
+      const hasMapping = (await this.mappingRepo.count({ where: { wa_id: msg.from } })) > 0;
+      if (hasMapping) {
+        try {
+          const saved = await this.inboundRepo.save(
+            this.inboundRepo.create({
+              wa_message_id: msg.id,
+              wa_id: msg.from,
+              message_type: msg.type,
+              message_text: msg.text,
+              wa_timestamp: msg.timestamp,
+              raw_payload: msg.rawPayload,
+              project_ref: null,
+              status: 'RECEIVED',
+            }),
+          );
+          void this.selfServeSvc.handleReportRequest(saved);
+          return { stored: true, duplicate: false, message: saved };
+        } catch (err) {
+          if (isUniqueViolation(err)) return { stored: false, duplicate: true };
+          throw err;
+        }
       }
     }
 

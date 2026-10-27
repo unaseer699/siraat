@@ -1,4 +1,4 @@
-import { WhatsappSelfServeService, extractNewProjectName, isNewProjectMessage } from './whatsapp-self-serve.service';
+import { WhatsappSelfServeService, extractNewProjectName, isNewProjectMessage, isReportRequest } from './whatsapp-self-serve.service';
 
 function make(account: Record<string, unknown> | null, owned = 0, used = 0) {
   const accountRepo = {
@@ -80,5 +80,30 @@ describe('WhatsappSelfServeService', () => {
     process.env.WHATSAPP_ADMIN_NUMBERS = '923001112222';
     const t = make({ plan: 'TRIAL', trial_expense_limit: 1, paid_until: null }, 0, 100);
     expect((await t.svc.checkExpenseQuota('923001112222', 'p1', 5)).allowed).toBe(true);
+  });
+});
+
+describe('report link', () => {
+  it('recognises REPORT messages only', () => {
+    expect(isReportRequest('Report')).toBe(true);
+    expect(isReportRequest('my report!')).toBe(true);
+    expect(isReportRequest('report on cement')).toBe(false);
+  });
+
+  it('replies with the private link for each linked project', async () => {
+    process.env.PUBLIC_SITE_URL = 'https://app.example.com/';
+    const t = make(null);
+    (t.mappingRepo as unknown as { find: jest.Mock }).find = jest.fn().mockResolvedValue([{ project_ref: 'p1' }]);
+    (t.cpSvc as unknown as { findProjectById: jest.Mock }).findProjectById = jest.fn().mockResolvedValue({ id: 'p1', name: 'My House' });
+    const ok = await t.svc.handleReportRequest(msg('REPORT'));
+    expect(ok).toBe(true);
+    expect(t.outbound.sendTextMessage.mock.calls[0][1]).toContain('https://app.example.com/project/p1');
+    delete process.env.PUBLIC_SITE_URL;
+  });
+
+  it('returns false when the sender has no project', async () => {
+    const t = make(null);
+    (t.mappingRepo as unknown as { find: jest.Mock }).find = jest.fn().mockResolvedValue([]);
+    expect(await t.svc.handleReportRequest(msg('REPORT'))).toBe(false);
   });
 });
