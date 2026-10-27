@@ -1,4 +1,4 @@
-import { WhatsappSelfServeService, extractNewProjectName, isNewProjectMessage, isReportRequest } from './whatsapp-self-serve.service';
+import { WhatsappSelfServeService, extractNewProjectName, isNewProjectMessage, isReportRequest, parseProjectCommand } from './whatsapp-self-serve.service';
 
 function make(account: Record<string, unknown> | null, owned = 0, used = 0) {
   const accountRepo = {
@@ -105,5 +105,73 @@ describe('report link', () => {
     const t = make(null);
     (t.mappingRepo as unknown as { find: jest.Mock }).find = jest.fn().mockResolvedValue([]);
     expect(await t.svc.handleReportRequest(msg('REPORT'))).toBe(false);
+  });
+});
+
+describe('project commands', () => {
+  it('parses commands and optional names', () => {
+    expect(parseProjectCommand('SHARE')).toEqual({ action: 'SHARE', name: null });
+    expect(parseProjectCommand('share yes')).toEqual({ action: 'SHARE_YES', name: null });
+    expect(parseProjectCommand('Share YES My House')).toEqual({ action: 'SHARE_YES', name: 'My House' });
+    expect(parseProjectCommand('unshare: Villa')).toEqual({ action: 'UNSHARE', name: 'Villa' });
+    expect(parseProjectCommand('Project Name: X\nCement 50 bags - 77000')).toBeNull();
+    expect(parseProjectCommand('sharing the bill')).toBeNull();
+  });
+
+  function withProjects(projects: Array<Record<string, unknown>>) {
+    const t = make(null);
+    (t.mappingRepo as unknown as { find: jest.Mock }).find = jest.fn().mockResolvedValue(projects.map((p) => ({ project_ref: p.id })));
+    (t.cpSvc as unknown as Record<string, jest.Mock>).findProjectById = jest.fn(async (id: string) => projects.find((p) => p.id === id));
+    (t.cpSvc as unknown as Record<string, jest.Mock>).updateProject = jest.fn().mockResolvedValue({});
+    return t;
+  }
+  const home = { id: 'p1', name: 'My House', status: 'ACTIVE', is_public: false };
+  const run = async (t: ReturnType<typeof withProjects>, text: string) => {
+    const matched = await t.svc.matchProjectCommand('923001112222', text);
+    if (matched) await t.svc.handleProjectCommand(msg(text), matched);
+    return matched;
+  };
+  const upd = (t: ReturnType<typeof withProjects>) => (t.cpSvc as never as Record<string, jest.Mock>).updateProject;
+
+  it('SHARE asks for confirmation and changes nothing', async () => {
+    const t = withProjects([home]);
+    expect(await run(t, 'SHARE')).not.toBeNull();
+    expect(upd(t)).not.toHaveBeenCalled();
+    expect(t.outbound.sendTextMessage.mock.calls[0][1]).toContain('SHARE YES');
+  });
+
+  it('SHARE YES publishes and says it appears once finished', async () => {
+    const t = withProjects([home]);
+    await run(t, 'SHARE YES');
+    expect(upd(t)).toHaveBeenCalledWith('p1', { is_public: true });
+    expect(t.outbound.sendTextMessage.mock.calls[0][1]).toContain('DONE');
+  });
+
+  it('DONE marks complete; UNSHARE hides', async () => {
+    const t = withProjects([{ ...home, is_public: true }]);
+    await run(t, 'DONE');
+    expect(upd(t)).toHaveBeenCalledWith('p1', { status: 'COMPLETE' });
+    await run(t, 'UNSHARE');
+    expect(upd(t)).toHaveBeenCalledWith('p1', { is_public: false });
+  });
+
+  it('ordinary text that starts with a command word is not a command', async () => {
+    const t = withProjects([home]);
+    expect(await run(t, 'Done with the slab, paid 50000')).toBeNull();
+    expect(upd(t)).not.toHaveBeenCalled();
+    expect(await run(t, 'done my house')).not.toBeNull();
+  });
+
+  it('with several projects it asks which one', async () => {
+    const t = withProjects([home, { id: 'p2', name: 'Shop Plaza', status: 'ACTIVE', is_public: false }]);
+    await run(t, 'SHARE YES');
+    expect(upd(t)).not.toHaveBeenCalled();
+    expect(t.outbound.sendTextMessage.mock.calls[0][1]).toContain('Which project');
+    await run(t, 'SHARE YES shop plaza');
+    expect(upd(t)).toHaveBeenCalledWith('p2', { is_public: true });
+  });
+
+  it('returns null when the sender has no self-serve project', async () => {
+    expect(await run(withProjects([]), 'SHARE')).toBeNull();
   });
 });

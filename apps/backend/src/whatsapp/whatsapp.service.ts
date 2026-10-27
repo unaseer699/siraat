@@ -19,7 +19,7 @@ import { WhatsappListingParsingService } from './whatsapp-listing-parsing.servic
 import { WhatsappListingAlertService } from './whatsapp-listing-alert.service';
 import { WhatsappGroundReportService } from './whatsapp-ground-report.service';
 import { WhatsappBillService } from './whatsapp-bill.service';
-import { WhatsappSelfServeService, isNewProjectMessage, isReportRequest } from './whatsapp-self-serve.service';
+import { WhatsappSelfServeService, isNewProjectMessage, isReportRequest, parseProjectCommand } from './whatsapp-self-serve.service';
 import { WhatsappProjectResolverService } from './whatsapp-project-resolver.service';
 import { WhatsappExpenseBatchService, isExpenseBatchMessage, isLedgerLinesMessage, isCancelReply } from './whatsapp-expense-batch.service';
 
@@ -281,6 +281,39 @@ export class WhatsappService {
             }),
           );
           void this.selfServeSvc.handleReportRequest(saved);
+          return { stored: true, duplicate: false, message: saved };
+        } catch (err) {
+          if (isUniqueViolation(err)) return { stored: false, duplicate: true };
+          throw err;
+        }
+      }
+    }
+
+    // SHARE / UNSHARE / DONE / REOPEN — a self-serve owner managing their own
+    // project. Only when the text really is a command for one of their own
+    // projects (see matchProjectCommand), so ordinary words never trigger it.
+    if (this.selfServeSvc && parseProjectCommand(msg.text)) {
+      let matched: Awaited<ReturnType<WhatsappSelfServeService['matchProjectCommand']>> = null;
+      try {
+        matched = await this.selfServeSvc.matchProjectCommand(msg.from, msg.text);
+      } catch (err) {
+        this.logger.warn(`Project command check failed — routing normally: ${err instanceof Error ? err.message : String(err)}`);
+      }
+      if (matched) {
+        try {
+          const saved = await this.inboundRepo.save(
+            this.inboundRepo.create({
+              wa_message_id: msg.id,
+              wa_id: msg.from,
+              message_type: msg.type,
+              message_text: msg.text,
+              wa_timestamp: msg.timestamp,
+              raw_payload: msg.rawPayload,
+              project_ref: null,
+              status: 'RECEIVED',
+            }),
+          );
+          void this.selfServeSvc.handleProjectCommand(saved, matched);
           return { stored: true, duplicate: false, message: saved };
         } catch (err) {
           if (isUniqueViolation(err)) return { stored: false, duplicate: true };

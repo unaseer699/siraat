@@ -7,6 +7,7 @@ import { WhatsappInboundMessageEntity } from './entities/whatsapp-inbound-messag
 import { WhatsappOutboundClient } from './whatsapp-outbound.client';
 import { ConstructionProjectService } from '../construction-intelligence/construction-project.service';
 import { maskPhone } from './whatsapp-phone.util';
+import { pickClosest, nameScore } from './whatsapp-project-resolver.service';
 
 const NEW_PROJECT_RE = /^\s*(?:new|start|create)\s+project\s*[:\-]\s*(.+)$/im;
 
@@ -24,6 +25,32 @@ const REPORT_RE = /^\s*(?:my\s+)?(?:report|link|dashboard)\s*[.!]?\s*$/i;
 
 export function isReportRequest(text: string | null): boolean {
   return !!text && REPORT_RE.test(text);
+}
+
+export type ProjectCommand = { action: 'SHARE' | 'SHARE_YES' | 'UNSHARE' | 'DONE' | 'REOPEN'; name: string | null };
+
+// "SHARE", "SHARE YES", "UNSHARE", "DONE", "REOPEN", each optionally followed
+// by a project name (needed only when the sender has several projects).
+export function parseProjectCommand(text: string | null): ProjectCommand | null {
+  if (!text || text.length > 120 || text.includes('\n')) return null;
+  const m = /^\s*(share\s+yes|share|unshare|done|reopen)\b[\s:,.-]*(.*)$/i.exec(text);
+  if (!m) return null;
+  const word = m[1].toLowerCase().replace(/\s+/g, ' ');
+  const action = word === 'share yes' ? 'SHARE_YES' : (word.toUpperCase() as ProjectCommand['action']);
+  return { action, name: m[2].trim() || null };
+}
+
+export interface CommandProject {
+  id: string;
+  name: string;
+  status: string;
+  is_public: boolean;
+}
+
+export interface MatchedProjectCommand {
+  cmd: ProjectCommand;
+  projects: CommandProject[];
+  target: CommandProject | null;
 }
 
 export const SELF_SERVE_CREATED_BY = 'self-serve';
@@ -127,6 +154,81 @@ export class WhatsappSelfServeService {
     } catch (err) {
       this.logger.error(`Report link failed for ${maskPhone(waId)}`, err instanceof Error ? err.stack : String(err));
       return false;
+    }
+  }
+
+  // Decides whether a message is really a project command for this sender.
+  // A command word followed by anything that is not the name of one of their
+  // projects ("Done with the slab, paid 50000") is ordinary text, not a
+  // command. Returns null then, or when the sender has no self-serve project.
+  async matchProjectCommand(waId: string, text: string | null): Promise<MatchedProjectCommand | null> {
+    const cmd = parseProjectCommand(text);
+    if (!cmd) return null;
+    const mappings = await this.mappingRepo.find({ where: { wa_id: waId, created_by: SELF_SERVE_CREATED_BY }, order: { created_at: 'ASC' } });
+    const projects: CommandProject[] = [];
+    for (const m of mappings) {
+      const p = await this.cpSvc.findProjectById(m.project_ref);
+      if (p) projects.push({ id: p.id, name: p.name, status: p.status, is_public: p.is_public });
+    }
+    if (projects.length === 0) return null;
+    if (cmd.name) {
+      const match = pickClosest(cmd.name, projects);
+      const only = projects.length === 1 && nameScore(cmd.name, projects[0].name) >= 0.5 ? projects[0] : null;
+      const hit = match ? (projects.find((p) => p.id === match.id) ?? null) : only;
+      return hit ? { cmd, projects, target: hit } : null;
+    }
+    return { cmd, projects, target: projects.length === 1 ? projects[0] : null };
+  }
+
+  // Runs a matched command. Never throws.
+  async handleProjectCommand(message: WhatsappInboundMessageEntity, matched: MatchedProjectCommand): Promise<void> {
+    const waId = message.wa_id;
+    const { cmd, projects, target } = matched;
+    try {
+      await this.inboundRepo.update({ id: message.id }, { status: 'PARSED' });
+      if (!target) {
+        const list = projects.map((p) => `• ${p.name}`).join('\n');
+        await this.reply(waId, `Which project? Send the command with its name, e.g. "${cmd.action === 'SHARE_YES' ? 'SHARE YES' : cmd.action} ${projects[0].name}".\nYour projects:\n${list}`);
+        return;
+      }
+      const base = (process.env.PUBLIC_SITE_URL ?? process.env.FRONTEND_URL ?? '').replace(/\/$/, '');
+      switch (cmd.action) {
+        case 'SHARE':
+          await this.reply(
+            waId,
+            `Share "${target.name}" on Siraat Real builds so others can learn from your costs?\n\nPeople will see: dates, item descriptions, amounts and quantities, and totals by phase.\nNever shown: your name, number, location, vendors or bills. Avoid names or phone numbers in item descriptions.\n\nReply "SHARE YES${projects.length > 1 ? ' ' + target.name : ''}" to publish. Send UNSHARE any time to remove it.`,
+          );
+          break;
+        case 'SHARE_YES':
+          await this.cpSvc.updateProject(target.id, { is_public: true });
+          await this.reply(
+            waId,
+            target.status === 'COMPLETE'
+              ? `"${target.name}" is now on Real builds.\n${base}/real-builds/${target.id}`
+              : `Sharing is on for "${target.name}". It will appear on Real builds once you mark the house finished — send DONE then. Send UNSHARE to stop sharing.`,
+          );
+          break;
+        case 'UNSHARE':
+          await this.cpSvc.updateProject(target.id, { is_public: false });
+          await this.reply(waId, `"${target.name}" is no longer shared on Real builds.`);
+          break;
+        case 'DONE':
+          await this.cpSvc.updateProject(target.id, { status: 'COMPLETE' });
+          await this.reply(
+            waId,
+            target.is_public
+              ? `"${target.name}" is marked finished and is now on Real builds with your actual costs.\n${base}/real-builds/${target.id}`
+              : `"${target.name}" is marked finished. Send SHARE if you want it on Real builds. Send REOPEN to add more expenses as in progress.`,
+          );
+          break;
+        case 'REOPEN':
+          await this.cpSvc.updateProject(target.id, { status: 'ACTIVE' });
+          await this.reply(waId, `"${target.name}" is open again as in progress.`);
+          break;
+      }
+    } catch (err) {
+      this.logger.error(`Project command failed for ${maskPhone(waId)}`, err instanceof Error ? err.stack : String(err));
+      await this.reply(waId, 'I could not do that right now. Please try again in a minute.');
     }
   }
 
