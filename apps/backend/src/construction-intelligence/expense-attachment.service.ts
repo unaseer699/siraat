@@ -81,6 +81,38 @@ export class ExpenseAttachmentService {
     return this.toResult(row);
   }
 
+  // Server-side variant for bills that arrive as bytes (WhatsApp photos).
+  async attachFromBuffer(
+    projectId: string,
+    expenseId: string,
+    data: { data: Buffer; content_type: string; filename: string; visible_to_owner: boolean },
+  ): Promise<ExpenseAttachmentResult> {
+    if (!ALLOWED_TYPES.includes(data.content_type)) {
+      throw new BadRequestException('Only PDF, PNG, JPEG or WebP files can be attached');
+    }
+    if (data.data.length > MAX_BYTES) throw new BadRequestException('File is larger than 10 MB');
+    const expense = await this.expenseRepo.findOneBy({ id: expenseId });
+    const section = expense ? await this.sectionRepo.findOneBy({ id: expense.section_ref }) : null;
+    if (!expense || !section || section.project_ref !== projectId) {
+      throw new NotFoundException(`Expense ${expenseId} not found in project ${projectId}`);
+    }
+    const safe = data.filename.replace(/[^A-Za-z0-9._-]/g, '_').slice(0, 120);
+    const key = `projects/${projectId}/bills/${randomUUID()}-${safe}`;
+    await this.storage.uploadFile(key, data.data, data.content_type);
+    const row = await this.repo.save(
+      this.repo.create({
+        project_ref: projectId,
+        expense_ref: expenseId,
+        storage_ref: key,
+        filename: data.filename.slice(0, 200),
+        content_type: data.content_type,
+        size_bytes: String(data.data.length),
+        visible_to_owner: data.visible_to_owner,
+      }),
+    );
+    return this.toResult(row);
+  }
+
   async list(projectId: string, opts: { ownerView: boolean }): Promise<ExpenseAttachmentResult[]> {
     const rows = await this.repo.find({
       where: opts.ownerView ? { project_ref: projectId, visible_to_owner: true } : { project_ref: projectId },

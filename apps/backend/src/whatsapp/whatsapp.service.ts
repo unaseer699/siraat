@@ -18,6 +18,7 @@ import { WhatsappListingForwarderService } from './whatsapp-listing-forwarder.se
 import { WhatsappListingParsingService } from './whatsapp-listing-parsing.service';
 import { WhatsappListingAlertService } from './whatsapp-listing-alert.service';
 import { WhatsappGroundReportService } from './whatsapp-ground-report.service';
+import { WhatsappBillService } from './whatsapp-bill.service';
 import { WhatsappSelfServeService, isNewProjectMessage, isReportRequest } from './whatsapp-self-serve.service';
 import { WhatsappProjectResolverService } from './whatsapp-project-resolver.service';
 import { WhatsappExpenseBatchService, isExpenseBatchMessage, isLedgerLinesMessage, isCancelReply } from './whatsapp-expense-batch.service';
@@ -176,6 +177,7 @@ export class WhatsappService {
     @Optional() private readonly expenseBatchSvc?: WhatsappExpenseBatchService,
     @Optional() private readonly projectResolver?: WhatsappProjectResolverService,
     @Optional() private readonly selfServeSvc?: WhatsappSelfServeService,
+    @Optional() private readonly billSvc?: WhatsappBillService,
   ) {}
 
   // ── [SECURITY] Webhook verification handshake (GET) ──────────────────────
@@ -367,6 +369,38 @@ export class WhatsappService {
             }),
           );
           void this.groundReportSvc.handle(saved);
+          return { stored: true, duplicate: false, message: saved };
+        } catch (err) {
+          if (isUniqueViolation(err)) return { stored: false, duplicate: true };
+          throw err;
+        }
+      }
+    }
+
+    // BILL PHOTOS — a photo/PDF sent soon after a saved expense list is
+    // attached to the matching expense (never to listings or the unmapped queue).
+    if (this.billSvc && !isListingForwarder) {
+      let canBill = false;
+      try {
+        canBill = await this.billSvc.canAttach(msg.from, msg.type);
+      } catch (err) {
+        this.logger.warn(`Bill attach check failed — routing normally: ${err instanceof Error ? err.message : String(err)}`);
+      }
+      if (canBill) {
+        try {
+          const saved = await this.inboundRepo.save(
+            this.inboundRepo.create({
+              wa_message_id: msg.id,
+              wa_id: msg.from,
+              message_type: msg.type,
+              message_text: msg.text,
+              wa_timestamp: msg.timestamp,
+              raw_payload: msg.rawPayload,
+              project_ref: null,
+              status: 'PARSED',
+            }),
+          );
+          void this.billSvc.handle(saved);
           return { stored: true, duplicate: false, message: saved };
         } catch (err) {
           if (isUniqueViolation(err)) return { stored: false, duplicate: true };
