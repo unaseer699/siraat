@@ -17,11 +17,14 @@ import {
   type LucideProps,
 } from 'lucide-react';
 import type {
+  PropertyPlotGroup,
   RecommendationResponse,
   RecommendationItem,
   PlatformStatsResponse,
 } from '@siraat/shared-types';
-import { fetchRecommendations, fetchPlatformStats } from '@/lib/api';
+import { fetchRecommendations, fetchPlatformStats, fetchPropertyListings } from '@/lib/api';
+import { parsePlotQuery, plotsPageHref } from '@/lib/queryFilters';
+import { PlotMatches } from '@/components/PlotMatches';
 import { SearchBar } from '@/components/SearchBar';
 import { ResultsPanel } from '@/components/ResultsPanel';
 import {
@@ -376,6 +379,7 @@ function HomeView() {
   const searchParams = useSearchParams();
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<RecommendationResponse | null>(null);
+  const [plotMatches, setPlotMatches] = useState<{ plots: PropertyPlotGroup[]; total: number; href: string } | null>(null);
   const [error, setError] = useState<string | null>(null);
   // Selection for the Comparison feature — lifted here (rather than kept local to
   // ResultsPanel) so a future search can reset it and so other entry points into
@@ -410,10 +414,23 @@ function HomeView() {
     setLoading(true);
     setError(null);
     setResult(null);
+    setPlotMatches(null);
     setCompareSelection([]);
     try {
       const data = await fetchRecommendations({ query_text: query });
       setResult(data);
+      // No verified society matched: fall back to live plot listings that fit
+      // what was typed (city / size / price). Best effort — never blocks results.
+      if (data.state !== 'NOT_COVERED' && data.recommendations.length === 0) {
+        const filters = parsePlotQuery(query);
+        if (filters) {
+          fetchPropertyListings({ city: filters.city, size: filters.size, max_price_lac: filters.max_price_lac })
+            .then((r) => {
+              if (r.plots.length > 0) setPlotMatches({ plots: r.plots.slice(0, 8), total: r.plots.length, href: plotsPageHref(filters) });
+            })
+            .catch(() => undefined);
+        }
+      }
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Unknown error');
     } finally {
@@ -495,6 +512,8 @@ function HomeView() {
           onToggleCompare={toggleCompare}
         />
       )}
+
+      {plotMatches && <PlotMatches plots={plotMatches.plots} total={plotMatches.total} href={plotMatches.href} />}
 
       <section style={{ width: '100%', maxWidth: '960px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
         <style>{CHECK_CSS}</style>
