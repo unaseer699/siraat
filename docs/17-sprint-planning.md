@@ -21,7 +21,7 @@
 | 11 | API Contracts | ✅ Frozen (+1 addendum) |
 | 12 | PRDs | ✅ Frozen (unanimous) |
 | 13 | Sprint / Capability Planning | ✅ Frozen (this document) |
-| 14 | Implementation | 🔶 In progress — Capability 1 handed off |
+| 14 | Implementation | 🔶 In progress — Capabilities 1–5 built; Capability 6 (Launch) pending data cutover and founder sign-off. See "Implementation Status" at the end of this document. |
 
 ---
 
@@ -191,3 +191,50 @@ Docker Compose currently provisions all six context schemas up front
 (see `docker/init-schemas.sql`), so no additional schema provisioning
 is required when Capability 3 (Trust) begins — the `trust` schema
 already exists and is ready to use.
+
+---
+
+## Implementation Status (updated 2026-10-27)
+
+> The frozen sections above are unchanged. This section records what has
+> actually been built since, so the document no longer reads as if only
+> Capability 1 exists. Review items deferred from each capability live in
+> `REVIEW_BACKLOG.md`.
+
+### The six capabilities
+
+| # | Name | Status |
+|---|---|---|
+| 1 | UNDERSTAND | ✅ Built (search, intent parsing, NOT_COVERED) |
+| 2 | RECOMMEND | ✅ Built (recommendations, details, trust score) |
+| 3 | TRUST | ✅ Built (society, developer, contractor and supplier verification, evidence) |
+| 4 | CONTRIBUTE | ✅ Built (evidence submission, NOT_COVERED demand logging) |
+| 5 | OPERATE | ✅ Built (shared-key auth guard, rate limiting, score reuse). Per-user OBO auth is deferred: backlog item 9 |
+| 6 | LAUNCH | 🔶 Deployment guide and review findings recorded. Still open: the full MVTD cutover (30–35 verified societies) and founder sign-off |
+
+### Built beyond the six capabilities
+
+- **Directories:** contractors (with portfolios and contractor upload links), suppliers (categories, multiple phones, address and map link, name search), house plans.
+- **Plots:** daily dealer listings ingested from WhatsApp, Available Plots page (city, society, size and price filters), listing alerts, and a live-plots fallback on the home search when no verified society matches.
+- **Construction intelligence:** BOQ estimator (material consumption per area), whole-house estimate, daily market rates, project cost tracker (immutable expense ledger, bills and invoices, cost report with PDF, admin soft delete), project forecast, and the public Real builds pages.
+- **Ground-condition reports** from owners and builders, with a review queue.
+- **WhatsApp:** expense lists with confirm/cancel, plot listing forwarding, market rates, ground reports, and "Ask Siraat" buttons across the site.
+- **Premium live project (self-serve):** a user starts their own project from WhatsApp.
+  - Commands: `New Project: <name>`, expense lists, a bill photo or PDF, `REPORT` (private cost-report link), `SHARE` then `SHARE YES`, `UNSHARE`, `DONE`, `REOPEN`.
+  - Plans: free trial of 25 saved expenses and one project, then paid. Managed on the admin "WhatsApp Plans" page. Numbers on `WHATSAPP_ADMIN_NUMBERS` and numbers linked by hand are never limited.
+  - The report link is the project id (an unguessable UUID); it cannot be revoked. Real per-user login (backlog item 9) is the proper fix.
+
+### Operations notes
+
+- **Hosting (current):** backend on Cloudways, frontend on Vercel. This differs from the Phase 10 plan (DigitalOcean); `docs/DEPLOYMENT.md` still describes the DO path.
+- **Migrations:** applied by hand, in order, from `docker/migrations/` (001 to 027), one statement at a time. All use `IF NOT EXISTS`, so a rerun is safe. There is no migration runner yet (backlog item 10).
+- **Backend settings used by recent work:** `ANTHROPIC_API_KEY` (smart expense reader), `WHATSAPP_ACCESS_TOKEN`, `WHATSAPP_PHONE_NUMBER_ID`, `WHATSAPP_VERIFY_TOKEN`, `WHATSAPP_APP_SECRET`, `WHATSAPP_ADMIN_NUMBERS`, `PUBLIC_SITE_URL` (links sent on WhatsApp), `FRONTEND_URL` (CORS).
+- **Known data rule:** society `min_price` / `max_price` are stored in PKR, not Lakh. A value below 100,000 is almost certainly a unit mistake.
+
+### Open items
+
+- Complete the MVTD cutover and take Capability 6 through its review.
+- Per-user authentication (backlog item 9, High).
+- Startup check that database schemas exist (backlog item 10, Medium).
+- Generalise evidence submission beyond societies (backlog item 16, Medium).
+- Remaining Low items are listed in `REVIEW_BACKLOG.md`.
