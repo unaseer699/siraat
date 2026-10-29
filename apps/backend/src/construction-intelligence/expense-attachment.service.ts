@@ -113,6 +113,45 @@ export class ExpenseAttachmentService {
     return this.toResult(row);
   }
 
+  // One file covering several expenses (a consolidated supplier bill). The file
+  // is stored once and every expense gets its own row pointing at it, so each
+  // expense shows the bill; the file is deleted only when the last row goes.
+  async attachFromBufferToExpenses(
+    projectId: string,
+    expenseIds: string[],
+    data: { data: Buffer; content_type: string; filename: string; visible_to_owner: boolean },
+  ): Promise<ExpenseAttachmentResult[]> {
+    if (expenseIds.length === 0) throw new BadRequestException('No expenses to attach the bill to');
+    if (!ALLOWED_TYPES.includes(data.content_type)) {
+      throw new BadRequestException('Only PDF, PNG, JPEG or WebP files can be attached');
+    }
+    if (data.data.length > MAX_BYTES) throw new BadRequestException('File is larger than 10 MB');
+    for (const id of expenseIds) {
+      const expense = await this.expenseRepo.findOneBy({ id });
+      const section = expense ? await this.sectionRepo.findOneBy({ id: expense.section_ref }) : null;
+      if (!expense || !section || section.project_ref !== projectId) {
+        throw new NotFoundException(`Expense ${id} not found in project ${projectId}`);
+      }
+    }
+    const safe = data.filename.replace(/[^A-Za-z0-9._-]/g, '_').slice(0, 120);
+    const key = `projects/${projectId}/bills/${randomUUID()}-${safe}`;
+    await this.storage.uploadFile(key, data.data, data.content_type);
+    const rows = await this.repo.save(
+      expenseIds.map((expenseId) =>
+        this.repo.create({
+          project_ref: projectId,
+          expense_ref: expenseId,
+          storage_ref: key,
+          filename: data.filename.slice(0, 200),
+          content_type: data.content_type,
+          size_bytes: String(data.data.length),
+          visible_to_owner: data.visible_to_owner,
+        }),
+      ),
+    );
+    return Promise.all(rows.map((r) => this.toResult(r)));
+  }
+
   async list(projectId: string, opts: { ownerView: boolean }): Promise<ExpenseAttachmentResult[]> {
     const rows = await this.repo.find({
       where: opts.ownerView ? { project_ref: projectId, visible_to_owner: true } : { project_ref: projectId },
@@ -130,7 +169,11 @@ export class ExpenseAttachmentService {
     const row = await this.repo.findOneBy({ id, project_ref: projectId });
     if (!row) throw new NotFoundException('Bill not found');
     await this.repo.delete({ id });
-    await this.storage.deleteFile(row.storage_ref).catch((e) => this.logger.warn(`Storage cleanup failed: ${e}`));
+    // A consolidated bill is shared by several expenses: keep the file until the last one is removed.
+    const stillUsed = await this.repo.count({ where: { storage_ref: row.storage_ref } });
+    if (stillUsed === 0) {
+      await this.storage.deleteFile(row.storage_ref).catch((e) => this.logger.warn(`Storage cleanup failed: ${e}`));
+    }
   }
 
   private async toResult(r: ExpenseAttachmentEntity): Promise<ExpenseAttachmentResult> {

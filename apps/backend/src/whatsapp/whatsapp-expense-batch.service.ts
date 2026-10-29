@@ -269,7 +269,7 @@ export class WhatsappExpenseBatchService {
     await this.reply(
       message.wa_id,
       failed === 0
-        ? `Saved ${saved} expenses, total ${money(savedTotal)}.${saved > 0 ? (saved === 1 ? '\n\nHave the bill? Send its photo or PDF here within 2 hours to attach it.' : '\n\nHave bills? Send each photo or PDF within 2 hours with a caption: the item number or a word from the item (e.g. "2" or "cement").') : ''}`
+        ? `Saved ${saved} expenses, total ${money(savedTotal)}.${saved > 0 ? (saved === 1 ? '\n\nHave the bill? Send its photo or PDF here within 2 hours to attach it.' : '\n\nHave bills? Send each photo or PDF within 2 hours with a caption: the item number ("2"), several numbers ("1,2"), a word from the item ("cement"), or ALL if one bill covers everything.') : ''}`
         : `Saved ${saved} of ${batch.lines.length} expenses (total ${money(savedTotal)}). ${failed} failed — please check the project or resend those lines.`,
     );
   }
