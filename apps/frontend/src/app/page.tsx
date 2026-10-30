@@ -27,6 +27,7 @@ import { parsePlotQuery, plotsPageHref } from '@/lib/queryFilters';
 import { PlotMatches } from '@/components/PlotMatches';
 import { SearchBar } from '@/components/SearchBar';
 import { SchemeCheck } from '@/components/SchemeCheck';
+import { NewProjects } from '@/components/NewProjects';
 import { ResultsPanel } from '@/components/ResultsPanel';
 import {
   TRUST_GREEN,
@@ -551,6 +552,8 @@ function HomeView() {
         </div>
         <OnRecordLine stats={stats} />
       </section>
+
+      <NewProjects />
 
       <section
         id="how-we-verify"
