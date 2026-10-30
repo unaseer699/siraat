@@ -1,0 +1,242 @@
+-- Attach the original CDA documents (LOP, NOC, notices, deeds) to the 53 CDA societies created from the CDA page.
+-- Run the 3 statements one at a time.
+
+WITH d(name,eid,url,dtype,ddate) AS (VALUES
+('CBR Town','e92a4a2e-38e7-53f5-9260-a31cbbaa2aa5','https://www.cda.gov.pk/storage/housing_societies/7NelqBiKxF5BHTezVnz2F7vO8zuckTI0VuxnuvnO.jpg','LOP','2023-03-21'),
+('CBR Town','d5c4ada9-15c9-517a-8fe9-17f9be5bfc41','https://www.cda.gov.pk/storage/housing_societies/3XMCn4OhY4WnjRSURjLpZTqHTbPnGDet2SAY3IXU.pdf','LOP','2023-03-21'),
+('CBR Town','c814651a-d11d-5ad2-b192-5609375d2725','https://www.cda.gov.pk/storage/housing_societies/dG1PnBznzudUImTKrEdaG0SovHBgvoWqRqdcBwOm.pdf','SHOW_CAUSE_NOTICE','2025-12-03'),
+('CBR Town','88b260a4-ede0-5919-9fed-8f2d41bb9d5f','https://www.cda.gov.pk/storage/housing_societies/nXLOmsEDqfqI3klEDrunuJjIzSXWDMs3Xpk8KoVk.pdf','TRANSFER_DEED',''),
+('CBR Town','cba50052-818a-5cdf-a660-10c150267c6e','https://www.cda.gov.pk/storage/housing_societies/lgodMrM2Zgmbj5znkeMQrSOtvtSk19oOXVv7z6gi.pdf','MORTGAGE_DEED',''),
+('CBR Town','75cc4a46-5244-59bb-a359-e3f46025f1c0','https://www.cda.gov.pk/storage/housing_societies/Ewl4peL5oYShwNWixtZ7YjLNvvGJgAP0Pxle8LfO.pdf','SHOW_CAUSE_NOTICE','2026-09-14'),
+('Engineers Housing Scheme','b0372a0d-9025-5f2f-bc8e-a06d0379b82c','https://www.cda.gov.pk/storage/housing_societies/UxXvmwD8Zb2DcaM7XICOTILlQSKZZnqtkrMPHIs9.pdf','LOP','2008-03-01'),
+('Engineers Housing Scheme','02a48fbd-3439-5ebe-aa3a-d1f7b33e89bc','https://www.cda.gov.pk/storage/housing_societies/SwjLUaEgudtbTcCwII7lrCKWgwQhXJSH8pqIlbj1.pdf','LOP_LETTER','2008-03-01'),
+('Engineers Housing Scheme','a341877f-c51f-5c0c-bb08-c2ead9ce864d','https://www.cda.gov.pk/storage/housing_societies/R4s7M755qvMlLqGmDW2x7giG2H5sXBT3vvb0LL2c.pdf','NOC','2010-11-08'),
+('Engineers Housing Scheme','78b2b561-f927-5c4d-8408-9f59bedb15f0','https://www.cda.gov.pk/storage/housing_societies/i3aKALA6p2h1X6GOKxhUBrMUaXBK7AFLgOb8Bntb.pdf','MORTGAGE_DEED','2010-06-24'),
+('Engineers Housing Scheme','dbcc5079-e181-53fd-bc9c-8c2f56204005','https://www.cda.gov.pk/storage/housing_societies/BJJPYyNLObd5byI21LjelxLY1rfRezczR3JpJcmf.pdf','SHOW_CAUSE_NOTICE','2025-12-16'),
+('Engineers Housing Scheme','a704582a-4dd2-5950-aca7-36fad20b1ab4','https://www.cda.gov.pk/storage/housing_societies/sbt74MagQiTozdcTOwszJ8NTqTYgyAbYz5Ww8pU5.pdf','SHOW_CAUSE_NOTICE','2025-05-19'),
+('Faisal Residencia Housing Scheme','425644ec-5ac2-53df-854c-241e1d53be11','https://www.cda.gov.pk/storage/housing_societies/nqL9QkCj6vnoOvtkSHU0aHBISDWYpWa4qexu017E.jpg','LOP','2022-03-29'),
+('Faisal Residencia Housing Scheme','3aaf266f-c9c6-5484-9639-f1f620b0424c','https://www.cda.gov.pk/storage/housing_societies/TjkrOvJttQ9Dx2IzA9Fd8J56mlH7XUseTbwfZlAP.pdf','LOP_LETTER','2025-06-04'),
+('Faisal Residencia Housing Scheme','50a242d0-6447-5105-8c03-d0ff523dd4b3','https://www.cda.gov.pk/storage/housing_societies/51Y3ZZq9U6u60sZ5Cg5rLeSx8c4safwM8AyY9xJL.pdf','LOP_LETTER','2022-03-29'),
+('Faisal Residencia Housing Scheme','b91af513-131b-5534-bf17-dec80957b0e9','https://www.cda.gov.pk/storage/housing_societies/qNQivycF8babd472h6xbBrt1vkvrmBiYoXPUy4tx.pdf','TRANSFER_DEED','2023-10-02'),
+('Faisal Residencia Housing Scheme','a546ab60-fa33-50af-aafb-440c1b6cbaa2','https://www.cda.gov.pk/storage/housing_societies/fhWN4yVBJmD42I4fkDCB09qKS2k7r6q7HMxNM6ay.pdf','MORTGAGE_DEED','2023-10-02'),
+('Faisal Residencia Housing Scheme','0a83d55b-b567-5e02-b002-ff2d359f9bd6','https://www.cda.gov.pk/storage/housing_societies/rZ2bQhA5Z4eRKbOkEqqRZtDmlfORc97GzW8p3VJt.pdf','MORTGAGE_DEED','2024-11-07'),
+('Faisal Residencia Housing Scheme','e9b5df65-1b8a-5515-9924-7fc64beca717','https://www.cda.gov.pk/storage/housing_societies/QZSA0nTuGkyj3iXfa7Cg1X9rvqFe34P4eAZiYuWB.pdf','OTHER','2025-08-25'),
+('Federal Government Employees Housing Foundation (FGEHF)','1baca71c-cf4c-5ec0-8c1f-be6f5cc893ec','https://www.cda.gov.pk/storage/housing_societies/SPsoStVUpTdxieqNc5WlNo6WJrWwR3Dm61XqMhmP.pdf','OTHER','2013-05-05'),
+('Federal Government Employees Housing Foundation (FGEHF)','6513f470-d60d-5fdb-8852-382f3b581910','https://www.cda.gov.pk/storage/housing_societies/TRy2GMNAdcCMdeKonPquYGCyYgoJiqGucFwKzxTF.jpg','LOP',''),
+('Federal Government Employees Housing Foundation (FGEHF)','3118b33e-8868-5a17-ab9c-efc5a044fa27','https://www.cda.gov.pk/storage/housing_societies/jtjvwT6MpDl0OR9W7tMCsEeOvsittUY2JgWUBeVg.pdf','SHOW_CAUSE_NOTICE','2025-12-01'),
+('Federation of Employees','c32e8394-40dd-550b-93c4-9a34cacac066','https://www.cda.gov.pk/storage/housing_societies/GlA2Oq4rxIj1aaa9qhkcFnWuzgonPj2mONmGVfeF.gif','LOP',''),
+('Federation of Employees','32d93635-49e3-5a65-aae7-6388353b3968','https://www.cda.gov.pk/storage/housing_societies/7UdEicX5vM5ZRqEmYHsE9zfEgRtIEboPAWLLsrGY.pdf','SHOW_CAUSE_NOTICE','2026-09-16'),
+('Grace Valley','7a0464d3-dadd-5a30-9040-8b9e2c021e3b','https://www.cda.gov.pk/storage/housing_societies/cobbRDXJzzS9BUD1wTK93RFHv5lAPPsBTutjZtaO.jpg','LOP','2020-07-22'),
+('Grace Valley','388530ff-e076-5a76-adbd-03a351a5584c','https://www.cda.gov.pk/storage/housing_societies/Fd0Fm7odFP5rGp6urJOHjD7AOGpfT5g8pk7nb6el.pdf','LOP_LETTER','2020-07-22'),
+('Grace Valley','1264d20e-1057-57f1-a712-6db4f8a66e9d','https://www.cda.gov.pk/storage/housing_societies/NFDzdAJVi4akEYfFTokJWnCF6wraoXPvvXdBwgM5.pdf','NOC','2023-03-10'),
+('Grace Valley','54552176-59a7-586f-bbf8-030da739aaff','https://www.cda.gov.pk/storage/housing_societies/cTQ64X9kEjZc6C4IzGeeww952dT3Wtf1dJ7CkAAs.pdf','MORTGAGE_DEED','2021-07-15'),
+('Grace Valley','ec2ed2dd-4d29-5b60-9560-e7b09c23597b','https://www.cda.gov.pk/storage/housing_societies/iao99Fruhuw5Vwx5FQcdCaPdHBSmX2wzQwt6Y2cy.pdf','TRANSFER_DEED','2021-07-15'),
+('Gulberg Greens Farm Housing Scheme','3a4de2dd-918d-5e76-a8de-82fb2aae27c1','https://www.cda.gov.pk/storage/housing_societies/cwb16Ldzm0QLUxECNRbUZ0wsEGnVpQHclptVqPxC.jpg','LOP','2011-08-26'),
+('Gulberg Greens Farm Housing Scheme','a80cc6bf-18e5-5125-83fe-b65c27a72cd0','https://www.cda.gov.pk/storage/housing_societies/Ean7e6fI9hRT8r5Qg5u2UMxIXzFSYhHLqB5Ct8PH.pdf','SHOW_CAUSE_NOTICE','2026-04-29'),
+('Gulberg Greens Farm Housing Scheme','fb7415c1-435b-5814-a993-8a6ebb3d3354','https://www.cda.gov.pk/storage/housing_societies/peir9rVOU50BEmm0ykKovjUwEOYScQMjv4giUb09.pdf','SHOW_CAUSE_NOTICE','2026-04-29'),
+('Gulberg Greens Farm Housing Scheme','3e497900-dd92-5498-96ca-2561eca485ea','https://www.cda.gov.pk/storage/housing_societies/lsfTvPgpMiUtpy9r0n20punbxcnsfzsLtqBY0uSy.pdf','SHOW_CAUSE_NOTICE','2026-05-25'),
+('Gulberg Greens Farm Housing Scheme','0c016552-27c9-58dd-adae-53be6c64329d','https://www.cda.gov.pk/storage/housing_societies/CifUjYzmgt55dut4jGW0k6JkmZdHFeSCYnOa1Pco.pdf','SHOW_CAUSE_NOTICE','2026-05-25'),
+('Gulberg Greens Farm Housing Scheme','51e9ae08-035e-5d12-8945-86bf1d41f013','https://www.cda.gov.pk/storage/housing_societies/azxQpO0M8eWqFcESiHVyDz3SR9LsALwHBuCZkCx5.pdf','SHOW_CAUSE_NOTICE','2026-07-22'),
+('Gulberg Residencia (IBECHS Ph-III) Housing Scheme','2151c04b-9a0e-51de-9594-0f1ec32a8a8d','https://www.cda.gov.pk/storage/housing_societies/MZ3ddNehbquTm51NjwHQAxyCat1oY5M3wkTh5MCd.pdf','OTHER','2023-03-22'),
+('Gulberg Residencia (IBECHS Ph-III) Housing Scheme','c05d1459-5bb8-567b-b19c-3a61b187ca9b','https://www.cda.gov.pk/storage/housing_societies/A4KtafvTh8ASeVJctrs7ViLrU1J64i80Luv75TYy.pdf','TRANSFER_DEED','2025-11-13'),
+('Gulberg Residencia (IBECHS Ph-III) Housing Scheme','805becd8-8be4-50b4-8375-b6552506d23e','https://www.cda.gov.pk/storage/housing_societies/4MvNioQeQjny47PwRTtt9dAvekrFHwB8bm3UXIwD.pdf','SHOW_CAUSE_NOTICE','2025-12-03'),
+('Gulshan-e-Rabia','12f6c453-2aa1-593c-8b04-fd92159aa96a','https://www.cda.gov.pk/storage/housing_societies/jvBUjriYRjBygG66ViHROIx46Z3ms7WKueomOp1n.jpg','LOP','2009-04-11'),
+('Gulshan-e-Sehat','7e2eef0b-fcc1-5c43-bb88-32311e742920','https://www.cda.gov.pk/storage/housing_societies/fuyK6UjUxQyAIidYucmRUKISlCxaBHdDkHsVbaQI.gif','LOP',''),
+('Icon Garden','74f55022-fea5-5787-89a7-518a11f38c79','https://www.cda.gov.pk/storage/housing_societies/y2SsmNqq6AaTwyL2T5IIMhoJfukXSnAD5FAwqH0G.pdf','OTHER','2023-11-06'),
+('Icon Garden','448de244-43bd-52cb-af01-e81f87d8fea8','https://www.cda.gov.pk/storage/housing_societies/E45BNLtC5PNNhLnCbN605JDTxzjX7kDl47fPEtEG.pdf','SHOW_CAUSE_NOTICE','2025-12-02'),
+('Islamabad Gardens','71e6add3-b242-5b1d-bc36-3fc7761ed3a7','https://www.cda.gov.pk/storage/housing_societies/3g06LEZyy8ectif8nXLGSe1Dedc1LGEm7Jvqg5qm.pdf','OTHER',''),
+('Islamabad Gardens','1a17467f-3e89-5c0e-bf1c-e5892b819c5c','https://www.cda.gov.pk/storage/housing_societies/MMiRrw2Er37Fa117M9YZYwDcod2Ozqp0KylBqaKU.jpg','LOP',''),
+('Islamabad Model Town','5360ebdf-ef12-5211-b001-b74ec0214b19','https://www.cda.gov.pk/storage/housing_societies/qYFlgnZgaY51H5h2QLvKAJwWaZaT004MeXpdHTUw.jpg','OTHER',''),
+('Jinnah Garden Phase-1 Extension','3a63320e-e47a-5315-b3c6-0e7ae1ca10d7','https://www.cda.gov.pk/storage/housing_societies/0c9bMHMf17PJnf5kK3vxLvsd7INbPlcyqejGOxAq.jpg','LOP','2021-09-10'),
+('Jinnah Garden Phase-1 Extension','cbe8f0dc-bcd5-52e3-98e2-e1274b2d97a2','https://www.cda.gov.pk/storage/housing_societies/dGNWFbbvK9nhfSlUqSWkxU7c9z8GTigpj2Yjbnwg.pdf','LOP_LETTER','2021-09-10'),
+('Jinnah Garden Phase-1 Extension','cb468cb6-e618-5470-b75b-5b0a59d56be3','https://www.cda.gov.pk/storage/housing_societies/Eo9xaQ32W1l3PvJQDErPJoBgJ1R43kocd81fJPHL.pdf','SHOW_CAUSE_NOTICE','2025-09-12'),
+('Jinnah Garden Phase-1 Extension','04a10db1-552b-5790-9de4-a2964442a841','https://www.cda.gov.pk/storage/housing_societies/SzHR2cH7yeRuDKOlEldZcixgW1YqMmM9CsVr1ndH.pdf','SHOW_CAUSE_NOTICE','2025-09-10'),
+('Jinnah Garden Phase-1 Extension','6dbadd2d-760b-5f8d-ac4f-8eaa955c5734','https://www.cda.gov.pk/storage/housing_societies/WrraYU5yzLQEloSM2Qedyd7JPwwCGdokOaQDnl6o.pdf','SHOW_CAUSE_NOTICE','2025-12-02'),
+('Jinnah Garden, Phase-I','f8d7b5de-0fe8-530e-a16d-5311adfd8dfa','https://www.cda.gov.pk/storage/housing_societies/Vi3M1NUFOCGJ5fmpHW6bqQMukxAGH0YPQBdTDslF.jpg','LOP',''),
+('Jinnah Garden, Phase-I','7b0851e4-42e8-5638-a2e7-094614d4de7b','https://www.cda.gov.pk/storage/housing_societies/h95OtTcNcAo5N6RsRyalt0HOMidDx1xEX4G1ehSg.pdf','LOP_LETTER','2025-01-23'),
+('Jinnah Garden, Phase-I','4f97fd94-b555-529a-90d6-3afff675a7d3','https://www.cda.gov.pk/storage/housing_societies/DcFPKfW3pbiW0ViLMMMtGx92GWe65ol4XbvmWHwr.pdf','LOP_LETTER','2011-04-09'),
+('Jinnah Garden, Phase-I','9963b1fb-f4d9-53ed-9057-f6273084ce5a','https://www.cda.gov.pk/storage/housing_societies/DtlXHmvUjUExZ9ejjJvzGKfvYeF3Hr1jZ6F0J1OT.pdf','SHOW_CAUSE_NOTICE','2023-05-23'),
+('Jinnah Garden, Phase-I','d38f66cf-fd39-5c84-befb-b641a4613c9f','https://www.cda.gov.pk/storage/housing_societies/oJIJZzhsgYXGApKdEoaHrnMZdXrQQ5eqzUdSsro5.pdf','SHOW_CAUSE_NOTICE','2025-08-22'),
+('Jinnah Garden, Phase-I','663b44a9-7ff8-532f-a9db-41e36cb21c75','https://www.cda.gov.pk/storage/housing_societies/EaJoCjQORJwuZGtB0ILYtwlsAB3Vu3vkQQPUO2mz.pdf','OTHER','2025-06-10'),
+('Jinnah Garden, Phase-I','ba056e12-2dbd-5b75-9f7e-650940801e11','https://www.cda.gov.pk/storage/housing_societies/cdZApdAFcx8d5ggf1RKraWuL5kNTnBd7fohdVeFe.pdf','OTHER','2025-01-23'),
+('Jinnah Garden, Phase-I','de268cb4-49e2-5f4e-915d-af2056f6648d','https://www.cda.gov.pk/storage/housing_societies/VC43pTidsG5qqeiaZMKkEmJ2UnDTuKRIAxWy3ZHm.pdf','MORTGAGE_DEED','2011-11-02'),
+('Jinnah Garden, Phase-I','b099d4ab-ad89-512e-bd27-f0f6452c6d3d','https://www.cda.gov.pk/storage/housing_societies/LnAdOLGOc5b2JddjydzuVV5oTPBVPZZ7pnAx8VbH.pdf','TRANSFER_DEED','2011-11-02'),
+('Jinnah Garden, Phase-I','1ccdc6e1-e389-5490-b6e4-8d4f0c91bea5','https://www.cda.gov.pk/storage/housing_societies/qMjRdLWL93TXPapRsTnInP3V8DPpCoZlfaswKRic.pdf','SHOW_CAUSE_NOTICE','2025-12-05'),
+('Jinnah Garden, Phase-II','1401b45e-a996-550c-8ed5-aa1a69de4bfc','https://www.cda.gov.pk/storage/housing_societies/AmW6lxkTYwKoia2AnJxDTawHofgZqW6OTnxijzvm.pdf','LOP','2021-09-10'),
+('Jinnah Town','160ada6e-b720-50a0-bb03-69085f4cad1a','https://www.cda.gov.pk/storage/housing_societies/HbNAN726J0GINZ08aVH2B7boCHjSb8mzF2H1wCeN.jpg','LOP',''),
+('Jinnah Town','6bedb379-588b-5380-9a31-64be404feecd','https://www.cda.gov.pk/storage/housing_societies/ydDg5C9zHvjOUgit0d2PXI1evCiyS3LJ9Rl72ipy.pdf','SHOW_CAUSE_NOTICE','2025-12-04'),
+('Kashmir Gardens Farming Scheme','95c52c09-efeb-5c02-9ac3-deb8e41f367d','https://www.cda.gov.pk/storage/housing_societies/cBweHMVNdMLtR62R6nCi9ivb1A57bqAl0pHE7BQr.jpg','LOP',''),
+('Khayaban-e-Kashmir, Phase (Extension)','5d6cd046-bd43-5309-a9f2-7707de398b52','https://www.cda.gov.pk/storage/housing_societies/JCPNI4NCm967Lvbzisj2wTllyZqbWMCYhrY2kNmM.gif','LOP','2005-05-24'),
+('Khayaban-e-Kashmir, Phase (Extension)','af262537-7920-5ebe-ae5a-3d0566f64cc7','https://www.cda.gov.pk/storage/housing_societies/o1hp6jg0kvl7H5No7h9ljg592FyWJXCL6zB9nx0o.gif','LOP','2005-05-24')
+), t AS (
+SELECT d.*, s.id AS sid FROM d JOIN property_intelligence.societies s ON s.city='Islamabad' AND lower(regexp_replace(s.name,'[^a-zA-Z0-9]','','g'))=lower(regexp_replace(d.name,'[^a-zA-Z0-9]','','g'))
+), ins AS (
+INSERT INTO trust.evidence (id,type,file_ref,source_ref,document_date,document_type,record_type)
+SELECT eid::uuid,'document',url,'CDA housing scheme document, published at cda.gov.pk/housing-schemes, read 2026-10-30 ('||dtype||')',NULLIF(ddate,'')::date,dtype,'FACT' FROM t
+ON CONFLICT (id) DO NOTHING
+RETURNING id
+)
+UPDATE trust.verifications v SET evidence_refs = v.evidence_refs || x.ids
+FROM (SELECT sid, array_agg(eid ORDER BY eid) AS ids FROM t GROUP BY sid) x
+WHERE v.subject_type='SOCIETY' AND v.subject_id=x.sid AND v.claim_type='NOC'
+AND NOT (x.ids[1] = ANY(v.evidence_refs));
+
+WITH d(name,eid,url,dtype,ddate) AS (VALUES
+('Khayaban-e-Kashmir, Phase-I','46621a79-d6c4-5d6e-9b7e-4eb4c5135cd5','https://www.cda.gov.pk/storage/housing_societies/Zz2hG9F8EvBuGVzRKk5LOldXIQfLSrLpDhvdtGha.gif','LOP','2002-04-25'),
+('Khayaban-e-Kashmir, Phase-I','6caae6e6-8230-5beb-9486-3866bd6e2656','https://www.cda.gov.pk/storage/housing_societies/vsOBnsHutSdbsiYc6tEOMhmiofSVVfXOnRMP2p7g.pdf','LOP_LETTER','2005-05-24'),
+('Khayaban-e-Kashmir, Phase-I','52c9b2fd-d45a-5af9-9f13-672103c17d8d','https://www.cda.gov.pk/storage/housing_societies/u9xHR9SreXocdLRrRJG5QKfVCc4WO8HvY38g3dl5.pdf','LOP_LETTER','2002-04-25'),
+('Khayaban-e-Kashmir, Phase-I','0d316b9e-feb1-57c6-a2c9-a358a30c026a','https://www.cda.gov.pk/storage/housing_societies/DPGky4INirDEdfYBV4OlPcdxctUtfWUOjNDqCH8b.pdf','LOP_LETTER','2026-06-20'),
+('Khayaban-e-Kashmir, Phase-I','7e1820a8-3e44-53fc-ba8f-8392e3fcd09c','https://www.cda.gov.pk/storage/housing_societies/TY8QWIq1DLhmpuXHROC9QOvBvC3Y4q2u94FBkeCh.pdf','NOC','2004-05-13'),
+('Khayaban-e-Kashmir, Phase-I','943b9e4a-84f8-5ac7-a26e-9628e5702c14','https://www.cda.gov.pk/storage/housing_societies/KitEAbzgEY8fA3lfeSLJMpBtPRQ4Hoj3yukGIXEg.pdf','SHOW_CAUSE_NOTICE','2025-11-24'),
+('Khayaban-e-Kashmir, Phase-I','1e54d7c4-fb7f-5c50-b71c-906132a300b2','https://www.cda.gov.pk/storage/housing_societies/sm3m4Nku714K80Z2ILBTOlC3DRuhw8EBqCp2BehM.pdf','SHOW_CAUSE_NOTICE','2026-07-09'),
+('Khayaban-e-Kashmir, Phase-I','7accac8c-ebdd-5df7-8547-1467220d3504','https://www.cda.gov.pk/storage/housing_societies/sYomhgtfC6mhaJo7qSbKR3qT3Wj0qgXnDMvJxuMt.pdf','MORTGAGE_DEED','2007-03-30'),
+('Khayaban-e-Kashmir, Phase-I','ac5499e8-e34f-5fda-afd7-cbe0196d2462','https://www.cda.gov.pk/storage/housing_societies/YAWoZldHj7vpBiup3Db1CGhhgaLWS1576HswDry4.pdf','TRANSFER_DEED','2007-08-22'),
+('Khayaban-e-Kashmir, Phase-I','4532de78-8b4e-5406-a718-0eec1b12ab06','https://www.cda.gov.pk/storage/housing_societies/xcBgFH8mNtRolrYdUHNn9BdKo0oEJ7cvZP5d9zrJ.pdf','SHOW_CAUSE_NOTICE','2025-10-01'),
+('Khayaban-e-Kashmir, Phase-I','936d3b74-641d-5136-9b6a-dd4a7ce667b3','https://www.cda.gov.pk/storage/housing_societies/BGEqccHtxBshc8nydNBueBKDeqIab0ozfU0jgD7w.pdf','MORTGAGE_DEED','2003-03-31'),
+('Khayaban-e-Kashmir, Phase-I','8f4a70a0-f6bf-506b-8f48-998b2503bce3','https://www.cda.gov.pk/storage/housing_societies/VFgeYLQs9qbzFzyW4GBOmrzagP8v6GQwqTHogDYt.pdf','OTHER','2025-06-05'),
+('Khayaban-e-Kashmir, Phase-I','cc99e25b-ba30-58dd-99c3-916b319f0f40','https://www.cda.gov.pk/storage/housing_societies/5ey6BY32MmofLq1mNSRJ7EiyX1vWWgObUFfyOGl3.pdf','TRANSFER_DEED','2003-03-31'),
+('Khayaban-e-Kashmir, Phase-II','1a61e350-67c9-59ea-9b5e-f9c3f53388b9','https://www.cda.gov.pk/storage/housing_societies/f52Hs1yp1QRMc79pOeJmMxQArQruIFYTvbOUp5uF.jpg','LOP','2018-08-09'),
+('Khayaban-e-Kashmir, Phase-II','99ce33c3-37ff-5434-96c1-8f5b3dd2c1e1','https://www.cda.gov.pk/storage/housing_societies/jrdV3mR04lw2xfOsmlAknxed5ekDNNCPzn1GYrvW.pdf','SHOW_CAUSE_NOTICE','2025-11-24'),
+('Khayaban-e-Kashmir, Phase-II','31a96497-aa8a-5f9e-9ab5-5624a296ef97','https://www.cda.gov.pk/storage/housing_societies/CH3Q7F37A4kMRNBhujS1kjHy2AE1yPwJlXm9QLTs.pdf','SHOW_CAUSE_NOTICE','2025-12-04'),
+('Khayaban-e-Kashmir, Phase-II','ed373336-d634-5ce2-b394-e1b41e18d087','https://www.cda.gov.pk/storage/housing_societies/Q44eFWh6ugskrdf0YlaEFJx1oK9EUmfIEnfvJlIb.pdf','SHOW_CAUSE_NOTICE','2025-12-16'),
+('Khayaban-e-Kashmir, Phase-II','d026a37a-2aa2-519d-8707-d9f88d5041f7','https://www.cda.gov.pk/storage/housing_societies/3YO2YWiaHpsOi8jbAIyPGW185RLqoIuLqDjAy358.pdf','SHOW_CAUSE_NOTICE','2025-12-23'),
+('Khayaban-e-Kashmir, Phase-II','2ca76c1f-acbb-5d12-a3b6-b9bcf692ff18','https://www.cda.gov.pk/storage/housing_societies/Bcv9D1Q5B2YdF1ye33In594hA2FUFcvy3oPturLv.pdf','SHOW_CAUSE_NOTICE','2026-07-16'),
+('Khayaban-e-Kashmir, Phase-II','26c749ba-8b1f-527e-afbd-8e6e9746aa08','https://www.cda.gov.pk/storage/housing_societies/oRPppG87toNok0Ui31DHAdAfcJhq08Y6Ue5BkkEM.pdf','SHOW_CAUSE_NOTICE','2026-09-11'),
+('Margalla View Housing Scheme','2bdd9a6f-87c8-59fa-805e-34309802e040','https://www.cda.gov.pk/storage/housing_societies/uGs5GkTcpKtWSUpqdpp0mkbUiWiQukivVHm9ZAAZ.jpg','OTHER','2021-01-01'),
+('Margalla View Housing Scheme','3a7d950c-488d-5089-b7c4-9b9cd94b4de4','https://www.cda.gov.pk/storage/housing_societies/aGlPztMBZvgS8p9PGUcRm33hZqNepcjlQt6bKAG2.pdf','LOP','2021-01-01'),
+('Margalla View Housing Scheme','6ffc7295-6570-5b79-8290-539b299082b6','https://www.cda.gov.pk/storage/housing_societies/kGCgsoS0TeGhTFMk7VAK0lnr3PYI67qdcYA111QI.pdf','TRANSFER_DEED','2021-09-01'),
+('Margalla View Housing Scheme','aa401a19-bfbd-5cbb-b8da-34eedf21adaf','https://www.cda.gov.pk/storage/housing_societies/bQdMiPfAuS3cc9jRzYeZMQryN9cmGW2GP2eXsE1e.pdf','TRANSFER_DEED','1995-08-31'),
+('Margalla View Housing Scheme','2f998b6c-496d-5df6-b0b0-5bbd4a947444','https://www.cda.gov.pk/storage/housing_societies/0dw11Nf1JVVbYHbD0DX60AuzX19quSkGKxUQxtbK.pdf','SHOW_CAUSE_NOTICE','2025-12-08'),
+('Margalla View Housing Scheme (Extension)','45179f43-eeea-5858-9c79-ca18e0748861','https://www.cda.gov.pk/storage/housing_societies/files/kiMbCVwFHJ6bzuPr6RTPKJKJx5yNGpyo4lhaPjRJ.pdf','LOP','2026-04-06'),
+('Margalla View Housing Scheme (Extension)','0262f9d2-8d38-5fbf-8015-f47c2fc8b79d','https://www.cda.gov.pk/storage/housing_societies/ppffseo8GPKVo3gHsWyToQdW2cek22hYpSZFhhwn.pdf','NOC','2002-06-14'),
+('Margalla View Housing Scheme (Extension)','4d761b08-616a-5494-a4f9-888dac522e29','https://www.cda.gov.pk/storage/housing_societies/WlCShstpBThAbv2Vdqjm72i2tCBYdnNvbu75KbKt.pdf','TRANSFER_DEED','2026-04-29'),
+('Ministry of Interior Employees Co-operative Housing Society','00c6cf7b-9be9-5a12-a946-5c6d3cf98051','https://www.cda.gov.pk/storage/housing_societies/r0AbUpXwnWCbMGYgpx6JpYiRoPF9rzdDi7prMZ29.pdf','LOP_LETTER','2005-05-23'),
+('Ministry of Interior Employees Co-operative Housing Society','26b9362b-2279-5b68-9ba6-e5ebd6c7904f','https://www.cda.gov.pk/storage/housing_societies/RAzzz6hF6pfA0QNERWD5MHvN5kvGkgllBO3IzSf5.pdf','NOC','2010-10-07'),
+('Ministry of Interior Employees Co-operative Housing Society','ae35fdfd-bde0-5a7b-90f1-42c58d3e3775','https://www.cda.gov.pk/storage/housing_societies/kLPdTD57Rv9ymQzQfFrXkRlpbkb1Xj8JNuF2s1Dc.pdf','LOP','2005-05-23'),
+('Ministry of Interior Employees Co-operative Housing Society','7d2f7421-0ce2-5c18-9982-806dff32725f','https://www.cda.gov.pk/storage/housing_societies/XYeKuGXF0cxvNyjUl7e65pAZM0FZ59zDjViiQHkP.pdf','TRANSFER_DEED','2010-05-06'),
+('Ministry of Interior Employees Co-operative Housing Society','1864edc7-1314-56b5-821d-405d3d5e9b4e','https://www.cda.gov.pk/storage/housing_societies/iWoFiQdSQmjrKoFxzxzWMaSz7Ex4FTGW1yKPAN5C.pdf','SHOW_CAUSE_NOTICE','2025-11-24'),
+('Ministry of Interior Employees Co-operative Housing Society','78a6506c-373d-5887-8c26-d72268f305cb','https://www.cda.gov.pk/storage/housing_societies/GzVuDl6bUJ7bXFGVOgkpuRgjy57c34MPYJ3DZgt7.pdf','SHOW_CAUSE_NOTICE','2026-09-11'),
+('Ministry of Interior Employees Co-operative Housing Society','6c3aa4ea-d818-513c-aacc-a7cbf3bb176e','https://www.cda.gov.pk/storage/housing_societies/2AbX0fyJc7mHW2N2vA2rkcPaoFblhgoP9uKtnUsK.pdf','TRANSFER_DEED','2008-09-12'),
+('Ministry of Interior Employees Co-operative Housing Society','6e7f2623-70bf-50dc-9cd3-3c1890903fef','https://www.cda.gov.pk/storage/housing_societies/xioZr3T8wXpGmcjXzVn0vPQhs3Kzh3tJuWxlCz9S.pdf','TRANSFER_DEED','2010-05-06'),
+('Multi Gardens, Phase-I','6b86882e-75b8-5432-8825-54c3e3fc1d0a','https://www.cda.gov.pk/storage/housing_societies/zj7XYXVizdlt1UqAHLewnJ0FgWw4miiknbgSRtFt.jpg','OTHER','2022-03-10'),
+('Multi Gardens, Phase-I','073ea342-2da9-5897-ab26-098e904a406b','https://www.cda.gov.pk/storage/housing_societies/OrN7PVh746ctsYaDbG3mEX6kAyQEZV1qN4CFCPuz.pdf','LOP_LETTER','2022-03-10'),
+('Multi Gardens, Phase-I','84b54cf3-13c8-58f5-b0b5-32568165cdf0','https://www.cda.gov.pk/storage/housing_societies/holk8uSjU8zujBzjjvqX2JIDRuzxuapS77jiBiZZ.pdf','NOC','2008-01-30'),
+('Multi Gardens, Phase-I','31494e67-5b40-5f4a-8fea-bf4c5f1e9778','https://www.cda.gov.pk/storage/housing_societies/mKVkW0N1HL0EayNfidlK4BBAquoHlIOVv74H15KS.pdf','TRANSFER_DEED','2007-09-12'),
+('Multi Gardens, Phase-I','d2286279-4e71-5f6b-8fc6-e39158f5641e','https://www.cda.gov.pk/storage/housing_societies/5JsqvbAeoJfcPZtXo8PyOdYysBtv5USM3Ullan5I.pdf','SHOW_CAUSE_NOTICE','2025-11-17'),
+('Multi Gardens, Phase-I','288c35b0-9c85-59d0-84c2-156c746f56d7','https://www.cda.gov.pk/storage/housing_societies/rnfjOLyw21g5Mr9GimJPu1p8zqqRHLFE9dH0ewNs.pdf','SHOW_CAUSE_NOTICE','2026-07-10'),
+('Multi Gardens, Phase-I','19b51fa4-4ac8-5119-a16f-6d47c1fdfef7','https://www.cda.gov.pk/storage/housing_societies/bWYVOsFxhuLm9IdPR1wbl8ih0vMaKy6kUKq6OUvz.pdf','OTHER','2025-09-01'),
+('Multi Gardens, Phase-II','5c33c5be-cc68-56b4-a84c-466676b8ffb5','https://www.cda.gov.pk/storage/housing_societies/eq6WRQZTPbyIcC6b5RdGI96aT7Cjx4iazuAsWELA.pdf','OTHER',''),
+('National Assembly Employees Cooperative Housing Society (NAECHS)','39f0f050-cbda-546a-bd7f-7dbd2261bd7c','https://www.cda.gov.pk/storage/housing_societies/wp8OoQi2l2fBhkP2s6vR0AMs5C5e6qqWtuaomzRX.pdf','OTHER',''),
+('National Cooperative Housing Society & New Islamabad Enclave','1f7811ac-03ce-553b-a585-29f2506a750b','https://www.cda.gov.pk/storage/housing_societies/spwt25L9qsCRRCXz5YDOxaKuL2kgrFo6I2cusQit.jpg','LOP','2022-09-29'),
+('National Cooperative Housing Society & New Islamabad Enclave','df10b945-9201-5e76-a73d-d363cc980bb1','https://www.cda.gov.pk/storage/housing_societies/9QLUlhAD4Nbi7KDlrfPNQp9r24m6YbSkUyBqw1iV.pdf','SHOW_CAUSE_NOTICE','2025-12-04'),
+('Naval Anchorage','adc9e903-d7f9-5740-995c-853f610ade1f','https://www.cda.gov.pk/storage/housing_societies/MNPWGxS8w3dv0efAwh6hYdUfvPC3DnGRUFOvHpOu.pdf','SHOW_CAUSE_NOTICE','2026-06-01'),
+('Naval Anchorage','44c876ee-3faa-59b1-8420-9c6ef6830a31','https://www.cda.gov.pk/storage/housing_societies/xz2Y4Pqn9Hy5xacnkzcFNYzVaBQiPb1GvPeyBsXt.pdf','SHOW_CAUSE_NOTICE','2026-06-01'),
+('New Islamabad Garden','e124a9a8-dd8a-53c0-a8c5-39392adac6ab','https://www.cda.gov.pk/storage/housing_societies/7Yqa09G7jNXLgxMvl8mODiblxRi2Pfxu8KgQ0nk1.pdf','LOP_LETTER','2005-07-25'),
+('New Islamabad Garden','e837f82b-bbb4-5bf8-a3a6-8833d28945e6','https://www.cda.gov.pk/storage/housing_societies/wEBCBzlU1VZJeOdqICeccQzUcDZCg1S5wKTo7Nuw.jpg','LOP','2005-07-25'),
+('New Islamabad Garden','094834a3-2616-5ef7-8bf0-9e87657d5dcb','https://www.cda.gov.pk/storage/housing_societies/BdCKrOrFqLPwG2ayhQtflFlPoy9wTU0kub5cWqG4.pdf','NOC_CANCELLATION','2007-06-13'),
+('New Islamabad Garden','d8e2d084-96a6-58a5-a64a-70d67411f172','https://www.cda.gov.pk/storage/housing_societies/tAZxrpBzbJYXWRrUI4KZ5sTV9hiww9z4njFf5EId.pdf','TRANSFER_DEED','2005-08-13'),
+('New Islamabad Garden','aef94cce-4f95-55f4-96a3-fc431fa7a27b','https://www.cda.gov.pk/storage/housing_societies/TSlw95MLET1DsaKOGb40MZh8GI4deQ8hs2Bpz2fC.pdf','MORTGAGE_DEED','2005-08-13'),
+('OPF Housing Scheme','ae67fb28-9ede-52f5-852a-f8d51f0aed52','https://www.cda.gov.pk/storage/housing_societies/FzZeJhq19XaBsohs5mYpKJjQHhPaWRNSHVXAvd8M.pdf','OTHER',''),
+('OPF Housing Scheme','95d384cd-1c52-5a5e-af4c-ca0cd4441a46','https://www.cda.gov.pk/storage/housing_societies/RHI21scPlhaNrC58mdSVutvnm5QXvUuA9rZmrRro.jpg','LOP','2023-06-15'),
+('OPF Housing Scheme','4eb0365e-f4c8-5c06-8db0-f4bfef61d40c','https://www.cda.gov.pk/storage/housing_societies/y3MQWd83mDp16THcYr9jqiJ341IeyCJeaBT3PwsN.pdf','SHOW_CAUSE_NOTICE','2025-12-05'),
+('Pakistan Medical Cooperative Housing Scheme','9a93ca9c-1c42-5a31-b8f1-76305a918869','https://www.cda.gov.pk/storage/housing_societies/00zI0KK4515Qr6L7kXxwxY1oME1TGz4Rvfeq74Q6.jpg','LOP','2012-05-18'),
+('Pakistan Medical Cooperative Housing Scheme','25f6e5a5-5270-58fe-b852-3b5f7fb5d75c','https://www.cda.gov.pk/storage/housing_societies/FO3KAqYbBCbPr78SSoQymiBppqrpfsIdXkokvvJU.pdf','SHOW_CAUSE_NOTICE','2025-11-21'),
+('Pakistan Medical Cooperative Housing Scheme','6b54c266-054d-5c70-8bb7-cdcb7cd042e7','https://www.cda.gov.pk/storage/housing_societies/rozrwE4YUffBWZJXwfIEmlA1WsDb5xqXFCfh9IBe.pdf','SHOW_CAUSE_NOTICE','2026-09-16'),
+('Pakistan Navy Farms, Simly Dam Road, Islamabad','ee230bf9-429a-5a63-bf23-ffca0f0b2801','https://www.cda.gov.pk/storage/housing_societies/T7WOOjV1W2va9YFETQTVJ9uge8rQuLFFmBxDF5lZ.jpg','OTHER',''),
+('Paradise City','efd10cde-b65f-5dd6-b177-99bbd2e744a1','https://www.cda.gov.pk/storage/housing_societies/J95vuMaIuZ7tfnLuqu6nvqiK97OEJoZiavliE6gn.jpg','OTHER','2021-01-06'),
+('Paradise City','017dfc95-ce2f-5cbe-a224-bcf4279fa06a','https://www.cda.gov.pk/storage/housing_societies/wiD6KIrITkeEU6QKQjSB41XFkHycJSP1WlZ5mtz5.pdf','LOP_LETTER','2021-01-06'),
+('Paradise City','0f29f246-6ebc-5db1-82f0-0858188259dd','https://www.cda.gov.pk/storage/housing_societies/PwGUQPcRpkmyO6oA5HbEBbjShdyscuJPEfBMmSwg.pdf','NOC','2022-03-18'),
+('Paradise City','85affc55-f1a3-508c-8b79-ce5bbe59f952','https://www.cda.gov.pk/storage/housing_societies/EyZe2M4j3DOpAhQLbCTrhR4oO5uLZ5FXEmSzyw6w.pdf','MORTGAGE_DEED','2021-04-22'),
+('Park View City Housing Scheme','4d3e7e95-b9a6-5018-a31d-5aa179c105e2','https://www.cda.gov.pk/storage/housing_societies/qkDrJOrg5JgEQIi1zAcTbOwCgP6sY9LhgEWpKV1r.jpg','OTHER','')
+), t AS (
+SELECT d.*, s.id AS sid FROM d JOIN property_intelligence.societies s ON s.city='Islamabad' AND lower(regexp_replace(s.name,'[^a-zA-Z0-9]','','g'))=lower(regexp_replace(d.name,'[^a-zA-Z0-9]','','g'))
+), ins AS (
+INSERT INTO trust.evidence (id,type,file_ref,source_ref,document_date,document_type,record_type)
+SELECT eid::uuid,'document',url,'CDA housing scheme document, published at cda.gov.pk/housing-schemes, read 2026-10-30 ('||dtype||')',NULLIF(ddate,'')::date,dtype,'FACT' FROM t
+ON CONFLICT (id) DO NOTHING
+RETURNING id
+)
+UPDATE trust.verifications v SET evidence_refs = v.evidence_refs || x.ids
+FROM (SELECT sid, array_agg(eid ORDER BY eid) AS ids FROM t GROUP BY sid) x
+WHERE v.subject_type='SOCIETY' AND v.subject_id=x.sid AND v.claim_type='NOC'
+AND NOT (x.ids[1] = ANY(v.evidence_refs));
+
+WITH d(name,eid,url,dtype,ddate) AS (VALUES
+('Parliamentarians Enclave','4a87252b-a401-54b7-9cc2-64c40b2a02d4','https://www.cda.gov.pk/storage/housing_societies/um7XtSTg8rIbRp5FHqla3B8VR2c1lT0zL0weBhlb.jpg','LOP',''),
+('Parliamentarians Enclave','98c24500-cecb-5f65-9dd0-011720d0669b','https://www.cda.gov.pk/storage/housing_societies/DUnsMCP4HSizgvK6uupcGEgaL6cRYANvVp8cLGzP.pdf','TRANSFER_DEED','2005-04-13'),
+('Rahman Enclave Housing Scheme','d9f61258-c2cc-52b5-987a-b3ce3c93690f','https://www.cda.gov.pk/storage/housing_societies/6vUaZkrA7u9Fs52OxCt94JpNfWHTY9nV1NVzhmmH.jpg','OTHER',''),
+('Rahman Enclave Housing Scheme','f4935983-1dad-5f4a-a3d9-f5cf7d61e8db','https://www.cda.gov.pk/storage/housing_societies/NwgZ1dmNNUwE2eNNJVQ0EMjFn2GXR5MVmYQddT64.pdf','SHOW_CAUSE_NOTICE','2026-03-16'),
+('River Garden','e48d6f75-466a-51b0-a286-198b5c4ceb56','https://www.cda.gov.pk/storage/housing_societies/RIkavxDoV5GPh1AED49yCHX3Vy3oGl8YL4QZgyXB.pdf','LOP','2022-03-08'),
+('River Garden','240ff4ec-5d6a-5568-bc38-323f0f8fc2f6','https://www.cda.gov.pk/storage/housing_societies/4JQl2NInPlhAbbjgaEPoSSFrJueSdcwHEq3E3vZ4.pdf','LOP_LETTER','2022-03-08'),
+('River Garden','5efc395e-b84d-500c-9529-54a56dd0bc46','https://www.cda.gov.pk/storage/housing_societies/x79OIoZQNDJZCte0rUVaFZknjS3JR79JQBNpLCDy.pdf','NOC','2007-09-19'),
+('River Garden','942e3177-c0d1-54b5-bc1a-ccd1dfdbb93f','https://www.cda.gov.pk/storage/housing_societies/zhjokfwfYbNybXPxysk1bORNxIhgLSIt5J3MX4Li.pdf','TRANSFER_DEED','2020-05-09'),
+('River Garden','7f16775a-d9a2-56fe-807f-dec25f83e377','https://www.cda.gov.pk/storage/housing_societies/yzrj5BQyyDF0uvIq56sPkLMYFPMUXRWlkJkvAQYH.pdf','SHOW_CAUSE_NOTICE','2025-12-05'),
+('River Garden','cac78a75-7199-51c2-8bcc-7711f64f0cb2','https://www.cda.gov.pk/storage/housing_societies/cKqme5E2CvdmrlmjrxlxWSbklgKUgiCEe2WTJzCQ.pdf','MORTGAGE_DEED',''),
+('River Garden','1af1eab8-505f-5236-98a5-2d183faf18df','https://www.cda.gov.pk/storage/housing_societies/y8flb0foid4JB7ei2x2XBJ1t9Rtq7sYW9Om8wCj6.pdf','TRANSFER_DEED','2020-05-09'),
+('River Garden','3df8036d-411d-5de9-9171-3235330b0aa2','https://www.cda.gov.pk/storage/housing_societies/PZKIn0MjeD3Cy1c8ztNhrV6NOhUH6N77K02vyR2v.pdf','SHOW_CAUSE_NOTICE','2026-09-14'),
+('Roshan Pakistan (RP) Corporation Housing Scheme','6ac520aa-d522-5153-b158-563561f98a36','https://www.cda.gov.pk/storage/housing_societies/h0fBSf2Ale292xVFly0TS7eIWVvT0OIQhShLidFA.gif','LOP','2004-07-06'),
+('Roshan Pakistan (RP) Corporation Housing Scheme','0e4f318a-3db9-58a8-b0fd-cfad09b3c7d5','https://www.cda.gov.pk/storage/housing_societies/q2VQlukXdRuQOA4R36nJXtiFiMIs1oK2gkeX0EWY.jpg','LOP_CANCELLATION','2017-05-01'),
+('Roshan Pakistan (RP) Corporation Housing Scheme','3b278f3d-356c-58e6-9fbf-16cee3898aaf','https://www.cda.gov.pk/storage/housing_societies/Ecw7X3lvV4tHrSrZ3kEq0ZAF3yfYGPQnsAdiWVPK.pdf','LOP_LETTER','2024-07-06'),
+('Roshan Pakistan (RP) Corporation Housing Scheme','1bd0d5f6-8dad-5b55-85d8-bc68ea4a0ad3','https://www.cda.gov.pk/storage/housing_societies/cYKefHus3454FqpMdlp02TGFuHvPRe0pvVZj23w9.pdf','NOC','2006-03-11'),
+('Roshan Pakistan (RP) Corporation Housing Scheme','544355a6-355d-5a7e-b15f-17370868df99','https://www.cda.gov.pk/storage/housing_societies/oOhVLuvaaXkx4DVbwJ3A4wdtgP5Hef7AuvgwTRpY.pdf','TRANSFER_DEED','2005-09-22'),
+('Roshan Pakistan (RP) Corporation Housing Scheme','07c7e309-a36c-5f78-8c11-e6347f0e4129','https://www.cda.gov.pk/storage/housing_societies/nFGG3v4BwRW0qLPpZyJqdqrknM2xSirYSLbK5srE.pdf','SHOW_CAUSE_NOTICE','2025-11-28'),
+('Roshan Pakistan (RP) Corporation Housing Scheme','63e2def2-b313-544f-9053-4c6b7682ddfb','https://www.cda.gov.pk/storage/housing_societies/ea4cJ7AWgsmx9M6K9pI8SmypjIAtdu2meOsrCX7q.pdf','MORTGAGE_DEED','1993-12-12'),
+('Roshan Pakistan (RP) Corporation Housing Scheme','14cb2788-1049-5255-bb70-b118ba2bc7f1','https://www.cda.gov.pk/storage/housing_societies/jFg4L4ASYKwUOY3g5Vt7vQhHAcHWPLM1ZRamTmPl.pdf','MORTGAGE_DEED','1993-12-27'),
+('Roshan Pakistan (RP) Corporation Housing Scheme','931373a0-cd86-552d-b4a1-de4122f9733a','https://www.cda.gov.pk/storage/housing_societies/0oD0y5f7D17E6thk7FQN6DP8C1et8vd7MDiKqJwx.pdf','LOP','2026-02-06'),
+('Roshan Pakistan (RP) Corporation Housing Scheme','f70e5ffd-42ee-5f99-a884-e4668170c7dd','https://www.cda.gov.pk/storage/housing_societies/MP9Dek4uWrFEUpzVw640BZMLz5FMkiX3A21jO467.pdf','TRANSFER_DEED','2005-09-22'),
+('Senate Avenue','6e82b089-28bb-5e34-acb9-6bf17bf56994','https://www.cda.gov.pk/storage/housing_societies/5IzVxXsqvAi1ye3Ep9C6suDsGGfaj8fk6dFsqi0i.jpg','OTHER','2009-02-23'),
+('Services Co-operative Housing Society','7553c894-b494-5a42-b42d-56e11fbe2a59','https://www.cda.gov.pk/storage/housing_societies/rbxC8WGCC8tSWdwZbeFcBCBVUnZjgs6tedO8dFLo.pdf','OTHER',''),
+('Services Co-operative Housing Society','96c43544-02cc-5172-a6bb-03af2a2a4eaa','https://www.cda.gov.pk/storage/housing_societies/F24bHaWgHWIDRa5XntFCVevciDMvuZTog7DRJCWU.pdf','SHOW_CAUSE_NOTICE','2025-12-02'),
+('Services Co-operative Housing Society','29231afa-8766-5597-8cb3-01de9ae147d8','https://www.cda.gov.pk/storage/housing_societies/rn240dXTUdUq8pTdELcL0y7bdHoizxbC8HVv93kT.pdf','SHOW_CAUSE_NOTICE','2026-09-16'),
+('Soan Garden Housing Scheme','ad9ce4b9-044b-5b6b-8c3d-b19694905b90','https://www.cda.gov.pk/storage/housing_societies/files/Z4jw8UHGXoxAC5ymboxAGi1coXXSiTxlkm8iB9Df.jpg','LOP','2004-08-09'),
+('Soan Garden Housing Scheme','d6b686ad-a13a-5ace-83b1-ef3ff669d53c','https://www.cda.gov.pk/storage/housing_societies/ka6yD7ljvmG6R7vn4ZhwO0jVQQY8sUjJ9Amwv21g.pdf','LOP_APPROVAL','1994-07-10'),
+('Soan Garden Housing Scheme','e3da3239-6c53-5812-972d-e39f16a8a3e8','https://www.cda.gov.pk/storage/housing_societies/eJOXeuuvmxvQPXhzyYfHW5UKUNYlSEccNgMRUgZi.pdf','NOC','2024-08-09'),
+('Soan Garden Housing Scheme','119a5649-d0c5-5412-96da-bdaf83d70e1d','https://www.cda.gov.pk/storage/housing_societies/u8G33yJl8fWXDObYyJtpeh3R6luLTRjbAGi1VdJY.pdf','NOC_CANCELLATION','2017-05-21'),
+('Soan Garden Housing Scheme','3cd86c9d-481b-5f3a-9cde-c58c71dc2851','https://www.cda.gov.pk/storage/housing_societies/files/1d4TXfKgLqv2uSvuWORuhzbmTTg9tVtxfj0RGckX.pdf','OTHER','2025-06-03'),
+('Soan Garden Housing Scheme','2867fa32-feec-565e-9ef8-5ee83d7176b5','https://www.cda.gov.pk/storage/housing_societies/files/Xjm66OPAWh0H1VHEewOfYKLkdloMAVq8tk4IwNcN.pdf','TRANSFER_DEED','1995-04-04'),
+('Soan Garden Housing Scheme','2c4fe5a7-ae89-5f21-96e5-9bda3e38345e','https://www.cda.gov.pk/storage/housing_societies/files/yc6WNFUJcbnQGpSPyqbtulLRyiiYSuYH0ch3f3jx.pdf','MORTGAGE_DEED','1995-06-13'),
+('Soan Garden Housing Scheme','4be36078-1cd8-50ae-aec7-04ae1cd5bb55','https://www.cda.gov.pk/storage/housing_societies/L0J4xk2z5KAbg1dBcLbov6bGDLHt4isEGdkvUe9f.pdf','OTHER','2025-09-08'),
+('Soan Garden Housing Scheme','b70763b2-8a50-5efc-8831-02d1bdc4961c','https://www.cda.gov.pk/storage/housing_societies/uPjqAIuKfRxNqZSivjZYRTACkUmiApqy0nRy26Ge.pdf','SHOW_CAUSE_NOTICE','2025-08-21'),
+('Supreme Court Employees Housing Scheme','efac4d02-b3ef-507c-ac7a-b1b1e2ca1a88','https://www.cda.gov.pk/storage/housing_societies/g1BtoJ24ebuW1MaOvpdKW5VDGI1KHoYP5BcrlU4i.pdf','LOP_LETTER','2021-06-21'),
+('Supreme Court Employees Housing Scheme','0637c44f-6bb7-5dfc-b659-fcd2e82a3d94','https://www.cda.gov.pk/storage/housing_societies/vdosidXPlxPFZSlCq2Xd4DAO7kJI4Hm7qEMwWKN8.jpg','LOP','2021-06-21'),
+('Supreme Court Employees Housing Scheme','1a1cc656-3d9f-5d95-962b-708a1724e3da','https://www.cda.gov.pk/storage/housing_societies/jgVarcknbDMdiySnCwuHfX7lrIsMlJGiYGVOBfZI.pdf','NOC','2022-03-25'),
+('Supreme Court Employees Housing Scheme','7a706812-557a-5bdd-92d8-533708e9e76a','https://www.cda.gov.pk/storage/housing_societies/qJz7ohTK4ybRzoqKRxaweqGBDG2uErtCyujE9vq9.pdf','TRANSFER_DEED','2021-09-15'),
+('Supreme Court Employees Housing Scheme','7afe2750-cdee-5953-8d0a-5a4fc070483f','https://www.cda.gov.pk/storage/housing_societies/fUEsCZvMBW2yA4iN6CxbaomvdsLalr2DIrtmbmZy.pdf','MORTGAGE_DEED','2021-09-15'),
+('Supreme Court Employees Housing Scheme','10d55521-4de2-5350-b9c7-0090157e3fac','https://www.cda.gov.pk/storage/housing_societies/atGYEX4OzpaicpdWwEPquO3hg8TqoyYl9CgotZQU.pdf','MORTGAGE_DEED','2021-09-15'),
+('Supreme Court Employees Housing Scheme','5de9042d-166e-505f-9b08-16cea737f495','https://www.cda.gov.pk/storage/housing_societies/wG9eCJRZHdwYHLDEj6yeU6alCgHEBhkSnRdRYzSF.pdf','MORTGAGE_DEED','2021-09-24'),
+('T & T Employees Cooperative Housing Society','bd509a9e-9454-5cc9-89ab-6828bca2b1a1','https://www.cda.gov.pk/storage/housing_societies/4V0g1Kjc4jRtc91QDS7dfzoEYkMY8JhMhPzPjq8n.jpg','LOP','2022-05-21'),
+('T & T Employees Cooperative Housing Society','e42aa515-c598-5993-bd95-737aea3a9b39','https://www.cda.gov.pk/storage/housing_societies/8jzCGu6dxu1GsjwtOg8mLBiQOAz3mtLgdWb1AlS3.pdf','LOP_LETTER','2022-01-21'),
+('T & T Employees Cooperative Housing Society','b3a6de3e-f0fd-5034-9635-24de82d4af33','https://www.cda.gov.pk/storage/housing_societies/rm3vDVhsm5mHlYQIxSJXPfjrGf2BFvJTc4TXtmqQ.pdf','NOC','2008-06-30'),
+('T & T Employees Cooperative Housing Society','4d14af8c-60db-582d-a3b3-5935de568fdc','https://www.cda.gov.pk/storage/housing_societies/sw80ZfZGabo3iZjblgeQBXQxgSogNK3jQCgqLwzm.pdf','TRANSFER_DEED','2005-09-20'),
+('T & T Employees Cooperative Housing Society','c0fde6f2-5fb5-5480-95f9-c3c2f19e456f','https://www.cda.gov.pk/storage/housing_societies/A436t69WIPQrQSqh1NCtoClQgmsZNlTvEdILzLTX.pdf','MORTGAGE_DEED','2005-09-21'),
+('T & T Employees Cooperative Housing Society','b7ee1821-42bc-5975-9a82-883a9aeaa7c1','https://www.cda.gov.pk/storage/housing_societies/ICtSpzOZUSAoC8VKWwqLM8h0rmKphpFadJein8Ql.pdf','SHOW_CAUSE_NOTICE','2025-03-31'),
+('T & T Employees Cooperative Housing Society','bb556b2c-0995-529a-86eb-7603ac3054f5','https://www.cda.gov.pk/storage/housing_societies/O6mqIwdWIl9vZjLIFlZYnK0CHfHrChbG0h8tZFaT.pdf','OTHER','2025-06-16'),
+('Tele Gardens Housing Scheme, F-17, Islamabad','2d9b3e09-dca9-530d-8ebe-01a9cb171bb8','https://www.cda.gov.pk/storage/housing_societies/gGv3a3BdDE03MIWXo4nbTSgUPHGofeAhXnz431AR.pdf','LOP','2004-02-18'),
+('Tele Gardens Housing Scheme, F-17, Islamabad','f77ec4d3-fabe-591d-8966-7b44d9bac9d9','https://www.cda.gov.pk/storage/housing_societies/7c0U8aGekbI5cm6LuVXohZ9hsDRraReTQyAsvd5Q.pdf','LOP_LETTER','2005-02-18'),
+('Tele Gardens Housing Scheme, F-17, Islamabad','12af2d35-82a4-5862-a7b6-5882286a5857','https://www.cda.gov.pk/storage/housing_societies/dSIdVCiAEH6YP25zZnbnFp1EUYBESAAG6VvdOe5m.pdf','NOC','2008-01-30'),
+('Tele Gardens Housing Scheme, F-17, Islamabad','e862832c-1b5b-50f6-8954-8a8c7b796e16','https://www.cda.gov.pk/storage/housing_societies/AcKgLS5MeF7nLpUKBKlegyLLv8kRtGVMaQ6Fz8yc.pdf','TRANSFER_DEED','2005-06-24'),
+('Tele Gardens Housing Scheme, F-17, Islamabad','4fa976dc-e857-5b63-9e34-2d726add1ddb','https://www.cda.gov.pk/storage/housing_societies/SahQXIta8zV6TAxrPMusHF0gYs8qnhArJL5BzF4c.pdf','MORTGAGE_DEED','2005-07-04'),
+('Tele Gardens Housing Scheme, F-17, Islamabad','7aa39e6e-b9d2-5bae-a543-8094a7981379','https://www.cda.gov.pk/storage/housing_societies/rHfeUvaGdINgRf0Wy5Tk2TAsIljCMg8hAleBVuVv.pdf','SHOW_CAUSE_NOTICE','2026-06-30'),
+('Tele Gardens Housing Scheme, F-17, Islamabad','4e7e1e68-9707-5f8e-908e-ead58c76785c','https://www.cda.gov.pk/storage/housing_societies/YH3nDvbGbynRDULrrvLpObDUioBGGQkocZkR7Y0s.pdf','MORTGAGE_DEED','2005-07-04'),
+('Tele Gardens Housing Scheme, F-17, Islamabad','cca598e0-8573-5d71-a7af-9c28cdbcc1c0','https://www.cda.gov.pk/storage/housing_societies/CUQXUC9C9a2iwEKEr1ME4DMCMIdfhq9kwo0TEWFh.pdf','MORTGAGE_DEED','2026-05-21'),
+('Tele Gardens Housing Scheme, F-17, Islamabad','28f2f376-13a6-55c9-b593-1b052ccdb419','https://www.cda.gov.pk/storage/housing_societies/Th0l4HUQNaAjfqg0Lttk1CWRr9dxrHbru5oyMhnu.pdf','SHOW_CAUSE_NOTICE','2025-05-05'),
+('Tele Town','95dd11ac-af6c-5c96-bdf1-d82c57724ee5','https://www.cda.gov.pk/storage/housing_societies/jdakAPQXVSvkYMnKY9j382hpEtWDGC0xbq7wP27t.jpg','LOP','2023-03-24'),
+('Tele Town','8f5fdc03-8c2d-5e7c-88a8-d2c17694cfd9','https://www.cda.gov.pk/storage/housing_societies/BmoBRsNddWOhz2rrg9T46UJdCQDReol3C36ijM3t.pdf','LOP_CANCELLATION','2026-10-21'),
+('Tele Town','ee484bc5-0808-56e5-aa4e-3e16ec593a6c','https://www.cda.gov.pk/storage/housing_societies/gAAdFwxp84V49AMyKTo7F0ZkjwmCCSG97NMhuWfc.pdf','SHOW_CAUSE_NOTICE','2025-05-27'),
+('Tele Town','2c044790-b0e8-5a10-9339-0aa3dac93b20','https://www.cda.gov.pk/storage/housing_societies/PfLzybF6ZdNxviCFNpywdazc6xC9PkCaMWh2D3sE.pdf','SHOW_CAUSE_NOTICE','2025-12-02'),
+('WWF Labor Colony','02c735f0-13d7-503f-99ac-1a8f04d2b5ca','https://www.cda.gov.pk/storage/housing_societies/IhUQ5Ko69pR70O5yulM4Jy76RoOeWkXCgUShwmdh.jpg','OTHER',''),
+('WWF Labor Colony','2aee1d58-a09b-59ac-8d65-7f71af997801','https://www.cda.gov.pk/storage/housing_societies/mvdLycKMpsJRl4tGKbAqyIGFmHKsAB0y2mgfBP1a.pdf','TRANSFER_DEED','2012-06-28'),
+('Zaraj Housing','e649fb47-fa7d-5a8c-aa87-c77d31023d1d','https://www.cda.gov.pk/storage/housing_societies/CfszMyFPM3ZRxFsYa0rugGmWNimVvMoQ0nh4DQYV.jpg','OTHER','2023-04-20'),
+('Zaraj Housing','2db9c4bf-45db-5799-b5c7-42e9872a304c','https://www.cda.gov.pk/storage/housing_societies/w2YH4BzirJ7sxac26Ya8JTShadC7PxWA1NCHxFRS.pdf','SHOW_CAUSE_NOTICE','2026-05-18')
+), t AS (
+SELECT d.*, s.id AS sid FROM d JOIN property_intelligence.societies s ON s.city='Islamabad' AND lower(regexp_replace(s.name,'[^a-zA-Z0-9]','','g'))=lower(regexp_replace(d.name,'[^a-zA-Z0-9]','','g'))
+), ins AS (
+INSERT INTO trust.evidence (id,type,file_ref,source_ref,document_date,document_type,record_type)
+SELECT eid::uuid,'document',url,'CDA housing scheme document, published at cda.gov.pk/housing-schemes, read 2026-10-30 ('||dtype||')',NULLIF(ddate,'')::date,dtype,'FACT' FROM t
+ON CONFLICT (id) DO NOTHING
+RETURNING id
+)
+UPDATE trust.verifications v SET evidence_refs = v.evidence_refs || x.ids
+FROM (SELECT sid, array_agg(eid ORDER BY eid) AS ids FROM t GROUP BY sid) x
+WHERE v.subject_type='SOCIETY' AND v.subject_id=x.sid AND v.claim_type='NOC'
+AND NOT (x.ids[1] = ANY(v.evidence_refs));
