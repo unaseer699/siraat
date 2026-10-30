@@ -3,6 +3,8 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { BackLink } from '@/components/BackLink';
+import { ProjectSources } from '@/components/NewProjects';
+import { NEW_PROJECTS } from '@/lib/newProjects';
 import { Spinner } from '@/components/Spinner';
 import { fetchPublicProjects } from '@/lib/api';
 import type { PublicProject, PublicProjectCategory, PublicProjectListResponse, PublicProjectStatus } from '@siraat/shared-types';
@@ -87,6 +89,47 @@ function ProjectCard({ p }: { p: PublicProject }) {
   );
 }
 
+const TOTAL_PLOTS = NEW_PROJECTS.reduce((n, p) => n + p.affordablePlots, 0);
+
+function FeaturedAffordable() {
+  const top = NEW_PROJECTS.slice(0, 3);
+  return (
+    <section
+      aria-label="Affordable housing schemes"
+      style={{ border: `1.5px solid ${TRUST_GREEN_BORDER}`, background: TRUST_GREEN_BG, borderRadius: RADIUS.lg, padding: '20px', display: 'flex', flexDirection: 'column', gap: '14px' }}
+    >
+      <div>
+        <p style={{ fontSize: '12px', fontWeight: 800, color: TRUST_GREEN_TEXT, margin: '0 0 2px', letterSpacing: '.04em' }}>START HERE</p>
+        <h2 style={{ fontSize: '22px', fontWeight: 800, margin: 0 }}>Affordable housing schemes approved by PHATA</h2>
+        <p style={{ fontSize: '14px', margin: '6px 0 0', lineHeight: 1.5 }}>
+          <strong>{NEW_PROJECTS.length} private schemes</strong> with <strong>{TOTAL_PLOTS.toLocaleString()} plots</strong> reserved for affordable housing,
+          across Rawalpindi, Lahore and Multan regions. Each lists its plot sizes and its source.
+        </p>
+      </div>
+      <ul style={{ listStyle: 'none', margin: 0, padding: 0, display: 'grid', gap: '10px', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))' }}>
+        {top.map((s) => (
+          <li key={s.name} style={{ background: '#fff', border: '1px solid var(--border)', borderRadius: RADIUS.md, padding: '12px' }}>
+            <strong style={{ fontSize: '15px', display: 'block' }}>{s.name}</strong>
+            <span style={{ fontSize: '12px', color: 'var(--muted)' }}>{s.place}</span>
+            <div style={{ fontSize: '13px', marginTop: '6px' }}>
+              <strong>{s.affordablePlots.toLocaleString()}</strong> affordable plots · {s.plotSizes}
+            </div>
+          </li>
+        ))}
+      </ul>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
+        <Link
+          href="/new-projects"
+          style={{ background: TRUST_GREEN, color: '#fff', fontWeight: 800, fontSize: '15px', padding: '10px 18px', borderRadius: RADIUS.md, textDecoration: 'none' }}
+        >
+          See all {NEW_PROJECTS.length} schemes →
+        </Link>
+        <span style={{ fontSize: '12px', color: TRUST_GREEN_TEXT }}>Not reviewed by Siraat. Verify with PHATA before you invest.</span>
+      </div>
+    </section>
+  );
+}
+
 export default function ProjectsPage() {
   const [category, setCategory] = useState<'' | PublicProjectCategory>('');
   const [q, setQ] = useState('');
@@ -117,6 +160,10 @@ export default function ProjectsPage() {
           Headlines are picked up every day at 8 am from ARY, Geo and APP.
         </p>
       </div>
+
+      <FeaturedAffordable />
+
+      <h2 style={{ fontSize: '20px', fontWeight: 800, margin: '8px 0 0' }}>Roads, rail, housing programmes and policy</h2>
 
       <div role="note" style={{ border: `1px solid ${TRUST_GREEN_BORDER}`, background: TRUST_GREEN_BG, color: TRUST_GREEN_TEXT, borderRadius: RADIUS.md, padding: '12px 14px', fontSize: '13px', lineHeight: 1.5 }}>
         {data?.disclaimer ?? 'Information only, not advice to buy. Check each source yourself before you invest.'}
@@ -168,9 +215,7 @@ export default function ProjectsPage() {
         </section>
       )}
 
-      <p style={{ fontSize: '13px' }}>
-        Looking for affordable housing schemes approved by PHATA? <Link href="/new-projects" style={{ fontWeight: 700 }}>See the list</Link>.
-      </p>
+      <ProjectSources />
     </main>
   );
 }
