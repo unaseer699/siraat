@@ -340,7 +340,7 @@ function OnRecordLine({ stats }: { stats: PlatformStatsResponse | null }) {
   return (
     <p style={{ fontSize: '13px', color: 'var(--muted)', textAlign: 'center', margin: 0 }}>
       On record today:{' '}
-      <strong style={{ color: 'var(--text)' }}>{plural(stats.verified_societies_count, 'society', 'societies')}</strong>
+      <strong style={{ color: 'var(--text)' }}>{plural(stats.verified_societies_count, 'verified society', 'verified societies')}</strong>
       {' · '}
       <strong style={{ color: 'var(--text)' }}>{plural(stats.total_evidence_count, 'document', 'documents')}</strong>
       {' · '}
