@@ -35,3 +35,21 @@ export const NEW_PROJECTS: NewProject[] = [
   { ...base, name: 'Kingdom Valley', place: 'Chakri interchange, Rawalpindi', region: 'Rawalpindi region', areaKanal: 103, affordablePlots: 48, plotSizes: '3.5 – 5 marla' },
   { ...base, name: 'Green Wood Housing Scheme', place: 'Mari Jabbar Road, Rawalpindi', region: 'Rawalpindi region', areaKanal: 156, affordablePlots: 64, plotSizes: '4.59 marla' },
 ];
+
+// Official pages where new or approved projects are published. Links only.
+export interface ProjectSource {
+  short: string;
+  name: string;
+  covers: string;
+  url: string;
+}
+
+export const PROJECT_SOURCES: ProjectSource[] = [
+  { short: 'PHATA', name: 'Punjab Housing and Town Planning Agency', covers: 'Affordable private schemes across Punjab', url: 'https://phata.punjab.gov.pk/schemes' },
+  { short: 'CDA', name: 'Capital Development Authority', covers: 'Islamabad', url: 'https://www.cda.gov.pk/' },
+  { short: 'RDA', name: 'Rawalpindi Development Authority', covers: 'Rawalpindi', url: 'https://rda.gop.pk/' },
+  { short: 'LDA', name: 'Lahore Development Authority', covers: 'Lahore: approved private schemes', url: 'https://lda.gop.pk/approved-schemes' },
+  { short: 'FDA', name: 'Faisalabad Development Authority', covers: 'Faisalabad: private schemes', url: 'https://fda.gov.pk/schemes_private' },
+  { short: 'MDA', name: 'Multan Development Authority', covers: 'Multan: private housing and land sub-divisions', url: 'https://mda.punjab.gov.pk/private-housing-and-land-sub-division' },
+  { short: 'PDA', name: 'Peshawar Development Authority', covers: 'Peshawar', url: 'https://pda.kp.gov.pk/' },
+];

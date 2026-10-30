@@ -27,7 +27,6 @@ import { parsePlotQuery, plotsPageHref } from '@/lib/queryFilters';
 import { PlotMatches } from '@/components/PlotMatches';
 import { SearchBar } from '@/components/SearchBar';
 import { SchemeCheck } from '@/components/SchemeCheck';
-import { NewProjects } from '@/components/NewProjects';
 import { ResultsPanel } from '@/components/ResultsPanel';
 import {
   TRUST_GREEN,
@@ -368,6 +367,7 @@ const CHECK_CSS = `
 .how-steps{display:grid;grid-template-columns:1fr;gap:14px;margin:0;padding:0;list-style:none}
 @media(min-width:700px){
 .check-grid{grid-template-columns:repeat(2,1fr);gap:16px}
+.check-tile:nth-child(3){grid-column:span 2}
 .how-steps{grid-template-columns:repeat(3,1fr);gap:18px}
 }
 `;
@@ -375,6 +375,7 @@ const CHECK_CSS = `
 const CHECK_TOOLS: { href: string; title: string; subtitle: string; color: string; icon: ComponentType<LucideProps> }[] = [
   { href: CHECK_SOCIETY_HREF, title: 'Check a Society', subtitle: 'Approval status and the documents behind it', color: TRUST_GREEN, icon: MapPin },
   { href: '/compare', title: 'Compare Societies', subtitle: 'Put 2–3 societies side by side', color: ACCENT_BLUE, icon: Scale },
+  { href: '/new-projects', title: 'New Projects', subtitle: 'Official affordable schemes, with sources', color: '#0d9488', icon: Building2 },
 ];
 
 const HOW_WE_VERIFY_STEPS: { title: string; text: string }[] = [
@@ -552,8 +553,6 @@ function HomeView() {
         </div>
         <OnRecordLine stats={stats} />
       </section>
-
-      <NewProjects />
 
       <section
         id="how-we-verify"
