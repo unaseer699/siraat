@@ -76,7 +76,7 @@ Each item: **Priority** (Low / Medium / High) · **Found in** (capability) ·
 
 ---
 
-### 8. Em-dash renders as "???" in Evidence descriptions
+### 8. Em-dash renders as "???" in Evidence descriptions — ✅ RESOLVED (backlog cleanup, 2026-10-30)
 - **Priority:** Low
 - **Found in:** Capability 3 (post-freeze fix pass)
 - **Target:** General cleanup
@@ -105,7 +105,7 @@ Each item: **Priority** (Low / Medium / High) · **Found in** (capability) ·
 
 ---
 
-### 10. Production database schema setup has no automated safety net
+### 10. Production database schema setup has no automated safety net — ✅ RESOLVED (backlog cleanup, 2026-10-30)
 - **Priority:** Medium
 - **Found in:** Capability 6
 - **Target:** Future DevOps hardening
@@ -115,7 +115,7 @@ Each item: **Priority** (Low / Medium / High) · **Found in** (capability) ·
   `TypeOrmModule` connects, or a pre-flight migration runner) would prevent silent failures
   where the app boots against an uninitialized database and all requests 500.
 
-### 11. Evidence-required invariant duplicated across `createVerification()` and `promoteToVerified()`
+### 11. Evidence-required invariant duplicated across `createVerification()` and `promoteToVerified()` — ✅ RESOLVED (backlog cleanup, 2026-10-30)
 - **Priority:** Low
 - **Found in:** Capability 6
 - **Target:** General cleanup
@@ -225,6 +225,13 @@ Each item: **Priority** (Low / Medium / High) · **Found in** (capability) ·
   despite an explicit instruction not to. No data was lost either time, but
   both gates exist specifically to catch harm before it happens, not after.
 
+### 23. Society price unit mistakes (Lakh typed as rupees)
+- **Priority:** Low — ✅ RESOLVED (backlog cleanup, 2026-10-30)
+- **Found in:** Search results review
+- A society saved with prices 48 and 300 (meaning Lakh) showed as "PKR 174". The admin
+  society forms now show the amount in words and refuse a price under 100,000, and the API
+  rejects it too.
+
 ---
 
 ## Resolved Items
@@ -236,6 +243,9 @@ Each item: **Priority** (Low / Medium / High) · **Found in** (capability) ·
 | 4 | Score recomputed fresh on every search | Capability 5 |
 | 5 | Staleness penalty hardcoded inline | Capability 5 |
 | 6 | NOT_COVERED demand-signal logging | Capability 4 |
+| 8 | "???" in dashes | Backlog cleanup: seed scripts now use plain hyphens. Rows already stored with "???" are repaired by hand with SQL |
+| 10 | No startup safety net for the database | Backlog cleanup: `SchemaGuardService` refuses to start with a missing schema and logs an ERROR for any recent migration not applied. Add one line to `REQUIRED_COLUMNS` with every new migration |
+| 11 | Evidence-required rule duplicated | Backlog cleanup: single `assertHasEvidence()` helper in `trust.service.ts` |
 
 ---
 
