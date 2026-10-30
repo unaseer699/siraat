@@ -12,11 +12,17 @@ import type { UnapprovedSchemeListResponse } from '@siraat/shared-types';
 const PAGE_SIZE = 30;
 const RED_BG = '#fef2f2';
 const RED_BORDER = '#fecaca';
-const AREAS = ['Simly Dam Road', 'Lehtrar Road', 'Kuri Road', 'Park Road', 'Chakri Road', 'Adyala Road', 'Murree', 'Taxila', 'Bani Gala', 'Nilore'];
+const AREAS_BY_REGULATOR: Record<string, string[]> = {
+  CDA: ['Simly Dam Road', 'Lehtrar Road', 'Kuri Road', 'Park Road', 'Chakri Road', 'Adyala Road', 'Murree', 'Taxila', 'Bani Gala', 'Nilore'],
+  RDA: ['Chakri Road', 'Adyala Road', 'Kallar Syedan Road', 'Gujar Khan', 'Taxila', 'Murree Road'],
+  LDA: ['Raiwind Road', 'Ferozepur Road', 'Barki Road', 'BRB Canal Road', 'Multan Road', 'G.T Road', 'Bedian Road', 'Canal Road'],
+};
+const ALL_AREAS = ['Simly Dam Road', 'Chakri Road', 'Adyala Road', 'Raiwind Road', 'Ferozepur Road', 'Barki Road', 'Multan Road', 'Murree'];
 const REGULATORS: Array<{ key: string; label: string }> = [
   { key: '', label: 'All' },
   { key: 'CDA', label: 'CDA (Islamabad)' },
   { key: 'RDA', label: 'RDA (Rawalpindi)' },
+  { key: 'LDA', label: 'LDA (Lahore)' },
 ];
 
 function formatDate(iso: string | null): string {
@@ -121,11 +127,11 @@ export default function IllegalSchemesPage() {
         value={search}
         onChange={(e) => setSearch(e.target.value)}
         placeholder="Search by scheme name or area…"
-        aria-label="Search schemes CDA lists as unapproved"
+        aria-label="Search schemes the regulators list as unapproved"
         style={{ padding: '10px 12px', border: '1px solid var(--border)', borderRadius: RADIUS.md, fontSize: '15px' }}
       />
       <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-        {AREAS.map((a) => (
+        {(AREAS_BY_REGULATOR[regulator] ?? ALL_AREAS).map((a) => (
           <button
             key={a}
             type="button"
@@ -151,7 +157,7 @@ export default function IllegalSchemesPage() {
 
       {data && data.state === 'NOT_COVERED' && (
         <p style={{ color: 'var(--muted)', fontSize: '14px' }}>
-          No scheme on the {regulator || 'CDA or RDA'} list matches &ldquo;{q}&rdquo;. That does not mean it is approved — check the approved
+          No scheme on the {regulator || 'CDA, RDA or LDA'} list matches &ldquo;{q}&rdquo;. That does not mean it is approved — check the approved
           list or ask the regulator.
         </p>
       )}
@@ -165,7 +171,7 @@ export default function IllegalSchemesPage() {
             >
               <h2 style={{ fontSize: '15px', fontWeight: 700, margin: 0 }}>{s.name}</h2>
               {s.location && <p style={{ fontSize: '13px', color: 'var(--muted)', margin: 0 }}>{s.location}</p>}
-              {s.note && <p style={{ fontSize: '12px', margin: 0 }}>RDA note: {s.note}</p>}
+              {s.note && <p style={{ fontSize: '12px', margin: 0 }}>{s.regulator} note: {s.note}</p>}
               <p style={{ fontSize: '12px', color: DANGER_RED, fontWeight: 700, margin: '4px 0 0' }}>
                 Listed by {s.regulator} as unapproved
               </p>

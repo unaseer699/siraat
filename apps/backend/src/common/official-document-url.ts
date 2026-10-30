@@ -8,6 +8,8 @@ const OFFICIAL_DOCUMENT_HOSTS = [
   'www.cda.gov.pk',
   'rda.gop.pk',
   'www.rda.gop.pk',
+  'lda.gop.pk',
+  'www.lda.gop.pk',
   'pub-480f7399580a4e4496490b6a8bd298f6.r2.dev',
 ];
 

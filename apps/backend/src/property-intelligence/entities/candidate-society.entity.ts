@@ -9,7 +9,7 @@ export class CandidateSocietyEntity {
   name: string;
 
   @Column({ type: 'varchar', length: 10 })
-  regulator: 'CDA' | 'RDA' | 'TMA' | 'OTHER';
+  regulator: 'CDA' | 'RDA' | 'LDA' | 'TMA' | 'OTHER';
 
   @Column({ length: 100 })
   city: string;
