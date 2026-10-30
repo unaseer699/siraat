@@ -236,7 +236,7 @@ export function EvidenceDrawer({ evidence, triggerLabel = 'View all evidence' }:
 
                       <p style={{ fontSize: '12px', color: 'var(--muted)', margin: 0 }}>
                         {item.source_ref}
-                        {/^https:\/\/(www\.)?(cda\.gov\.pk|rda\.gop\.pk|lda\.gop\.pk|pda\.kp\.gov\.pk|fda\.gov\.pk|pub-480f7399580a4e4496490b6a8bd298f6\.r2\.dev)\//i.test(item.file_ref) && ' · Opens on the official portal'}
+                        {/^https:\/\/(www\.)?(cda\.gov\.pk|rda\.gop\.pk|lda\.gop\.pk|pda\.kp\.gov\.pk|fda\.gov\.pk|mda\.punjab\.gov\.pk|pub-480f7399580a4e4496490b6a8bd298f6\.r2\.dev)\//i.test(item.file_ref) && ' · Opens on the official portal'}
                       </p>
 
                       {errors[item.id] && (

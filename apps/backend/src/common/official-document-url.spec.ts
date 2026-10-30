@@ -17,6 +17,10 @@ describe('officialDocumentUrl', () => {
     const url = 'https://fda.gov.pk/uploads/society/society_map_sitara-sapna-city-chak-no-123jb_5997_13072023032203.jpg';
     expect(officialDocumentUrl(url)).toBe(url);
   });
+  it('accepts an MDA list PDF', () => {
+    const url = 'https://mda.punjab.gov.pk/system/files/approved.pdf';
+    expect(officialDocumentUrl(url)).toBe(url);
+  });
   it('accepts a PDA list page', () => {
     const url = 'https://pda.kp.gov.pk/illegalsocieties';
     expect(officialDocumentUrl(url)).toBe(url);

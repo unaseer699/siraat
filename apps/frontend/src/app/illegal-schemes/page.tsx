@@ -219,6 +219,7 @@ export default function IllegalSchemesPage() {
               ) : (
                 <span style={{ color: 'var(--muted)' }}>(official site to be added)</span>
               )}
+              {a.note && <span style={{ color: 'var(--muted)' }}> {a.note}</span>}
             </li>
           ))}
         </ul>

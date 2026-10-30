@@ -18,7 +18,7 @@ const STATUS_OPTIONS: StatusFilter[] = ['ALL', 'NOT_STARTED', 'IN_PROGRESS', 'ON
 
 // ADMIN CRUD PHASE 1 Chunk 2 — edit-form option lists, no 'ALL' entry (that's
 // filter-only, above).
-const REGULATOR_OPTIONS: CandidateSociety['regulator'][] = ['CDA', 'RDA', 'LDA', 'PDA', 'FDA', 'TMA', 'OTHER'];
+const REGULATOR_OPTIONS: CandidateSociety['regulator'][] = ['CDA', 'RDA', 'LDA', 'PDA', 'FDA', 'MDA', 'TMA', 'OTHER'];
 const EDIT_STATUS_OPTIONS: CandidateSociety['status'][] = ['NOT_STARTED', 'IN_PROGRESS', 'ONBOARDED'];
 
 type EditDraft = Pick<CandidateSociety, 'name' | 'regulator' | 'city' | 'status'>;

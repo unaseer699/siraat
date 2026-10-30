@@ -10,6 +10,7 @@ const OFFICIAL_DOCUMENT_HOSTS = [
   'www.rda.gop.pk',
   'pda.kp.gov.pk',
   'fda.gov.pk',
+  'mda.punjab.gov.pk',
   'www.fda.gov.pk',
   'lda.gop.pk',
   'www.lda.gop.pk',
