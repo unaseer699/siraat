@@ -13,6 +13,10 @@ describe('officialDocumentUrl', () => {
     const url = 'https://lda.gop.pk/private_schemes/plu/img/schemes/464_Abdalian_Revised--2011-.jpg';
     expect(officialDocumentUrl(url)).toBe(url);
   });
+  it('accepts an FDA scheme map', () => {
+    const url = 'https://fda.gov.pk/uploads/society/society_map_sitara-sapna-city-chak-no-123jb_5997_13072023032203.jpg';
+    expect(officialDocumentUrl(url)).toBe(url);
+  });
   it('accepts a PDA list page', () => {
     const url = 'https://pda.kp.gov.pk/illegalsocieties';
     expect(officialDocumentUrl(url)).toBe(url);

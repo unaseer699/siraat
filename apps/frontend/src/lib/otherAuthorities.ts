@@ -10,7 +10,6 @@ export interface OtherAuthority {
 
 export const OTHER_AUTHORITIES: OtherAuthority[] = [
   { short: 'PHATA', name: 'Punjab Housing and Town Planning Agency', area: 'Punjab (outside the development authorities)', url: 'https://phata.punjab.gov.pk/' },
-  { short: 'FDA', name: 'Faisalabad Development Authority', area: 'Faisalabad', url: 'https://www.fda.gov.pk/' },
   { short: 'MDA', name: 'Multan Development Authority', area: 'Multan', url: 'https://mda.punjab.gov.pk/' },
   { short: 'KDA', name: 'Karachi Development Authority', area: 'Karachi', url: 'https://www.kda.gos.pk/' },
   { short: 'SBCA', name: 'Sindh Building Control Authority', area: 'Karachi and Sindh', url: null },

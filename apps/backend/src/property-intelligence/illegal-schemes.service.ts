@@ -15,7 +15,7 @@ export const UNAPPROVED_STALENESS_DAYS = 90;
 export const UNAPPROVED_DISCLAIMER =
   'This is the regulator\'s own published list of schemes without an approved layout plan or NOC. ' +
   'It is not a Siraat finding, may be out of date, and a name missing from it does not mean a scheme is approved. ' +
-  'Confirm with the regulator (CDA for Islamabad, RDA for Rawalpindi, LDA for Lahore, PDA for Peshawar) before buying.';
+  'Confirm with the regulator (CDA for Islamabad, RDA for Rawalpindi, LDA for Lahore, PDA for Peshawar, FDA for Faisalabad) before buying.';
 
 function toDto(e: IllegalSchemeEntity): UnapprovedScheme {
   return {

@@ -89,7 +89,7 @@ type EvidenceItemBody = z.infer<typeof EvidenceItemSchema>;
 
 // ADMIN CRUD PHASE 1 Chunk 1 — mirrors CandidateSocietyEntity's regulator/status
 // union types (candidate-society.entity.ts).
-const REGULATORS = ['CDA', 'RDA', 'LDA', 'PDA', 'TMA', 'OTHER'] as const;
+const REGULATORS = ['CDA', 'RDA', 'LDA', 'PDA', 'FDA', 'TMA', 'OTHER'] as const;
 const CANDIDATE_STATUSES = ['NOT_STARTED', 'IN_PROGRESS', 'ONBOARDED'] as const;
 
 // A society's price range is stored in full rupees. Anything under 100,000 is a
