@@ -24,7 +24,8 @@ export function NewProjects() {
       </h2>
       <p style={{ fontSize: '13px', color: 'var(--muted)', margin: '0 0 16px', lineHeight: 1.5 }}>
         Private schemes approved by Punjab&rsquo;s housing agency (PHATA), with the plots they must reserve for affordable housing.
-        We list them from the official page. We have not reviewed them yet, so this is not advice to buy.
+        We copy them from the official page and show the source on every card.
+        This is information, not advice to buy. Check each project with the authority yourself before you invest; you decide and you carry the risk.
       </p>
       <ul style={{ listStyle: 'none', margin: 0, padding: 0, display: 'grid', gap: '12px', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))' }}>
         {shown.map((p) => (
@@ -44,15 +45,21 @@ export function NewProjects() {
               <span style={{ fontSize: '12px', padding: '2px 8px', borderRadius: '999px', border: '1px solid var(--border)', color: 'var(--muted)' }}>
                 {p.status}
               </span>
-              <span style={{ fontSize: '12px', padding: '2px 8px', borderRadius: '999px', border: '1px solid var(--border)', color: 'var(--muted)' }}>
-                Siraat review: pending
-              </span>
+              {p.siraatReview === 'REVIEWED' ? (
+                <span style={{ fontSize: '12px', fontWeight: 700, padding: '2px 8px', borderRadius: '999px', background: TRUST_GREEN_BG, border: `1px solid ${TRUST_GREEN_BORDER}`, color: TRUST_GREEN_TEXT }}>
+                  Reviewed by Siraat
+                </span>
+              ) : (
+                <span style={{ fontSize: '12px', fontWeight: 700, padding: '2px 8px', borderRadius: '999px', border: `1px solid ${WARNING_AMBER}`, color: '#92400e' }}>
+                  Not reviewed by Siraat – verify yourself
+                </span>
+              )}
             </div>
             {p.caution && (
-              <p style={{ fontSize: '12px', margin: 0, color: WARNING_AMBER, lineHeight: 1.4 }}>{p.caution}</p>
+              <p style={{ fontSize: '12px', margin: 0, color: '#92400e', lineHeight: 1.4 }}>{p.caution}</p>
             )}
             <a href={p.sourceUrl} target="_blank" rel="noopener noreferrer" style={{ fontSize: '12px', marginTop: 'auto' }}>
-              Official source
+              Source: {p.authority} official page ↗
             </a>
           </li>
         ))}

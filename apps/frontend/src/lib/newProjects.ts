@@ -1,6 +1,6 @@
 // Projects published by official regulators. Reference only: Siraat has NOT yet
-// reviewed these (no verification, score or investment view). Every entry cites
-// its official source. Add new entries only from an official page.
+// reviewed these unless siraatReview is REVIEWED. Every entry cites its
+// official source, and buyers verify it themselves. Add new entries only from an official page.
 export interface NewProject {
   name: string;
   place: string;
@@ -13,12 +13,14 @@ export interface NewProject {
   plotSizes: string;
   status: string;
   caution?: string;
+  // REVIEWED only after Siraat has completed its own checks on the project.
+  siraatReview: 'REVIEWED' | 'NOT_REVIEWED';
   sourceUrl: string;
   listedAsOf: string;
 }
 
 const PHATA_URL = 'https://phata.punjab.gov.pk/affordable-private-housing-schemes';
-const base = { kind: 'Private scheme' as const, authority: 'PHATA', status: 'Form-F issued', sourceUrl: PHATA_URL, listedAsOf: '2026-10-30' };
+const base = { kind: 'Private scheme' as const, authority: 'PHATA', status: 'Form-F issued', siraatReview: 'NOT_REVIEWED' as const, sourceUrl: PHATA_URL, listedAsOf: '2026-10-30' };
 
 export const NEW_PROJECTS: NewProject[] = [
   { ...base, name: 'National Aerospace City', place: 'Pind Suleman Makkan, Attock', region: 'Rawalpindi region', areaKanal: 7440.42, affordablePlots: 2060, apartments: 17, plotSizes: '4.13 – 4.98 marla' },
