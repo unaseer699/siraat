@@ -16,6 +16,7 @@ const RED_BORDER = '#fecaca';
 const AREAS_BY_REGULATOR: Record<string, string[]> = {
   CDA: ['Simly Dam Road', 'Lehtrar Road', 'Kuri Road', 'Park Road', 'Chakri Road', 'Adyala Road', 'Murree', 'Taxila', 'Bani Gala', 'Nilore'],
   RDA: ['Chakri Road', 'Adyala Road', 'Kallar Syedan Road', 'Gujar Khan', 'Taxila', 'Murree Road'],
+  MDA: ['Bosan Road', 'Southern Bypass', 'LMQ Road', 'Nawabpur Road', 'Suraj Miani Road', 'Multan Public School Road', 'M.A. Jinnah Road', 'Peran Ghaib'],
   FDA: ['Azafi Abadi', 'Chak No.', 'Satyana Road', 'Sargodha Road', 'Samundari Road', 'Millat Road'],
   PDA: ['Nasir Bagh Road', 'Warsak Road', 'G.T. Road', 'Ring Road', 'Charsadda Road'],
   LDA: ['Raiwind Road', 'Ferozepur Road', 'Barki Road', 'BRB Canal Road', 'Multan Road', 'G.T Road', 'Bedian Road', 'Canal Road'],
@@ -28,6 +29,7 @@ const REGULATORS: Array<{ key: string; label: string }> = [
   { key: 'LDA', label: 'LDA (Lahore)' },
   { key: 'PDA', label: 'PDA (Peshawar)' },
   { key: 'FDA', label: 'FDA (Faisalabad)' },
+  { key: 'MDA', label: 'MDA (Multan)' },
 ];
 
 function formatDate(iso: string | null): string {
@@ -162,7 +164,7 @@ export default function IllegalSchemesPage() {
 
       {data && data.state === 'NOT_COVERED' && (
         <p style={{ color: 'var(--muted)', fontSize: '14px' }}>
-          No scheme on the {regulator || 'CDA, RDA, LDA, PDA or FDA'} list matches &ldquo;{q}&rdquo;. That does not mean it is approved — check the approved
+          No scheme on the {regulator || 'CDA, RDA, LDA, PDA, FDA or MDA'} list matches &ldquo;{q}&rdquo;. That does not mean it is approved — check the approved
           list or ask the regulator.
         </p>
       )}

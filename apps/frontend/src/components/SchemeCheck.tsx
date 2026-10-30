@@ -37,7 +37,7 @@ export function SchemeCheck() {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', width: '100%', maxWidth: '680px' }}>
-      <p style={{ fontSize: '14px', fontWeight: 800, margin: 0 }}>Check a scheme against the CDA / RDA / LDA / PDA / FDA unapproved lists</p>
+      <p style={{ fontSize: '14px', fontWeight: 800, margin: 0 }}>Check a scheme against the CDA / RDA / LDA / PDA / FDA / MDA unapproved lists</p>
       <form onSubmit={run} style={{ display: 'flex', gap: '8px' }}>
         <input
           value={name}
@@ -78,7 +78,7 @@ export function SchemeCheck() {
       )}
       {res && res.match === 'NONE' && (
         <div style={{ background: TRUST_GREEN_BG, border: `1px solid ${TRUST_GREEN_BORDER}`, color: TRUST_GREEN_TEXT, borderRadius: RADIUS.md, padding: '12px 14px', fontSize: '13px', lineHeight: 1.5 }}>
-          &ldquo;{asked}&rdquo; is not on the CDA, RDA, LDA, PDA or FDA lists we hold
+          &ldquo;{asked}&rdquo; is not on the CDA, RDA, LDA, PDA, FDA or MDA lists we hold
           {res.listed_as_of ? ` (read ${new Date(res.listed_as_of).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })})` : ''}.
           That does not prove it is approved — confirm with CDA before buying.
         </div>
