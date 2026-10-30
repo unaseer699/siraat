@@ -17,6 +17,7 @@
     "@nestjs/config": "^4.0.4",
     "@nestjs/core": "^10.4.1",
     "@nestjs/platform-fastify": "^10.4.1",
+    "@nestjs/schedule": "^4.1.2",
     "@nestjs/throttler": "^6.5.0",
     "@nestjs/typeorm": "^10.0.2",
     "@siraat/shared-types": "workspace:*",

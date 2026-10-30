@@ -10,6 +10,7 @@ import { AdminModule } from './admin/admin.module';
 import { WhatsappModule } from './whatsapp/whatsapp.module';
 import { GroundReportsModule } from './ground-reports/ground-reports.module';
 import { ContractorPortfolioModule } from './contractor-portfolio/contractor-portfolio.module';
+import { PublicProjectsModule } from './public-projects/public-projects.module';
 import { HealthController } from './health.controller';
 import { SchemaGuardService } from './common/schema-guard';
 
@@ -48,6 +49,7 @@ import { SchemaGuardService } from './common/schema-guard';
     WhatsappModule,
     GroundReportsModule,
     ContractorPortfolioModule,
+    PublicProjectsModule,
   ],
 })
 export class AppModule {}

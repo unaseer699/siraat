@@ -30,6 +30,7 @@ export const REQUIRED_COLUMNS: Array<{ migration: string; schema: string; table:
   { migration: '027_whatsapp_accounts', schema: 'data_acquisition', table: 'whatsapp_accounts', column: 'wa_id' },
   { migration: '028_illegal_schemes', schema: 'property_intelligence', table: 'illegal_schemes', column: 'name_key' },
   { migration: '029_illegal_schemes_note', schema: 'property_intelligence', table: 'illegal_schemes', column: 'note' },
+  { migration: '030_public_projects', schema: 'market_intelligence', table: 'public_projects', column: 'slug' },
 ];
 
 export function findMissingSchemas(present: string[]): string[] {

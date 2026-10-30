@@ -193,3 +193,72 @@ export interface ParsedIntent {
   max_area_marla: number | null;
   keywords: string[];
 }
+
+// ─── PUBLIC PROJECTS (government developments) ─────────────────────────────
+// GET /v1/public-projects. Information only: no scores, no price predictions.
+
+export type PublicProjectCategory =
+  | 'ROADS'
+  | 'TRANSIT'
+  | 'NEW_CITY'
+  | 'HOUSING_PROGRAMME'
+  | 'POLICY_TAX'
+  | 'MASTER_PLAN';
+
+export type PublicProjectStatus =
+  | 'PLANNED'
+  | 'ANNOUNCED'
+  | 'APPROVED'
+  | 'TENDERED'
+  | 'UNDER_CONSTRUCTION'
+  | 'DELAYED'
+  | 'COMPLETED'
+  | 'ONGOING';
+
+export interface PublicProjectReport {
+  outlet: string;
+  title: string;
+  url: string;
+  published_at: string | null;
+}
+
+export interface PublicProjectHistoryItem {
+  status: PublicProjectStatus;
+  event_date: string;
+  target_date: string | null;
+  note: string | null;
+  source_url: string;
+  source_kind: 'OFFICIAL' | 'MEDIA';
+}
+
+export interface PublicProject {
+  id: string;
+  slug: string;
+  name: string;
+  category: PublicProjectCategory;
+  region: string;
+  province: string | null;
+  agencies: string | null;
+  summary: string;
+  cost_pkr_bn: number | null;
+  status: PublicProjectStatus;
+  status_note: string | null;
+  status_date: string | null;
+  original_target: string | null;
+  current_target: string | null;
+  delay_days: number;
+  source_url: string;
+  source_kind: 'OFFICIAL' | 'MEDIA';
+  history: PublicProjectHistoryItem[];
+  reports: PublicProjectReport[];
+}
+
+export interface PublicProjectListResponse {
+  state: 'FULL' | 'NOT_COVERED';
+  projects: PublicProject[];
+  latest_reports: PublicProjectReport[];
+  last_refreshed_at: string | null;
+  is_stale: boolean;
+  staleness_threshold_days: number;
+  disclaimer: string;
+}

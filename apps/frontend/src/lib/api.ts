@@ -15,6 +15,7 @@ import type {
   MaterialRateItem,
   CreateMaterialRateBody,
   PlatformStatsResponse,
+  PublicProjectListResponse,
   SocietyListResponse,
   UnapprovedSchemeListResponse,
   UnapprovedSchemeCheckResponse,
@@ -171,6 +172,14 @@ export async function fetchSocieties(params?: {
 }
 
 // Schemes CDA lists as having no approval - separate from societies on purpose.
+export async function fetchPublicProjects(params?: { category?: string; q?: string }): Promise<PublicProjectListResponse> {
+  const qs = new URLSearchParams();
+  if (params?.category) qs.set('category', params.category);
+  if (params?.q) qs.set('q', params.q);
+  const suffix = qs.toString() ? `?${qs.toString()}` : '';
+  return apiFetch(`/v1/public-projects${suffix}`);
+}
+
 export async function fetchUnapprovedSchemes(params?: {
   q?: string;
   regulator?: string;

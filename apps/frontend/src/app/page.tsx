@@ -375,7 +375,7 @@ const CHECK_CSS = `
 const CHECK_TOOLS: { href: string; title: string; subtitle: string; color: string; icon: ComponentType<LucideProps> }[] = [
   { href: CHECK_SOCIETY_HREF, title: 'Check a Society', subtitle: 'Approval status and the documents behind it', color: TRUST_GREEN, icon: MapPin },
   { href: '/compare', title: 'Compare Societies', subtitle: 'Put 2–3 societies side by side', color: ACCENT_BLUE, icon: Scale },
-  { href: '/new-projects', title: 'New Projects', subtitle: 'Official affordable schemes, with sources', color: '#0d9488', icon: Building2 },
+  { href: '/projects', title: 'Projects & Development', subtitle: 'Roads, housing and policy news, updated daily', color: '#0d9488', icon: Building2 },
 ];
 
 const HOW_WE_VERIFY_STEPS: { title: string; text: string }[] = [
