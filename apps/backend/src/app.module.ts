@@ -11,9 +11,12 @@ import { WhatsappModule } from './whatsapp/whatsapp.module';
 import { GroundReportsModule } from './ground-reports/ground-reports.module';
 import { ContractorPortfolioModule } from './contractor-portfolio/contractor-portfolio.module';
 import { HealthController } from './health.controller';
+import { SchemaGuardService } from './common/schema-guard';
 
 @Module({
   controllers: [HealthController],
+  // Startup check: refuses to boot against a database with no schemas (REVIEW_BACKLOG item 10).
+  providers: [SchemaGuardService],
   imports: [
     // Must be first — other modules read process.env values at module init time
     ConfigModule.forRoot({ isGlobal: true, envFilePath: '.env' }),

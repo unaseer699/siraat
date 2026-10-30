@@ -42,6 +42,16 @@ export interface VerificationResult {
   evidence: EvidenceEntity[];
 }
 
+// The one home of the "VERIFIED needs evidence" rule (REVIEW_BACKLOG item 11):
+// if the bar ever rises (e.g. two documents), change MIN_EVIDENCE_FOR_VERIFIED here.
+export const MIN_EVIDENCE_FOR_VERIFIED = 1;
+
+export function assertHasEvidence(evidenceRefs: string[], message: string): void {
+  if (evidenceRefs.length < MIN_EVIDENCE_FOR_VERIFIED) {
+    throw new BadRequestException(message);
+  }
+}
+
 @Injectable()
 export class TrustService {
   private readonly logger = new Logger(TrustService.name);
@@ -265,8 +275,8 @@ export class TrustService {
     if (!data.claim_type) {
       throw new BadRequestException('claim_type is required for every Verification');
     }
-    if (data.status === 'VERIFIED' && data.evidence_refs.length === 0) {
-      throw new BadRequestException('VERIFIED status requires at least one evidence reference');
+    if (data.status === 'VERIFIED') {
+      assertHasEvidence(data.evidence_refs, 'VERIFIED status requires at least one evidence reference');
     }
     const entity = this.verRepo.create({
       ...data,
@@ -463,9 +473,7 @@ export class TrustService {
     if (!verification) {
       throw new NotFoundException(`No verification record found for society ${subjectId}`);
     }
-    if (verification.evidence_refs.length === 0) {
-      throw new BadRequestException('Cannot promote to VERIFIED with zero evidence references');
-    }
+    assertHasEvidence(verification.evidence_refs, 'Cannot promote to VERIFIED with zero evidence references');
     verification.status = 'VERIFIED';
     verification.verified_at = new Date();
     return this.verRepo.save(verification);
@@ -480,9 +488,7 @@ export class TrustService {
     if (!verification) {
       throw new NotFoundException(`No verification record found with id ${verificationId}`);
     }
-    if (verification.evidence_refs.length === 0) {
-      throw new BadRequestException('Cannot promote to VERIFIED with zero evidence references');
-    }
+    assertHasEvidence(verification.evidence_refs, 'Cannot promote to VERIFIED with zero evidence references');
     const oldStatus = verification.status;
     verification.status = 'VERIFIED';
     verification.verified_at = new Date();

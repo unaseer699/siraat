@@ -2,6 +2,8 @@
 
 import { Suspense, useEffect, useRef, useState, type CSSProperties, type FormEvent } from 'react';
 import Link from 'next/link';
+import { SocietyPriceHint } from '@/components/SocietyPriceHint';
+import { societyPriceProblem } from '@/lib/pkr';
 import { useSearchParams } from 'next/navigation';
 import { Spinner } from '@/components/Spinner';
 import {
@@ -237,7 +239,7 @@ function NewSocietyForm() {
   const evidenceOk = targetStatus !== 'VERIFIED' || evidence.length > 0;
   const affiliationOk = !isAffiliated || affiliationDisclosure.trim().length > 0;
   const canSubmit =
-    name.trim() && city.trim() && claim.trim() && confidenceValid && evidenceOk && affiliationOk && !duplicateMatch;
+    name.trim() && city.trim() && claim.trim() && confidenceValid && evidenceOk && affiliationOk && !duplicateMatch && !societyPriceProblem(minPrice) && !societyPriceProblem(maxPrice);
 
   function handleDeveloperSelect(r: DeveloperSearchResult) {
     setDeveloperId(r.id);
@@ -394,10 +396,12 @@ function NewSocietyForm() {
                 <div style={{ ...fieldGroupStyle, flex: 1 }}>
                   <label style={labelStyle}>Min price (PKR)</label>
                   <input type="number" value={minPrice} onChange={(e) => setMinPrice(e.target.value)} style={inputStyle} />
+                  <SocietyPriceHint value={minPrice} />
                 </div>
                 <div style={{ ...fieldGroupStyle, flex: 1 }}>
                   <label style={labelStyle}>Max price (PKR)</label>
                   <input type="number" value={maxPrice} onChange={(e) => setMaxPrice(e.target.value)} style={inputStyle} />
+                  <SocietyPriceHint value={maxPrice} />
                 </div>
               </div>
 

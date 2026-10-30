@@ -92,13 +92,21 @@ type EvidenceItemBody = z.infer<typeof EvidenceItemSchema>;
 const REGULATORS = ['CDA', 'RDA', 'TMA', 'OTHER'] as const;
 const CANDIDATE_STATUSES = ['NOT_STARTED', 'IN_PROGRESS', 'ONBOARDED'] as const;
 
+// A society's price range is stored in full rupees. Anything under 100,000 is a
+// Lakh/Crore typed by mistake (48 meaning 48 Lakh) and would show as "PKR 48".
+const SocietyPriceSchema = z
+  .number()
+  .refine((v) => v >= 100_000, {
+    message: 'Price must be the full amount in rupees (1.74 Crore is 17400000), not Lakh or Crore',
+  });
+
 // --- POST /v1/admin/societies ---
 
 const CreateSocietyBodySchema = z.object({
   name: z.string().trim().min(1).max(255),
   city: z.string().trim().min(1).max(100),
-  min_price: z.number().nullable().default(null),
-  max_price: z.number().nullable().default(null),
+  min_price: SocietyPriceSchema.nullable().default(null),
+  max_price: SocietyPriceSchema.nullable().default(null),
   min_area_marla: z.number().nullable().default(null),
   max_area_marla: z.number().nullable().default(null),
   property_types: z.array(z.string()).default(['PLOT']),
@@ -137,8 +145,8 @@ const httpUrl = (max: number) =>
 const UpdateSocietyBodySchema = z.object({
   name: z.string().trim().min(1).max(255).optional(),
   city: z.string().trim().min(1).max(100).optional(),
-  min_price: z.number().nonnegative().nullable().optional(),
-  max_price: z.number().nonnegative().nullable().optional(),
+  min_price: SocietyPriceSchema.nullable().optional(),
+  max_price: SocietyPriceSchema.nullable().optional(),
   min_area_marla: z.number().nonnegative().nullable().optional(),
   max_area_marla: z.number().nonnegative().nullable().optional(),
   property_types: z.array(z.string()).min(1).optional(),

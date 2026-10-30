@@ -73,14 +73,14 @@ VALUES
   'e1b2c3d4-0001-0001-0001-000000000001',
   'document',
   'trust/pvc/noc-cda-2021.pdf',
-  'CDA Portal — NOC No. CDA/D-16/2021/PVC',
+  'CDA Portal - NOC No. CDA/D-16/2021/PVC',
   'FACT'
 ),
 (
   'e1b2c3d4-0001-0001-0001-000000000002',
   'document',
   'trust/pvc/layout-approval-2022.pdf',
-  'CDA Portal — Layout Plan Approval 2022',
+  'CDA Portal - Layout Plan Approval 2022',
   'FACT'
 ),
 -- CDA Sector F-10 evidence (1 doc)
@@ -88,7 +88,7 @@ VALUES
   'e1b2c3d4-0002-0002-0002-000000000001',
   'document',
   'trust/f10/noc-cda-sector.pdf',
-  'CDA Official Records — Sector F-10 Development Approval',
+  'CDA Official Records - Sector F-10 Development Approval',
   'FACT'
 ),
 -- Zoraiz Heights evidence (1 doc)
@@ -96,7 +96,7 @@ VALUES
   'e1b2c3d4-9999-9999-9999-000000000099',
   'document',
   'trust/zoraiz/noc-cda-zoraiz.pdf',
-  'CDA Portal — NOC No. CDA/D-16/2023/ZH',
+  'CDA Portal - NOC No. CDA/D-16/2023/ZH',
   'FACT'
 ),
 -- DHA Development Authority evidence (1 doc)
@@ -104,7 +104,7 @@ VALUES
   'e2b2c3d4-0001-0001-0001-000000000001',
   'document',
   'trust/dha/registration-cert.pdf',
-  'NAPHDA — Developer Registration Certificate No. NPH/2019/DHA-ISB',
+  'NAPHDA - Developer Registration Certificate No. NPH/2019/DHA-ISB',
   'FACT'
 )
 ON CONFLICT (id) DO NOTHING;
@@ -130,7 +130,7 @@ VALUES
 ON CONFLICT (id) DO NOTHING;
 
 -- ─── Property Intelligence: Properties ───────────────────────────────────────
--- 2–3 individual properties per existing society so Property Details has real data
+-- 2-3 individual properties per existing society so Property Details has real data
 
 INSERT INTO properties (id, society_id, owner_ref, address, price, listing_source, status, property_type, area_marla)
 VALUES

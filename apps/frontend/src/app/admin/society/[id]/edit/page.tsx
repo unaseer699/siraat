@@ -2,6 +2,8 @@
 
 import { useEffect, useState, type FormEvent } from 'react';
 import Link from 'next/link';
+import { SocietyPriceHint } from '@/components/SocietyPriceHint';
+import { societyPriceProblem } from '@/lib/pkr';
 import { useParams } from 'next/navigation';
 import { Spinner } from '@/components/Spinner';
 import { fetchAdminSociety, updateSociety, type AdminSociety } from '@/lib/api';
@@ -71,7 +73,7 @@ export default function EditSocietyPage() {
   }, [societyId]);
 
   const devOk = !developerId.trim() || /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(developerId.trim());
-  const canSave = name.trim() && city.trim() && types.length > 0 && devOk && !saving;
+  const canSave = name.trim() && city.trim() && types.length > 0 && devOk && !saving && !societyPriceProblem(minPrice) && !societyPriceProblem(maxPrice);
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
@@ -143,10 +145,12 @@ export default function EditSocietyPage() {
               <div style={{ ...fieldGroupStyle, flex: 1 }}>
                 <label style={labelStyle}>Min price (PKR)</label>
                 <input type="number" value={minPrice} onChange={(e) => setMinPrice(e.target.value)} style={inputStyle} />
+                  <SocietyPriceHint value={minPrice} />
               </div>
               <div style={{ ...fieldGroupStyle, flex: 1 }}>
                 <label style={labelStyle}>Max price (PKR)</label>
                 <input type="number" value={maxPrice} onChange={(e) => setMaxPrice(e.target.value)} style={inputStyle} />
+                  <SocietyPriceHint value={maxPrice} />
               </div>
             </div>
             <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
