@@ -9,6 +9,10 @@ describe('officialDocumentUrl', () => {
     const url = 'https://www.rda.gop.pk/storage/notice.pdf';
     expect(officialDocumentUrl(url)).toBe(url);
   });
+  it('accepts an RDA scheme map on its own storage host', () => {
+    const url = 'https://pub-480f7399580a4e4496490b6a8bd298f6.r2.dev/societies_map/abc-Taj%20Residencia.jpg';
+    expect(officialDocumentUrl(url)).toBe(url);
+  });
   it('rejects other hosts, http, look-alikes and credentials', () => {
     expect(officialDocumentUrl('https://evil.com/a.pdf')).toBeNull();
     expect(officialDocumentUrl('http://www.cda.gov.pk/a.pdf')).toBeNull();
