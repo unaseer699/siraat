@@ -1,4 +1,4 @@
-import { WhatsappSelfServeService, extractNewProjectName, isNewProjectMessage, isReportRequest, parseProjectCommand } from './whatsapp-self-serve.service';
+import { WhatsappSelfServeService, extractNewProjectName, isNewProjectMessage, isReportRequest, parseProjectCommand, projectSlug, reportLink } from './whatsapp-self-serve.service';
 
 function make(account: Record<string, unknown> | null, owned = 0, used = 0) {
   const accountRepo = {
@@ -97,7 +97,7 @@ describe('report link', () => {
     (t.cpSvc as unknown as { findProjectById: jest.Mock }).findProjectById = jest.fn().mockResolvedValue({ id: 'p1', name: 'My House' });
     const ok = await t.svc.handleReportRequest(msg('REPORT'));
     expect(ok).toBe(true);
-    expect(t.outbound.sendTextMessage.mock.calls[0][1]).toContain('https://app.example.com/project/p1');
+    expect(t.outbound.sendTextMessage.mock.calls[0][1]).toContain('https://app.example.com/project/my-house-p1');
     delete process.env.PUBLIC_SITE_URL;
   });
 
@@ -173,5 +173,18 @@ describe('project commands', () => {
 
   it('returns null when the sender has no self-serve project', async () => {
     expect(await run(withProjects([]), 'SHARE')).toBeNull();
+  });
+});
+
+describe('report link with the project name', () => {
+  it('builds a readable slug', () => {
+    expect(projectSlug('My House (Phase 2)')).toBe('my-house-phase-2');
+    expect(projectSlug('THE COURTYARD')).toBe('the-courtyard');
+    expect(projectSlug('گھر')).toBe('');
+    expect(projectSlug('A'.repeat(80)).length).toBeLessThanOrEqual(40);
+  });
+  it('puts the id last and works without a usable name', () => {
+    expect(reportLink('https://x.com', { id: 'abc', name: 'Test House' })).toBe('https://x.com/project/test-house-abc');
+    expect(reportLink('https://x.com', { id: 'abc', name: 'گھر' })).toBe('https://x.com/project/abc');
   });
 });

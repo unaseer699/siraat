@@ -1,5 +1,6 @@
 'use client';
 
+import { projectIdFromParam } from '@/lib/projectSlug';
 import { useEffect, useMemo, useState, type CSSProperties } from 'react';
 import {
   fetchProjectDashboard,
@@ -130,7 +131,9 @@ function SectionCard({ section, bills }: { section: ProjectWithSectionsAndExpens
   );
 }
 
-export default function ProjectDashboardPage({ params }: Props) {
+export default function ProjectDashboardPage({ params: routeParams }: Props) {
+  // The URL may carry the project name before the id (see lib/projectSlug.ts).
+  const params = { id: projectIdFromParam(routeParams.id) };
   const [project, setProject] = useState<ProjectWithSectionsAndExpenses | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);

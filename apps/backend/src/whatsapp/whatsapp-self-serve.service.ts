@@ -53,6 +53,25 @@ export interface MatchedProjectCommand {
   target: CommandProject | null;
 }
 
+// "My House (Phase 2)" -> "my-house-phase-2". Plain ASCII so the link is safe to paste anywhere.
+export function projectSlug(name: string): string {
+  return name
+    .normalize('NFKD')
+    .replace(/[^\x00-\x7F]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 40)
+    .replace(/-+$/g, '');
+}
+
+// The private report link: the project name makes it recognisable, the id at
+// the end is the secret that actually opens it.
+export function reportLink(base: string, project: { id: string; name: string }): string {
+  const slug = projectSlug(project.name);
+  return `${base}/project/${slug ? `${slug}-` : ''}${project.id}`;
+}
+
 export const SELF_SERVE_CREATED_BY = 'self-serve';
 
 export type QuotaResult = { allowed: true } | { allowed: false; reply: string };
@@ -143,7 +162,7 @@ export class WhatsappSelfServeService {
       const lines: string[] = [];
       for (const m of mappings) {
         const p = await this.cpSvc.findProjectById(m.project_ref);
-        if (p) lines.push(`${p.name}\n${base}/project/${p.id}`);
+        if (p) lines.push(`${p.name}\n${reportLink(base, p)}`);
       }
       if (lines.length === 0) return false;
       await this.reply(
