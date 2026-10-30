@@ -102,7 +102,7 @@ FROM (VALUES
 ('Sama Town',NULL,'samatown'),
 ('Satti Town','Lehtrar Road','sattitownlehtrarroad'),
 ('Shaheen Farms','Simly Dam Road','shaheenfarmssimlydamroad'),
-('Shaheen Town 1','2,3,4 Lehtrar Road','shaheentown1234lehtrarroad'),
+('Shaheen Town 1,2,3,4','Lehtrar Road','shaheentown1234lehtrarroad'),
 ('Simly Valley (1&2)','Simly Dam Road','simlyvalley12simlydamroad'),
 ('Spring Valley','Simly Dam Road','springvalleysimlydamroad'),
 ('Star Villas Housing Scheme Simly Dam Road',NULL,'starvillashousingschemesimlydamroad'),
