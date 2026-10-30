@@ -18,6 +18,10 @@ export class IllegalSchemeEntity {
   @Column({ type: 'varchar', length: 300, nullable: true })
   location: string | null;
 
+  // Extra wording the regulator attached (e.g. "merged with dha"), verbatim.
+  @Column({ type: 'text', nullable: true })
+  note: string | null;
+
   @Column({ type: 'varchar', length: 300, unique: true })
   name_key: string;
 

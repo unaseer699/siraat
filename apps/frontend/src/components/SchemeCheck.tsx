@@ -6,6 +6,10 @@ import { checkUnapprovedScheme } from '@/lib/api';
 import { DANGER_RED, TRUST_GREEN_BG, TRUST_GREEN_BORDER, TRUST_GREEN_TEXT, RADIUS } from '@/styles/tokens';
 import type { UnapprovedSchemeCheckResponse } from '@siraat/shared-types';
 
+function regulatorsOf(r: UnapprovedSchemeCheckResponse): string {
+  return [...new Set(r.matches.map((m) => m.regulator))].join(' / ') || 'The regulator';
+}
+
 // "Is this scheme on CDA's unapproved list?" A SIMILAR result is worded as a
 // hint to check, never as a claim that two names are the same scheme.
 export function SchemeCheck() {
@@ -33,7 +37,7 @@ export function SchemeCheck() {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', width: '100%', maxWidth: '680px' }}>
-      <p style={{ fontSize: '14px', fontWeight: 800, margin: 0 }}>Check a scheme against CDA&apos;s unapproved list</p>
+      <p style={{ fontSize: '14px', fontWeight: 800, margin: 0 }}>Check a scheme against the CDA / RDA unapproved lists</p>
       <form onSubmit={run} style={{ display: 'flex', gap: '8px' }}>
         <input
           value={name}
@@ -55,14 +59,14 @@ export function SchemeCheck() {
         <div role="alert" style={{ background: '#fef2f2', border: '1px solid #fecaca', borderLeft: `4px solid ${DANGER_RED}`, borderRadius: RADIUS.md, padding: '12px 14px', fontSize: '13px', lineHeight: 1.5 }}>
           <strong>
             {res.match === 'EXACT'
-              ? `CDA lists "${asked}" as having no approval or NOC.`
-              : `"${asked}" is similar to a name CDA lists as unapproved. It may or may not be the same scheme.`}
+              ? `${regulatorsOf(res)} lists "${asked}" as having no approval or NOC.`
+              : `"${asked}" is similar to a name ${regulatorsOf(res)} lists as unapproved. It may or may not be the same scheme.`}
           </strong>
           <ul style={{ margin: '6px 0 0', paddingLeft: '18px' }}>
             {res.matches.map((m) => (
               <li key={m.id}>
                 {m.name}
-                {m.location ? `, ${m.location}` : ''}
+                {m.location ? `, ${m.location}` : ''} ({m.regulator})
               </li>
             ))}
           </ul>
@@ -74,7 +78,7 @@ export function SchemeCheck() {
       )}
       {res && res.match === 'NONE' && (
         <div style={{ background: TRUST_GREEN_BG, border: `1px solid ${TRUST_GREEN_BORDER}`, color: TRUST_GREEN_TEXT, borderRadius: RADIUS.md, padding: '12px 14px', fontSize: '13px', lineHeight: 1.5 }}>
-          &ldquo;{asked}&rdquo; is not on the CDA list we hold
+          &ldquo;{asked}&rdquo; is not on the CDA or RDA lists we hold
           {res.listed_as_of ? ` (read ${new Date(res.listed_as_of).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })})` : ''}.
           That does not prove it is approved — confirm with CDA before buying.
         </div>

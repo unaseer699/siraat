@@ -601,8 +601,15 @@ export interface UnapprovedScheme {
   id: string;
   name: string;
   location: string | null;
+  note: string | null;
   regulator: string;
   city: string;
+  source_url: string;
+  listed_as_of: string;
+}
+
+export interface UnapprovedSchemeSource {
+  regulator: string;
   source_url: string;
   listed_as_of: string;
 }
@@ -615,6 +622,7 @@ export interface UnapprovedSchemeListResponse {
   total_pages: number;
   listed_as_of: string | null;
   source_url: string | null;
+  sources: UnapprovedSchemeSource[];
   is_stale: boolean;
   staleness_threshold_days: number;
   disclaimer: string;
@@ -628,5 +636,6 @@ export interface UnapprovedSchemeCheckResponse {
   source_url: string | null;
   is_stale: boolean;
   staleness_threshold_days: number;
+  sources: UnapprovedSchemeSource[];
   disclaimer: string;
 }

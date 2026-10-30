@@ -12,7 +12,12 @@ import type { UnapprovedSchemeListResponse } from '@siraat/shared-types';
 const PAGE_SIZE = 30;
 const RED_BG = '#fef2f2';
 const RED_BORDER = '#fecaca';
-const AREAS = ['Simly Dam Road', 'Lehtrar Road', 'Kuri Road', 'Park Road', 'Islamabad Highway', 'Islamabad Expressway', 'Bani Gala', 'Nilore'];
+const AREAS = ['Simly Dam Road', 'Lehtrar Road', 'Kuri Road', 'Park Road', 'Chakri Road', 'Adyala Road', 'Murree', 'Taxila', 'Bani Gala', 'Nilore'];
+const REGULATORS: Array<{ key: string; label: string }> = [
+  { key: '', label: 'All' },
+  { key: 'CDA', label: 'CDA (Islamabad)' },
+  { key: 'RDA', label: 'RDA (Rawalpindi)' },
+];
 
 function formatDate(iso: string | null): string {
   if (!iso) return 'unknown date';
@@ -23,6 +28,7 @@ export default function IllegalSchemesPage() {
   const [search, setSearch] = useState('');
   const [q, setQ] = useState('');
   const [page, setPage] = useState(1);
+  const [regulator, setRegulator] = useState('');
   const [data, setData] = useState<UnapprovedSchemeListResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -37,13 +43,13 @@ export default function IllegalSchemesPage() {
   useEffect(() => {
     let cancelled = false;
     setError(null);
-    fetchUnapprovedSchemes({ q: q || undefined, page, limit: PAGE_SIZE })
+    fetchUnapprovedSchemes({ q: q || undefined, regulator: regulator || undefined, page, limit: PAGE_SIZE })
       .then((r) => !cancelled && setData(r))
       .catch((e) => !cancelled && setError(e instanceof Error ? e.message : 'Could not load the list'));
     return () => {
       cancelled = true;
     };
-  }, [q, page]);
+  }, [q, regulator, page]);
 
   return (
     <main style={{ width: '100%', maxWidth: '980px', margin: '0 auto', padding: '24px 16px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
@@ -51,8 +57,8 @@ export default function IllegalSchemesPage() {
       <SchemeTabs active="unapproved" />
 
       <div>
-        <p style={{ fontSize: '12px', color: DANGER_RED, fontWeight: 700, marginBottom: '4px' }}>CDA-LISTED UNAPPROVED</p>
-        <h1 style={{ fontSize: '26px', fontWeight: 800, margin: 0 }}>Schemes without CDA approval</h1>
+        <p style={{ fontSize: '12px', color: DANGER_RED, fontWeight: 700, marginBottom: '4px' }}>LISTED AS UNAPPROVED</p>
+        <h1 style={{ fontSize: '26px', fontWeight: 800, margin: 0 }}>Schemes without regulator approval</h1>
         <p style={{ fontSize: '13px', color: 'var(--muted)', marginTop: '4px' }}>
           {data ? `${data.total_count} scheme${data.total_count === 1 ? '' : 's'}${q ? ' found' : ' listed'}` : 'Loading…'}
         </p>
@@ -62,13 +68,19 @@ export default function IllegalSchemesPage() {
         role="note"
         style={{ background: RED_BG, border: `1px solid ${RED_BORDER}`, borderLeft: `4px solid ${DANGER_RED}`, borderRadius: RADIUS.md, padding: '12px 14px', fontSize: '13px', lineHeight: 1.5 }}
       >
-        <strong>Read this first.</strong> {data?.disclaimer ?? 'This is the regulator\'s own published list. Confirm with CDA before buying.'}
-        {data?.source_url && (
+        <strong>Read this first.</strong> {data?.disclaimer ?? 'This is the regulator\'s own published list. Confirm with the regulator before buying.'}
+        {data && data.sources.length > 0 && (
           <>
-            {' '}List read on {formatDate(data.listed_as_of)} from{' '}
-            <a href={data.source_url} target="_blank" rel="noopener noreferrer" style={{ color: DANGER_RED, fontWeight: 700 }}>
-              the CDA page
-            </a>
+            {' '}Lists read from{' '}
+            {data.sources.map((src, idx) => (
+              <span key={src.regulator}>
+                {idx > 0 && ' and '}
+                <a href={src.source_url} target="_blank" rel="noopener noreferrer" style={{ color: DANGER_RED, fontWeight: 700 }}>
+                  {src.regulator}
+                </a>{' '}
+                on {formatDate(src.listed_as_of)}
+              </span>
+            ))}
             .
           </>
         )}
@@ -77,6 +89,31 @@ export default function IllegalSchemesPage() {
             This copy is more than {data.staleness_threshold_days} days old and may have changed.
           </p>
         )}
+      </div>
+
+      <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }} role="group" aria-label="Regulator">
+        {REGULATORS.map((r) => (
+          <button
+            key={r.key}
+            type="button"
+            onClick={() => {
+              setRegulator(r.key);
+              setPage(1);
+            }}
+            style={{
+              fontSize: '13px',
+              fontWeight: 700,
+              padding: '6px 14px',
+              borderRadius: '99px',
+              cursor: 'pointer',
+              border: `1px solid ${regulator === r.key ? DANGER_RED : 'var(--border)'}`,
+              background: regulator === r.key ? DANGER_RED : '#fff',
+              color: regulator === r.key ? '#fff' : 'var(--text)',
+            }}
+          >
+            {r.label}
+          </button>
+        ))}
       </div>
 
       <input
@@ -114,8 +151,8 @@ export default function IllegalSchemesPage() {
 
       {data && data.state === 'NOT_COVERED' && (
         <p style={{ color: 'var(--muted)', fontSize: '14px' }}>
-          No scheme on the CDA list matches &ldquo;{q}&rdquo;. That does not mean it is approved — check the approved
-          list or ask CDA.
+          No scheme on the {regulator || 'CDA or RDA'} list matches &ldquo;{q}&rdquo;. That does not mean it is approved — check the approved
+          list or ask the regulator.
         </p>
       )}
 
@@ -128,8 +165,9 @@ export default function IllegalSchemesPage() {
             >
               <h2 style={{ fontSize: '15px', fontWeight: 700, margin: 0 }}>{s.name}</h2>
               {s.location && <p style={{ fontSize: '13px', color: 'var(--muted)', margin: 0 }}>{s.location}</p>}
+              {s.note && <p style={{ fontSize: '12px', margin: 0 }}>RDA note: {s.note}</p>}
               <p style={{ fontSize: '12px', color: DANGER_RED, fontWeight: 700, margin: '4px 0 0' }}>
-                Listed by {s.regulator} as having no approval or NOC
+                Listed by {s.regulator} as unapproved
               </p>
             </article>
           ))}

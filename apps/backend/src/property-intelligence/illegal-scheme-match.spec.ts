@@ -24,6 +24,13 @@ describe('illegal scheme matching', () => {
   it('flags a shared distinctive word as SIMILAR only (a hint to check, not a claim)', () => {
     expect(matchScheme('Al-Makkah City', 'Makkah Town, Hurno Thanda Pani Nilore Islamabad')).toBe('SIMILAR');
   });
+  it('a bracketed block of a scheme is only SIMILAR to the base name', () => {
+    expect(matchScheme('Taj Residencia', 'Taj Residencia (Blue Bell Block)')).toBe('SIMILAR');
+    expect(matchScheme('Taj Residencia (Blue Bell Block)', 'Taj Residencia (Blue Bell Block)')).toBe('EXACT');
+  });
+  it('does not flag an approved name that only shares a generic-plus-one word', () => {
+    expect(matchScheme('Park View City', 'Park View City Rawalpindi (Old Name: Mega City Gujjar Khan)')).toBe('NONE');
+  });
   it('ignores very short queries', () => {
     expect(matchScheme('ab', 'Ali Town')).toBe('NONE');
   });

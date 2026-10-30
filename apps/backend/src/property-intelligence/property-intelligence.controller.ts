@@ -63,11 +63,13 @@ export class PropertyIntelligenceController {
   @Get('unapproved-schemes')
   async listUnapprovedSchemes(
     @Query('q') q?: string,
+    @Query('regulator') regulator?: string,
     @Query('page') page?: string,
     @Query('limit') limit?: string,
   ) {
     return this.illegalSvc.list({
       q,
+      regulator,
       page: page !== undefined ? Number(page) : undefined,
       limit: limit !== undefined ? Number(limit) : undefined,
     });

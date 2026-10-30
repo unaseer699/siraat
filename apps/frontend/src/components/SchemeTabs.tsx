@@ -29,7 +29,7 @@ export function SchemeTabs({ active }: { active: 'societies' | 'unapproved' }) {
         aria-current={active === 'unapproved' ? 'page' : undefined}
         style={{ ...tab(active === 'unapproved', DANGER_RED), borderRadius: '0 8px 8px 0', borderLeft: 'none' }}
       >
-        ⚠ CDA-listed unapproved
+        ⚠ Listed as unapproved
       </Link>
     </nav>
   );

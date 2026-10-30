@@ -32,12 +32,22 @@ export function coreName(listed: string): string {
   return listed.split(/,| near |\(|\//i)[0].trim();
 }
 
+// Name as a plain exact comparison: text before a comma or "near". A bracketed
+// qualifier ("Taj Residencia (Blue Bell Block)") or an alias list ("A / B") is
+// NOT an exact match for its base name - that block may be unapproved while the
+// scheme itself is approved - so those only ever match as SIMILAR.
+function exactHead(listed: string): string | null {
+  const head = listed.split(/,| near /i)[0].trim();
+  return /[(/]/.test(head) ? null : head;
+}
+
 export type SchemeMatchKind = 'EXACT' | 'SIMILAR' | 'NONE';
 
 export function matchScheme(query: string, listed: string): SchemeMatchKind {
   const qk = schemeKey(query);
   if (qk.length < 3) return 'NONE';
-  if (qk === schemeKey(listed) || qk === schemeKey(coreName(listed))) return 'EXACT';
+  const head = exactHead(listed);
+  if (qk === schemeKey(listed) || (head !== null && qk === schemeKey(head))) return 'EXACT';
 
   const qt = new Set(nameTokens(query));
   const lt = new Set(nameTokens(coreName(listed)));

@@ -173,11 +173,13 @@ export async function fetchSocieties(params?: {
 // Schemes CDA lists as having no approval - separate from societies on purpose.
 export async function fetchUnapprovedSchemes(params?: {
   q?: string;
+  regulator?: string;
   page?: number;
   limit?: number;
 }): Promise<UnapprovedSchemeListResponse> {
   const qs = new URLSearchParams();
   if (params?.q) qs.set('q', params.q);
+  if (params?.regulator) qs.set('regulator', params.regulator);
   if (params?.page) qs.set('page', String(params.page));
   if (params?.limit) qs.set('limit', String(params.limit));
   const suffix = qs.toString() ? `?${qs.toString()}` : '';
