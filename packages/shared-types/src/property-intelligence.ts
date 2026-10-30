@@ -593,3 +593,40 @@ export interface ContractorProject {
   created_at: string;
   photos: ContractorProjectPhoto[];
 }
+
+// --- Schemes a regulator lists as having NO approval (kept apart from societies) ---
+// Never mixed into society search/scoring. `state` follows the three-state
+// rule; absence from this list never means a scheme is approved.
+export interface UnapprovedScheme {
+  id: string;
+  name: string;
+  location: string | null;
+  regulator: string;
+  city: string;
+  source_url: string;
+  listed_as_of: string;
+}
+
+export interface UnapprovedSchemeListResponse {
+  state: 'FULL' | 'NOT_COVERED';
+  schemes: UnapprovedScheme[];
+  total_count: number;
+  page: number;
+  total_pages: number;
+  listed_as_of: string | null;
+  source_url: string | null;
+  is_stale: boolean;
+  staleness_threshold_days: number;
+  disclaimer: string;
+}
+
+export interface UnapprovedSchemeCheckResponse {
+  state: 'FULL';
+  match: 'EXACT' | 'SIMILAR' | 'NONE';
+  matches: UnapprovedScheme[];
+  listed_as_of: string | null;
+  source_url: string | null;
+  is_stale: boolean;
+  staleness_threshold_days: number;
+  disclaimer: string;
+}

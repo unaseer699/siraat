@@ -8,6 +8,7 @@ import { paginationButtonStyle } from '@/styles/pagination';
 import type { SocietyListResponse, SocietyBrowseSummary } from '@siraat/shared-types';
 import { fetchSocieties, fetchPlatformStats, fetchPropertyListingCounts } from '@/lib/api';
 import { BackLink } from '@/components/BackLink';
+import { SchemeTabs } from '@/components/SchemeTabs';
 import {
   TRUST_GREEN,
   WARNING_AMBER,
@@ -278,6 +279,7 @@ function BrowseView() {
     >
       <div style={{ width: '100%', maxWidth: '960px', display: 'flex', flexDirection: 'column', gap: '20px' }}>
         <BackLink />
+        <SchemeTabs active="societies" />
 
         <div>
           <p style={{ fontSize: '12px', color: 'var(--muted)', fontWeight: 600, marginBottom: '4px' }}>

@@ -28,6 +28,7 @@ export const REQUIRED_COLUMNS: Array<{ migration: string; schema: string; table:
   { migration: '025_expense_attachments', schema: 'construction_intelligence', table: 'expense_attachments', column: 'expense_ref' },
   { migration: '026_supplier_location_phones', schema: 'property_intelligence', table: 'suppliers', column: 'location_url' },
   { migration: '027_whatsapp_accounts', schema: 'data_acquisition', table: 'whatsapp_accounts', column: 'wa_id' },
+  { migration: '028_illegal_schemes', schema: 'property_intelligence', table: 'illegal_schemes', column: 'name_key' },
 ];
 
 export function findMissingSchemas(present: string[]): string[] {

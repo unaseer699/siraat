@@ -11,6 +11,8 @@ import { CandidateSocietyEntity } from './entities/candidate-society.entity';
 import { ObservationEntity } from './entities/observation.entity';
 import { PropertyListingEntity } from './entities/property-listing.entity';
 import { GroundConditionFactEntity } from './entities/ground-condition-fact.entity';
+import { IllegalSchemeEntity } from './entities/illegal-scheme.entity';
+import { IllegalSchemesService } from './illegal-schemes.service';
 import { GroundConditionService } from './ground-condition.service';
 import { PropertyIntelligenceService } from './property-intelligence.service';
 import { PropertyIntelligenceController } from './property-intelligence.controller';
@@ -31,6 +33,7 @@ import { ConstructionIntelligenceModule } from '../construction-intelligence/con
       ObservationEntity,
       PropertyListingEntity,
       GroundConditionFactEntity,
+      IllegalSchemeEntity,
     ]),
     TrustModule,
     // SUPPLIER DIRECTORY Chunk 1 — PropertyIntelligenceService injects
@@ -40,7 +43,7 @@ import { ConstructionIntelligenceModule } from '../construction-intelligence/con
     ConstructionIntelligenceModule,
   ],
   controllers: [PropertyIntelligenceController],
-  providers: [PropertyIntelligenceService, GroundConditionService],
-  exports: [PropertyIntelligenceService, GroundConditionService],
+  providers: [PropertyIntelligenceService, GroundConditionService, IllegalSchemesService],
+  exports: [PropertyIntelligenceService, GroundConditionService, IllegalSchemesService],
 })
 export class PropertyIntelligenceModule {}

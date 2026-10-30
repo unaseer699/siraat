@@ -13,6 +13,7 @@ import { BearerGuard } from '../auth/bearer.guard';
 import { ZodValidationPipe } from '../common/zod-validation.pipe';
 import { SocietyChangesRequestSchema, type SocietyChangesRequest } from '@siraat/shared-types';
 import { PropertyIntelligenceService } from './property-intelligence.service';
+import { IllegalSchemesService } from './illegal-schemes.service';
 import { GroundConditionService } from './ground-condition.service';
 import { StorageService } from '../trust/storage.service';
 
@@ -22,6 +23,7 @@ export class PropertyIntelligenceController {
   constructor(
     private readonly piSvc: PropertyIntelligenceService,
     private readonly groundSvc: GroundConditionService,
+    private readonly illegalSvc: IllegalSchemesService,
     // HOUSE PLANS DIRECTORY Chunk 2 — first public route that needs to serve a
     // file, hence the first place this controller (rather than TrustController)
     // needs StorageService. Available here because PropertyIntelligenceModule
@@ -49,6 +51,28 @@ export class PropertyIntelligenceController {
   // BEFORE any :id-style route so it is never captured as a parameter.
   // GROUND-CONDITION REPORTS — reviewed (FACT) reports rolled up per block.
   // Always 200: a society with no reports returns state NOT_COVERED, never 404.
+  // Schemes CDA lists as having no approval. Kept in their own table and routes
+  // so they never mix with verified societies. `check` is declared before any
+  // parameterised route.
+  @Get('unapproved-schemes/check')
+  async checkUnapprovedScheme(@Query('name') name?: string) {
+    if (!name?.trim()) throw new NotFoundException('name is required');
+    return this.illegalSvc.check(name);
+  }
+
+  @Get('unapproved-schemes')
+  async listUnapprovedSchemes(
+    @Query('q') q?: string,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+  ) {
+    return this.illegalSvc.list({
+      q,
+      page: page !== undefined ? Number(page) : undefined,
+      limit: limit !== undefined ? Number(limit) : undefined,
+    });
+  }
+
   @Get('ground-conditions')
   async getGroundConditions(@Query('society_key') society_key?: string) {
     if (!society_key) throw new NotFoundException('society_key is required');

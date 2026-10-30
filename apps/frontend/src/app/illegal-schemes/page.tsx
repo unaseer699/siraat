@@ -1,0 +1,154 @@
+'use client';
+
+import { useEffect, useState } from 'react';
+import { Spinner } from '@/components/Spinner';
+import { BackLink } from '@/components/BackLink';
+import { SchemeTabs } from '@/components/SchemeTabs';
+import { paginationButtonStyle } from '@/styles/pagination';
+import { fetchUnapprovedSchemes } from '@/lib/api';
+import { DANGER_RED, RADIUS } from '@/styles/tokens';
+import type { UnapprovedSchemeListResponse } from '@siraat/shared-types';
+
+const PAGE_SIZE = 30;
+const RED_BG = '#fef2f2';
+const RED_BORDER = '#fecaca';
+const AREAS = ['Simly Dam Road', 'Lehtrar Road', 'Kuri Road', 'Park Road', 'Islamabad Highway', 'Islamabad Expressway', 'Bani Gala', 'Nilore'];
+
+function formatDate(iso: string | null): string {
+  if (!iso) return 'unknown date';
+  return new Date(iso).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+}
+
+export default function IllegalSchemesPage() {
+  const [search, setSearch] = useState('');
+  const [q, setQ] = useState('');
+  const [page, setPage] = useState(1);
+  const [data, setData] = useState<UnapprovedSchemeListResponse | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const t = setTimeout(() => {
+      setQ(search.trim());
+      setPage(1);
+    }, 300);
+    return () => clearTimeout(t);
+  }, [search]);
+
+  useEffect(() => {
+    let cancelled = false;
+    setError(null);
+    fetchUnapprovedSchemes({ q: q || undefined, page, limit: PAGE_SIZE })
+      .then((r) => !cancelled && setData(r))
+      .catch((e) => !cancelled && setError(e instanceof Error ? e.message : 'Could not load the list'));
+    return () => {
+      cancelled = true;
+    };
+  }, [q, page]);
+
+  return (
+    <main style={{ width: '100%', maxWidth: '980px', margin: '0 auto', padding: '24px 16px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+      <BackLink />
+      <SchemeTabs active="unapproved" />
+
+      <div>
+        <p style={{ fontSize: '12px', color: DANGER_RED, fontWeight: 700, marginBottom: '4px' }}>CDA-LISTED UNAPPROVED</p>
+        <h1 style={{ fontSize: '26px', fontWeight: 800, margin: 0 }}>Schemes without CDA approval</h1>
+        <p style={{ fontSize: '13px', color: 'var(--muted)', marginTop: '4px' }}>
+          {data ? `${data.total_count} scheme${data.total_count === 1 ? '' : 's'}${q ? ' found' : ' listed'}` : 'Loading…'}
+        </p>
+      </div>
+
+      <div
+        role="note"
+        style={{ background: RED_BG, border: `1px solid ${RED_BORDER}`, borderLeft: `4px solid ${DANGER_RED}`, borderRadius: RADIUS.md, padding: '12px 14px', fontSize: '13px', lineHeight: 1.5 }}
+      >
+        <strong>Read this first.</strong> {data?.disclaimer ?? 'This is the regulator\'s own published list. Confirm with CDA before buying.'}
+        {data?.source_url && (
+          <>
+            {' '}List read on {formatDate(data.listed_as_of)} from{' '}
+            <a href={data.source_url} target="_blank" rel="noopener noreferrer" style={{ color: DANGER_RED, fontWeight: 700 }}>
+              the CDA page
+            </a>
+            .
+          </>
+        )}
+        {data?.is_stale && (
+          <p style={{ margin: '6px 0 0', fontWeight: 700 }}>
+            This copy is more than {data.staleness_threshold_days} days old and may have changed.
+          </p>
+        )}
+      </div>
+
+      <input
+        type="search"
+        value={search}
+        onChange={(e) => setSearch(e.target.value)}
+        placeholder="Search by scheme name or area…"
+        aria-label="Search schemes CDA lists as unapproved"
+        style={{ padding: '10px 12px', border: '1px solid var(--border)', borderRadius: RADIUS.md, fontSize: '15px' }}
+      />
+      <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+        {AREAS.map((a) => (
+          <button
+            key={a}
+            type="button"
+            onClick={() => setSearch(search === a ? '' : a)}
+            style={{
+              fontSize: '12px',
+              fontWeight: 600,
+              padding: '4px 10px',
+              borderRadius: '99px',
+              cursor: 'pointer',
+              border: `1px solid ${search === a ? DANGER_RED : 'var(--border)'}`,
+              background: search === a ? RED_BG : '#fff',
+              color: search === a ? DANGER_RED : 'var(--text)',
+            }}
+          >
+            {a}
+          </button>
+        ))}
+      </div>
+
+      {error && <p style={{ color: DANGER_RED }}>{error}</p>}
+      {!data && !error && <Spinner />}
+
+      {data && data.state === 'NOT_COVERED' && (
+        <p style={{ color: 'var(--muted)', fontSize: '14px' }}>
+          No scheme on the CDA list matches &ldquo;{q}&rdquo;. That does not mean it is approved — check the approved
+          list or ask CDA.
+        </p>
+      )}
+
+      {data && data.schemes.length > 0 && (
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '12px' }}>
+          {data.schemes.map((s) => (
+            <article
+              key={s.id}
+              style={{ background: RED_BG, border: `1px solid ${RED_BORDER}`, borderLeft: `4px solid ${DANGER_RED}`, borderRadius: RADIUS.md, padding: '14px 16px', display: 'flex', flexDirection: 'column', gap: '4px' }}
+            >
+              <h2 style={{ fontSize: '15px', fontWeight: 700, margin: 0 }}>{s.name}</h2>
+              {s.location && <p style={{ fontSize: '13px', color: 'var(--muted)', margin: 0 }}>{s.location}</p>}
+              <p style={{ fontSize: '12px', color: DANGER_RED, fontWeight: 700, margin: '4px 0 0' }}>
+                Listed by {s.regulator} as having no approval or NOC
+              </p>
+            </article>
+          ))}
+        </div>
+      )}
+
+      {data && data.total_pages > 1 && (
+        <div style={{ display: 'flex', gap: '12px', alignItems: 'center', justifyContent: 'center' }}>
+          <button type="button" disabled={page <= 1} onClick={() => setPage(page - 1)} style={paginationButtonStyle(page <= 1)}>
+            ← Previous
+          </button>
+          <span style={{ fontSize: '13px', color: 'var(--muted)' }}>
+            Page {page} of {data.total_pages}
+          </span>
+          <button type="button" disabled={page >= data.total_pages} onClick={() => setPage(page + 1)} style={paginationButtonStyle(page >= data.total_pages)}>
+            Next →
+          </button>
+        </div>
+      )}
+    </main>
+  );
+}

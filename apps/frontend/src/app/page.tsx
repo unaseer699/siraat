@@ -26,6 +26,7 @@ import { fetchRecommendations, fetchPlatformStats, fetchPropertyListings } from 
 import { parsePlotQuery, plotsPageHref } from '@/lib/queryFilters';
 import { PlotMatches } from '@/components/PlotMatches';
 import { SearchBar } from '@/components/SearchBar';
+import { SchemeCheck } from '@/components/SchemeCheck';
 import { ResultsPanel } from '@/components/ResultsPanel';
 import {
   TRUST_GREEN,
@@ -309,6 +310,7 @@ function SecondarySearch({
           e.g. &ldquo;10 Marla plot in Islamabad under 2.5 Crore&rdquo;
         </p>
       )}
+      <SchemeCheck />
     </div>
   );
 }

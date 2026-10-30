@@ -16,6 +16,8 @@ import type {
   CreateMaterialRateBody,
   PlatformStatsResponse,
   SocietyListResponse,
+  UnapprovedSchemeListResponse,
+  UnapprovedSchemeCheckResponse,
   SocietyChangesRequest,
   SocietyChangesResponse,
   TradeCategory,
@@ -166,6 +168,24 @@ export async function fetchSocieties(params?: {
   if (params?.limit) qs.set('limit', String(params.limit));
   const suffix = qs.toString() ? `?${qs.toString()}` : '';
   return apiFetch(`/v1/property-intelligence/societies${suffix}`);
+}
+
+// Schemes CDA lists as having no approval - separate from societies on purpose.
+export async function fetchUnapprovedSchemes(params?: {
+  q?: string;
+  page?: number;
+  limit?: number;
+}): Promise<UnapprovedSchemeListResponse> {
+  const qs = new URLSearchParams();
+  if (params?.q) qs.set('q', params.q);
+  if (params?.page) qs.set('page', String(params.page));
+  if (params?.limit) qs.set('limit', String(params.limit));
+  const suffix = qs.toString() ? `?${qs.toString()}` : '';
+  return apiFetch(`/v1/property-intelligence/unapproved-schemes${suffix}`);
+}
+
+export async function checkUnapprovedScheme(name: string): Promise<UnapprovedSchemeCheckResponse> {
+  return apiFetch(`/v1/property-intelligence/unapproved-schemes/check?name=${encodeURIComponent(name)}`);
 }
 
 export async function fetchSocietyScore(societyId: string): Promise<SocietyScoreResponse> {
