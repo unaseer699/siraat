@@ -83,7 +83,7 @@ describe('RecommendationsService', () => {
   let piSvc: jest.Mocked<
     Pick<
       PropertyIntelligenceService,
-      'findMatchingSocieties' | 'findSocietyById' | 'listDistinctCities' | 'findDeveloperById'
+      'findMatchingSocieties' | 'findSocietyById' | 'listDistinctCities' | 'countSocieties' | 'findDeveloperById'
     >
   >;
   let scoreSvc: jest.Mocked<Pick<ScoringService, 'computeAndSave' | 'findById'>>;
@@ -100,6 +100,7 @@ describe('RecommendationsService', () => {
       findMatchingSocieties: jest.fn().mockResolvedValue([mockSociety]),
       findSocietyById: jest.fn().mockResolvedValue(mockSociety),
       listDistinctCities: jest.fn().mockResolvedValue([]),
+      countSocieties: jest.fn().mockResolvedValue(0),
       findDeveloperById: jest.fn().mockResolvedValue(null),
     };
     scoreSvc = {
@@ -524,6 +525,7 @@ describe('RecommendationsService', () => {
   describe('getPlatformStats', () => {
     it('returns correct counts against seeded test data', async () => {
       trustSvc.countVerifiedSocietySubjects.mockResolvedValue(3);
+      piSvc.countSocieties.mockResolvedValue(40);
       trustSvc.countEvidence.mockResolvedValue(11);
       piSvc.listDistinctCities.mockResolvedValue(['Islamabad', 'Rawalpindi']);
       ciSvc.countDistinctMaterials.mockResolvedValue(5);
@@ -532,6 +534,7 @@ describe('RecommendationsService', () => {
 
       expect(result).toEqual({
         verified_societies_count: 3,
+        listed_societies_count: 40,
         total_evidence_count: 11,
         cities_covered: ['Islamabad', 'Rawalpindi'],
         construction_materials_tracked: 5,
@@ -548,6 +551,7 @@ describe('RecommendationsService', () => {
 
       expect(result).toEqual({
         verified_societies_count: 0,
+        listed_societies_count: 0,
         total_evidence_count: 0,
         cities_covered: [],
         construction_materials_tracked: 0,

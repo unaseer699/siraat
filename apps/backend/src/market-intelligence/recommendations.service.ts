@@ -184,9 +184,10 @@ export class RecommendationsService {
   // cross-context FK, no cross-schema query) fetched via that context's own
   // service rather than a direct repository reach-across (Law 9).
   async getPlatformStats(): Promise<PlatformStatsResponse> {
-    const [verifiedSocietiesCount, totalEvidenceCount, citiesCovered, materialsTracked] =
+    const [verifiedSocietiesCount, listedSocietiesCount, totalEvidenceCount, citiesCovered, materialsTracked] =
       await Promise.all([
         this.trustSvc.countVerifiedSocietySubjects(),
+        this.piSvc.countSocieties(),
         this.trustSvc.countEvidence(),
         this.piSvc.listDistinctCities(),
         this.ciSvc.countDistinctMaterials(),
@@ -194,6 +195,7 @@ export class RecommendationsService {
 
     return {
       verified_societies_count: verifiedSocietiesCount,
+      listed_societies_count: listedSocietiesCount,
       total_evidence_count: totalEvidenceCount,
       cities_covered: citiesCovered,
       construction_materials_tracked: materialsTracked,

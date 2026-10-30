@@ -341,6 +341,12 @@ function OnRecordLine({ stats }: { stats: PlatformStatsResponse | null }) {
     <p style={{ fontSize: '13px', color: 'var(--muted)', textAlign: 'center', margin: 0 }}>
       On record today:{' '}
       <strong style={{ color: 'var(--text)' }}>{plural(stats.verified_societies_count, 'verified society', 'verified societies')}</strong>
+      {stats.listed_societies_count > stats.verified_societies_count && (
+        <>
+          {' · '}
+          <strong style={{ color: 'var(--text)' }}>{plural(stats.listed_societies_count, 'society', 'societies')}</strong> listed by regulators
+        </>
+      )}
       {' · '}
       <strong style={{ color: 'var(--text)' }}>{plural(stats.total_evidence_count, 'document', 'documents')}</strong>
       {' · '}

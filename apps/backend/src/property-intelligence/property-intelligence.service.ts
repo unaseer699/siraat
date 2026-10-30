@@ -688,6 +688,10 @@ export class PropertyIntelligenceService {
   }
 
   // Platform stats (Home page) — distinct city values across all onboarded Societies.
+  async countSocieties(): Promise<number> {
+    return this.societyRepo.count();
+  }
+
   async listDistinctCities(): Promise<string[]> {
     const rows = await this.societyRepo
       .createQueryBuilder('s')

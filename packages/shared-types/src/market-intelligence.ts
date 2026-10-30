@@ -175,6 +175,7 @@ export type SocietyScoreResponse = z.infer<typeof SocietyScoreResponseSchema>;
 
 export const PlatformStatsResponseSchema = z.object({
   verified_societies_count: z.number(),
+  listed_societies_count: z.number(),
   total_evidence_count: z.number(),
   cities_covered: z.array(z.string()),
   construction_materials_tracked: z.number(),
