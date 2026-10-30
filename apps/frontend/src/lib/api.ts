@@ -415,7 +415,7 @@ export async function fetchHousePlanImageFileUrl(
 export interface CandidateSociety {
   id: string;
   name: string;
-  regulator: 'CDA' | 'RDA' | 'LDA' | 'TMA' | 'OTHER';
+  regulator: 'CDA' | 'RDA' | 'LDA' | 'PDA' | 'TMA' | 'OTHER';
   city: string;
   status: 'NOT_STARTED' | 'IN_PROGRESS' | 'ONBOARDED';
   record_type: 'FACT';

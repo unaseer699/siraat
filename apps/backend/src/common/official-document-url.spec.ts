@@ -13,6 +13,10 @@ describe('officialDocumentUrl', () => {
     const url = 'https://lda.gop.pk/private_schemes/plu/img/schemes/464_Abdalian_Revised--2011-.jpg';
     expect(officialDocumentUrl(url)).toBe(url);
   });
+  it('accepts a PDA list page', () => {
+    const url = 'https://pda.kp.gov.pk/illegalsocieties';
+    expect(officialDocumentUrl(url)).toBe(url);
+  });
   it('accepts an RDA scheme map on its own storage host', () => {
     const url = 'https://pub-480f7399580a4e4496490b6a8bd298f6.r2.dev/societies_map/abc-Taj%20Residencia.jpg';
     expect(officialDocumentUrl(url)).toBe(url);

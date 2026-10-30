@@ -8,6 +8,7 @@ import { paginationButtonStyle } from '@/styles/pagination';
 import { fetchUnapprovedSchemes } from '@/lib/api';
 import { DANGER_RED, RADIUS } from '@/styles/tokens';
 import type { UnapprovedSchemeListResponse } from '@siraat/shared-types';
+import { OTHER_AUTHORITIES } from '../../lib/otherAuthorities';
 
 const PAGE_SIZE = 30;
 const RED_BG = '#fef2f2';
@@ -15,6 +16,7 @@ const RED_BORDER = '#fecaca';
 const AREAS_BY_REGULATOR: Record<string, string[]> = {
   CDA: ['Simly Dam Road', 'Lehtrar Road', 'Kuri Road', 'Park Road', 'Chakri Road', 'Adyala Road', 'Murree', 'Taxila', 'Bani Gala', 'Nilore'],
   RDA: ['Chakri Road', 'Adyala Road', 'Kallar Syedan Road', 'Gujar Khan', 'Taxila', 'Murree Road'],
+  PDA: ['Nasir Bagh Road', 'Warsak Road', 'G.T. Road', 'Ring Road', 'Charsadda Road'],
   LDA: ['Raiwind Road', 'Ferozepur Road', 'Barki Road', 'BRB Canal Road', 'Multan Road', 'G.T Road', 'Bedian Road', 'Canal Road'],
 };
 const ALL_AREAS = ['Simly Dam Road', 'Chakri Road', 'Adyala Road', 'Raiwind Road', 'Ferozepur Road', 'Barki Road', 'Multan Road', 'Murree'];
@@ -23,6 +25,7 @@ const REGULATORS: Array<{ key: string; label: string }> = [
   { key: 'CDA', label: 'CDA (Islamabad)' },
   { key: 'RDA', label: 'RDA (Rawalpindi)' },
   { key: 'LDA', label: 'LDA (Lahore)' },
+  { key: 'PDA', label: 'PDA (Peshawar)' },
 ];
 
 function formatDate(iso: string | null): string {
@@ -157,7 +160,7 @@ export default function IllegalSchemesPage() {
 
       {data && data.state === 'NOT_COVERED' && (
         <p style={{ color: 'var(--muted)', fontSize: '14px' }}>
-          No scheme on the {regulator || 'CDA, RDA or LDA'} list matches &ldquo;{q}&rdquo;. That does not mean it is approved — check the approved
+          No scheme on the {regulator || 'CDA, RDA, LDA or PDA'} list matches &ldquo;{q}&rdquo;. That does not mean it is approved — check the approved
           list or ask the regulator.
         </p>
       )}
@@ -193,6 +196,31 @@ export default function IllegalSchemesPage() {
           </button>
         </div>
       )}
+
+      <section
+        aria-label="Other authorities"
+        style={{ border: '1px solid var(--border)', borderRadius: RADIUS.md, padding: '14px 16px', fontSize: '13px', lineHeight: 1.5, background: '#fff' }}
+      >
+        <h2 style={{ fontSize: '15px', fontWeight: 700, margin: '0 0 4px' }}>Other cities: ask the authority</h2>
+        <p style={{ margin: '0 0 8px', color: 'var(--muted)' }}>
+          We do not hold these authorities&apos; approved or unapproved lists yet, so a scheme missing here says nothing about its status. Ask the
+          authority for the NOC before you pay.
+        </p>
+        <ul style={{ margin: 0, paddingLeft: '18px', display: 'flex', flexDirection: 'column', gap: '2px' }}>
+          {OTHER_AUTHORITIES.map((a) => (
+            <li key={a.short}>
+              <strong>{a.short}</strong> · {a.name} ({a.area}){' '}
+              {a.url ? (
+                <a href={a.url} target="_blank" rel="noopener noreferrer">
+                  Official site
+                </a>
+              ) : (
+                <span style={{ color: 'var(--muted)' }}>(official site to be added)</span>
+              )}
+            </li>
+          ))}
+        </ul>
+      </section>
     </main>
   );
 }
