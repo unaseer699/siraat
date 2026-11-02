@@ -6,6 +6,9 @@ const RULES: Array<{ topic: string; re: RegExp }> = [
   { topic: 'TRANSIT', re: /\b(ml-1|circular railway|orange line|metro ?bus|brt|green line|high-speed rail|new (international )?airport|airport (project|expansion|construction))\b/i },
   { topic: 'HOUSING', re: /\b(real estate|property (withholding tax|tax|market|sector|prices?|buyers|sellers|dealers)|stamp duty|housing (scheme|society|societies|project|projects|programme|program|finance|authority|units)|affordable housing|apni chh?at|apna ghar|mera ghar|new city|township|plot (prices?|auction|allotment))\b/i },
   { topic: 'POLICY', re: /\b(withholding tax|capital gains tax|housing finance|mortgage|reit)\b/i },
+  // Government action against illegal or unauthorised building and land. It changes
+  // what a buyer risks, so it counts even when it is not a new project.
+  { topic: 'ENFORCEMENT', re: /\b(encroachments?|anti-encroachment|demolition|demolish\w*|unauthori[sz]ed (structures?|construction|buildings?|housing|colon\w+|societ\w+|schemes?)|illegal (construction|housing|societ\w+|schemes?|colon\w+|plazas?|buildings?)|land grabb\w+|(buildings?|plazas?|societies|housing schemes?) (sealed|razed))\b/i },
 ];
 
 // An authority's name alone is not enough ("CDA issues notices at a politician's

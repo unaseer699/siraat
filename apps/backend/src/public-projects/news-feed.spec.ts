@@ -25,8 +25,13 @@ describe('relevance', () => {
     expect(classify('Budget cuts property withholding tax')).toEqual(expect.arrayContaining(['HOUSING', 'POLICY']));
     expect(classify('ECNEC approves housing scheme for low-income families')).toEqual(expect.arrayContaining(['HOUSING', 'AUTHORITY']));
   });
-  it('drops an authority name that appears with no development term', () => {
-    expect(classify("CDA issues notices over 'unauthorised structures' at a leader's residence")).toEqual([]);
+  it('keeps enforcement news that affects buyers', () => {
+    expect(classify("CDA issues notices over 'unauthorised structures' at a leader's residence")).toContain('ENFORCEMENT');
+    expect(classify('LDA launches anti-encroachment drive in Lahore')).toContain('ENFORCEMENT');
+    expect(classify('Illegal housing societies sealed in Rawalpindi')).toContain('ENFORCEMENT');
+  });
+  it('drops an authority name that appears with no development or enforcement term', () => {
+    expect(classify('CDA chairman attends wedding')).toEqual([]);
     expect(classify('CDA approves master plan for new sector')).toContain('AUTHORITY');
   });
   it('drops accident and unrelated stories', () => {
