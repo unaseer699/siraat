@@ -14,7 +14,7 @@ export class PublicProjectsScheduler {
   async daily(): Promise<void> {
     if (process.env.DISABLE_SCHEDULER === 'true') return;
     try {
-      await this.svc.refreshNews();
+      await this.svc.refreshNews('SCHEDULE');
     } catch (err) {
       this.logger.error(`Daily refresh failed: ${err instanceof Error ? err.message : err}`);
     }

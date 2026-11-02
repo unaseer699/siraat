@@ -33,7 +33,7 @@ export class PublicProjectsAdminController {
   // Same job the 08:00 schedule runs, for a manual run.
   @Post('refresh')
   refresh() {
-    return this.svc.refreshNews();
+    return this.svc.refreshNews('MANUAL');
   }
 
   @Post(':slug/events')

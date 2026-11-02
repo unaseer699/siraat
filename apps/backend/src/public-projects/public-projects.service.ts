@@ -4,6 +4,7 @@ import { In, Repository } from 'typeorm';
 import { PublicProjectEntity, type ProjectStatus } from './entities/public-project.entity';
 import { ProjectStatusEventEntity } from './entities/project-status-event.entity';
 import { NewsReportEntity } from './entities/news-report.entity';
+import { ProjectRefreshRunEntity } from './entities/project-refresh-run.entity';
 import { FEEDS, fetchFeed } from './news-feed';
 import { classify, matchProjects } from './relevance';
 
@@ -28,6 +29,7 @@ export class PublicProjectsService {
     @InjectRepository(PublicProjectEntity) private readonly projects: Repository<PublicProjectEntity>,
     @InjectRepository(ProjectStatusEventEntity) private readonly events: Repository<ProjectStatusEventEntity>,
     @InjectRepository(NewsReportEntity) private readonly reports: Repository<NewsReportEntity>,
+    @InjectRepository(ProjectRefreshRunEntity) private readonly runs: Repository<ProjectRefreshRunEntity>,
   ) {}
 
   async list(opts: { category?: string; q?: string }) {
@@ -84,7 +86,19 @@ export class PublicProjectsService {
       };
     });
 
-    const latestFetch = recent.reduce<Date | null>((m, r) => (!m || r.fetched_at > m ? r.fetched_at : m), null);
+    // Last time the job ran with at least one working feed. Falls back to the newest
+    // headline if the run log table is not there yet (migration 031 not applied).
+    let latestFetch = recent.reduce<Date | null>((m, r) => (!m || r.fetched_at > m ? r.fetched_at : m), null);
+    try {
+      const run = await this.runs
+        .createQueryBuilder('r')
+        .where('r.feeds_ok > 0')
+        .orderBy('r.finished_at', 'DESC')
+        .getOne();
+      if (run) latestFetch = run.finished_at;
+    } catch (err) {
+      this.logger.warn(`Run log unavailable: ${err instanceof Error ? err.message : err}`);
+    }
     const ageDays = latestFetch ? (Date.now() - latestFetch.getTime()) / 86400000 : null;
     return {
       state: projects.length > 0 ? ('FULL' as const) : ('NOT_COVERED' as const),
@@ -119,7 +133,8 @@ export class PublicProjectsService {
 
   // Daily job. Writes only to market_intelligence tables. One bad feed never
   // stops the others.
-  async refreshNews(): Promise<RefreshSummary> {
+  async refreshNews(trigger: 'SCHEDULE' | 'MANUAL' = 'SCHEDULE'): Promise<RefreshSummary> {
+    const startedAt = new Date();
     const summary: RefreshSummary = { feeds_ok: 0, feeds_failed: [], headlines_seen: 0, relevant: 0, inserted: 0 };
     const projs = await this.projects.find({ where: { is_active: true } });
     const seen = new Set<string>();
@@ -150,6 +165,19 @@ export class PublicProjectsService {
         summary.feeds_failed.push(`${feed.url}: ${err instanceof Error ? err.message : String(err)}`);
         this.logger.warn(`Feed failed ${feed.url}: ${err instanceof Error ? err.message : err}`);
       }
+    }
+    try {
+      await this.runs.insert({
+        started_at: startedAt,
+        trigger,
+        feeds_ok: summary.feeds_ok,
+        feeds_failed: summary.feeds_failed.length,
+        headlines_seen: summary.headlines_seen,
+        relevant: summary.relevant,
+        inserted: summary.inserted,
+      });
+    } catch (err) {
+      this.logger.warn(`Could not write run log: ${err instanceof Error ? err.message : err}`);
     }
     this.logger.log(`News refresh: ${JSON.stringify({ ...summary, feeds_failed: summary.feeds_failed.length })}`);
     return summary;
