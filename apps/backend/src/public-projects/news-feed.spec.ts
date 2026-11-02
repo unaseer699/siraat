@@ -25,6 +25,10 @@ describe('relevance', () => {
     expect(classify('Budget cuts property withholding tax')).toEqual(expect.arrayContaining(['HOUSING', 'POLICY']));
     expect(classify('ECNEC approves housing scheme for low-income families')).toEqual(expect.arrayContaining(['HOUSING', 'AUTHORITY']));
   });
+  it('drops an authority name that appears with no development term', () => {
+    expect(classify("CDA issues notices over 'unauthorised structures' at a leader's residence")).toEqual([]);
+    expect(classify('CDA approves master plan for new sector')).toContain('AUTHORITY');
+  });
   it('drops accident and unrelated stories', () => {
     expect(classify('Three killed in motorway accident')).toEqual([]);
     expect(classify('Cricket team wins final')).toEqual([]);
