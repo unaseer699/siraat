@@ -31,6 +31,10 @@ export class ProjectRefreshRunEntity {
   @Column({ type: 'int', default: 0 })
   inserted: number;
 
+  // Which feeds failed and why, one per line. NULL when all worked.
+  @Column({ type: 'text', nullable: true })
+  failed_feeds: string | null;
+
   @Column({ type: 'varchar', length: 10, default: 'FACT' })
   record_type: 'FACT';
 }

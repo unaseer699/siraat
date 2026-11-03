@@ -1,4 +1,4 @@
-import { parseFeed, decodeText } from './news-feed';
+import { parseFeed, decodeText, parsePidPress, FEEDS } from './news-feed';
 import { classify, matchProjects } from './relevance';
 
 const XML = `<rss><channel>
@@ -48,5 +48,23 @@ describe('relevance', () => {
     ];
     expect(matchProjects('Margalla Road link nears completion', projects)).toEqual(['a']);
     expect(matchProjects('Cabinet talks', projects)).toEqual([]);
+  });
+});
+
+describe('PID press list', () => {
+  const HTML = `<a href="https://pid.gov.pk/site/press_detail/34635" class="x"><p>PR No. 22  Minister visits &amp; meets CDA chairman on housing project</p></a>
+  <a href="https://pid.gov.pk/site/press_detail/34635" class="x">2026-11-02, 21:39:56</a>
+  <a href="https://pid.gov.pk/site/press_detail/34635">Read More</a>`;
+  it('reads title, link and Pakistan-time timestamp', () => {
+    expect(parsePidPress(HTML)).toEqual([
+      { title: 'PR No. 22 Minister visits & meets CDA chairman on housing project', url: 'https://pid.gov.pk/site/press_detail/34635', published_at: new Date('2026-11-02T16:39:56Z') },
+    ]);
+  });
+});
+
+describe('feed list', () => {
+  it('uses short outlet codes and unique urls', () => {
+    expect(new Set(FEEDS.map((f) => f.url)).size).toBe(FEEDS.length);
+    expect(FEEDS.every((f) => f.outlet.length <= 10)).toBe(true);
   });
 });

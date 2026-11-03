@@ -34,6 +34,21 @@ const STATUS_LABEL: Record<PublicProjectStatus, string> = {
 const fmtDate = (d: string | null) =>
   d ? new Date(d.length === 10 ? `${d}T00:00:00` : d).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : '';
 
+const OUTLET_NAME: Record<string, string> = {
+  ARY: 'ARY News',
+  GEO: 'Geo News',
+  APP: 'APP',
+  DAWN: 'Dawn',
+  TRIBUNE: 'Express Tribune',
+  THENEWS: 'The News',
+  BR: 'Business Recorder',
+  PROPAK: 'ProPakistani',
+  ZAMEEN: 'Zameen News',
+  AAJ: 'Aaj News',
+  PID: 'Govt press release (PID)',
+};
+const outletName = (o: string) => OUTLET_NAME[o] ?? o;
+
 const chip = { fontSize: '12px', padding: '2px 8px', borderRadius: '999px', border: '1px solid var(--border)', color: 'var(--muted)' } as const;
 
 function ProjectCard({ p }: { p: PublicProject }) {
@@ -64,7 +79,7 @@ function ProjectCard({ p }: { p: PublicProject }) {
         <ul style={{ margin: 0, paddingLeft: '18px', fontSize: '12px', lineHeight: 1.5 }}>
           {p.reports.map((r) => (
             <li key={r.url}>
-              <a href={r.url} target="_blank" rel="noopener noreferrer">{r.title}</a> <span style={{ color: 'var(--muted)' }}>({r.outlet}{r.published_at ? `, ${fmtDate(r.published_at)}` : ''})</span>
+              <a href={r.url} target="_blank" rel="noopener noreferrer">{r.title}</a> <span style={{ color: 'var(--muted)' }}>({outletName(r.outlet)}{r.published_at ? `, ${fmtDate(r.published_at)}` : ''})</span>
             </li>
           ))}
         </ul>
@@ -157,7 +172,7 @@ export default function ProjectsPage() {
         <h1 style={{ fontSize: '26px', fontWeight: 800, margin: 0 }}>Projects &amp; development</h1>
         <p style={{ fontSize: '13px', color: 'var(--muted)', marginTop: '4px', lineHeight: 1.5 }}>
           Roads, rail, new cities, housing programmes and tax changes across Pakistan, with status, dates and sources.
-          Headlines are picked up every day at 8 am from ARY, Geo and APP.
+          Headlines are picked up every day at 8 am from Pakistani news outlets and government press releases.
         </p>
       </div>
 
@@ -208,7 +223,7 @@ export default function ProjectsPage() {
             {data.latest_reports.map((r) => (
               <li key={r.url}>
                 <a href={r.url} target="_blank" rel="noopener noreferrer">{r.title}</a>{' '}
-                <span style={{ color: 'var(--muted)' }}>({r.outlet}{r.published_at ? `, ${fmtDate(r.published_at)}` : ''})</span>
+                <span style={{ color: 'var(--muted)' }}>({outletName(r.outlet)}{r.published_at ? `, ${fmtDate(r.published_at)}` : ''})</span>
               </li>
             ))}
           </ul>

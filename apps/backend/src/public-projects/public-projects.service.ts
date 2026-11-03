@@ -11,7 +11,7 @@ import { classify, matchProjects } from './relevance';
 export const STALENESS_THRESHOLD_DAYS = 3;
 
 const DISCLAIMER =
-  'Information gathered from official pages and from headlines of ARY, Geo and APP. It is not advice to buy and Siraat has not checked these projects unless a card says so. Dates often move: check the source yourself before you invest.';
+  'Information gathered from official pages, government press releases and headlines from Pakistani news outlets. It is not advice to buy and Siraat has not checked these projects unless a card says so. Dates often move: check the source yourself before you invest.';
 
 export interface RefreshSummary {
   feeds_ok: number;
@@ -166,18 +166,24 @@ export class PublicProjectsService {
         this.logger.warn(`Feed failed ${feed.url}: ${err instanceof Error ? err.message : err}`);
       }
     }
+    const row = {
+      started_at: startedAt,
+      trigger,
+      feeds_ok: summary.feeds_ok,
+      feeds_failed: summary.feeds_failed.length,
+      headlines_seen: summary.headlines_seen,
+      relevant: summary.relevant,
+      inserted: summary.inserted,
+    };
     try {
-      await this.runs.insert({
-        started_at: startedAt,
-        trigger,
-        feeds_ok: summary.feeds_ok,
-        feeds_failed: summary.feeds_failed.length,
-        headlines_seen: summary.headlines_seen,
-        relevant: summary.relevant,
-        inserted: summary.inserted,
-      });
-    } catch (err) {
-      this.logger.warn(`Could not write run log: ${err instanceof Error ? err.message : err}`);
+      await this.runs.insert({ ...row, failed_feeds: summary.feeds_failed.length ? summary.feeds_failed.join('\n') : null });
+    } catch {
+      // Migration 032 (failed_feeds column) may not be applied yet: log the run without it.
+      try {
+        await this.runs.createQueryBuilder().insert().into(ProjectRefreshRunEntity, ['started_at', 'trigger', 'feeds_ok', 'feeds_failed', 'headlines_seen', 'relevant', 'inserted']).values(row).execute();
+      } catch (err) {
+        this.logger.warn(`Could not write run log: ${err instanceof Error ? err.message : err}`);
+      }
     }
     this.logger.log(`News refresh: ${JSON.stringify({ ...summary, feeds_failed: summary.feeds_failed.length })}`);
     return summary;

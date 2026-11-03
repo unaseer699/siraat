@@ -32,6 +32,7 @@ export const REQUIRED_COLUMNS: Array<{ migration: string; schema: string; table:
   { migration: '029_illegal_schemes_note', schema: 'property_intelligence', table: 'illegal_schemes', column: 'note' },
   { migration: '030_public_projects', schema: 'market_intelligence', table: 'public_projects', column: 'slug' },
   { migration: '031_project_refresh_runs', schema: 'market_intelligence', table: 'project_refresh_runs', column: 'finished_at' },
+  { migration: '032_refresh_run_failures', schema: 'market_intelligence', table: 'project_refresh_runs', column: 'failed_feeds' },
 ];
 
 export function findMissingSchemas(present: string[]): string[] {
